@@ -2088,8 +2088,7 @@ class Economy(commands.Cog):
 
         # Getting list
         get_userinfo = await self.db.economy_get_user(
-            str(ctx.author.id),
-            "{}#{}".format(ctx.author.name, ctx.author.discriminator),
+            str(ctx.author.id), f"{ctx.author.name}#{ctx.author.discriminator}"
         )
         if get_userinfo:
             if get_userinfo["fishing_bait"] >= self.eco_max_bait[
@@ -2115,10 +2114,7 @@ class Economy(commands.Cog):
                 return
             elif get_userinfo["numb_chicken_farm"] >= self.bot.config["economy"][
                 "max_chickenfarm_per_user"
-            ] and (
-                item_name.upper() == "CHICKENFARM"
-                or item_name.upper() == "CHICKEN FARM"
-            ):
+            ] and item_name.upper() in ["CHICKENFARM", "CHICKEN FARM"]:
                 await ctx.edit_original_message(
                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, you have a chicken farm already."
                 )
@@ -2249,12 +2245,11 @@ class Economy(commands.Cog):
                             )
                             e.set_thumbnail(url=ctx.author.display_avatar)
                             msg = await ctx.edit_original_message(content=None, embed=e)
-                            return
                         else:
                             await ctx.edit_original_message(
                                 content=f"{EMOJI_RED_NO} {ctx.author.mention}, there is no item in our shop."
                             )
-                            return
+                        return
                     elif item_name.upper() == "CREDIT":
                         # Using gem instead of credit
                         get_shop_item = await self.db.economy_shop_get_item(item_name)
@@ -2284,7 +2279,7 @@ class Economy(commands.Cog):
                                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, you do not have sufficient gem. Having only `{user_credit}`. Need `{need_credit}`."
                                 )
                                 return
-                            elif level < get_shop_item["limit_level"]:
+                            elif level < needed_level:
                                 await ctx.edit_original_message(
                                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, your level `{level}` is still low. Needed level `{str(needed_level)}`."
                                 )
@@ -2336,12 +2331,10 @@ class Economy(commands.Cog):
                                 await ctx.edit_original_message(
                                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, you do not have sufficient credit. Having only `{user_credit}`. Need `{need_credit}`."
                                 )
-                                return
-                            elif level < get_shop_item["limit_level"]:
+                            elif level < needed_level:
                                 await ctx.edit_original_message(
                                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, your level `{level}`  is still low. Needed level `{str(needed_level)}`."
                                 )
-                                return
                             elif (
                                 need_fishing_exp > 0
                                 and your_fishing_exp < need_fishing_exp
@@ -2349,7 +2342,6 @@ class Economy(commands.Cog):
                                 await ctx.edit_original_message(
                                     content=f"{EMOJI_RED_NO} {ctx.author.mention}, your fishing exp `{your_fishing_exp}`  is still low. Needed fishing exp `{str(need_fishing_exp)}`."
                                 )
-                                return
                             else:
                                 # Make order
                                 item_numbers = get_shop_item["item_numbers"]
@@ -2418,17 +2410,15 @@ class Economy(commands.Cog):
                                     await ctx.edit_original_message(
                                         content=f"{ctx.author.mention}, {EMOJI_INFORMATION}, you successfully purchased {item_desc}."
                                     )
-                                    return
                                 else:
                                     await ctx.edit_original_message(
                                         content=f"{ctx.author.mention}, {EMOJI_INFORMATION} internal error {item_desc}."
                                     )
-                                    return
                         else:
                             await ctx.edit_original_message(
                                 content=f"{EMOJI_RED_NO} {ctx.author.mention} item `{item_name}` is not available."
                             )
-                            return
+                        return
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                     await logchanbot(traceback.format_exc())

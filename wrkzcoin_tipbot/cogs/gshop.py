@@ -39,7 +39,7 @@ async def external_get_guild_role_shop_items(guild_id: str):
                     return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("gshop " + str(traceback.format_exc()))
+        await logchanbot(f"gshop {str(traceback.format_exc())}")
     return []
 
 
@@ -54,11 +54,9 @@ class GShop(commands.Cog):
         self.max_ordered_max = 1000
         self.botLogChan = None
 
-    async def autocomplete_item_idx(ctx, string: str) -> List[str]:
-        if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
-            get_guild_items = await external_get_guild_role_shop_items(
-                str(ctx.guild.id)
-            )
+    async def autocomplete_item_idx(self, string: str) -> List[str]:
+        if hasattr(self, "guild") and hasattr(self.guild, "id"):
+            get_guild_items = await external_get_guild_role_shop_items(str(self.guild.id))
             if len(get_guild_items) > 0:
                 return [
                     each["item_id"]
@@ -134,21 +132,13 @@ class GShop(commands.Cog):
                                 if expiring is True:
                                     try:
                                         await member.send(
-                                            "Your role purchased item_id: `{}` in Guild `{}` is expired.".format(
-                                                each_order["item_id"], guild.name
-                                            )
+                                            f'Your role purchased item_id: `{each_order["item_id"]}` in Guild `{guild.name}` is expired.'
                                         )
                                     except Exception:
                                         traceback.print_exc(file=sys.stdout)
                                     try:
                                         await guild.owner.send(
-                                            "Please fix! TipBot has no permission to assign role `{}`! User `{}#{}` s' purchased role item_id: `{}` in Guild `{}` is expired.".format(
-                                                role.name,
-                                                member.name,
-                                                member.discriminator,
-                                                each_order["item_id"],
-                                                guild.name,
-                                            )
+                                            f"""Please fix! TipBot has no permission to assign role `{role.name}`! User `{member.name}#{member.discriminator}` s' purchased role item_id: `{each_order["item_id"]}` in Guild `{guild.name}` is expired."""
                                         )
                                     except Exception:
                                         traceback.print_exc(file=sys.stdout)
@@ -170,20 +160,13 @@ class GShop(commands.Cog):
                                     if expiring is True:
                                         try:
                                             await member.send(
-                                                "Your role purchased item_id: `{}` in Guild `{}` is expired.".format(
-                                                    each_order["item_id"], guild.name
-                                                )
+                                                f'Your role purchased item_id: `{each_order["item_id"]}` in Guild `{guild.name}` is expired.'
                                             )
                                         except Exception:
                                             traceback.print_exc(file=sys.stdout)
                                         try:
                                             await guild.owner.send(
-                                                "User `{}#{}` s' purchased role item_id: `{}` in Guild `{}` is expired.".format(
-                                                    member.name,
-                                                    member.discriminator,
-                                                    each_order["item_id"],
-                                                    guild.name,
-                                                )
+                                                f"""User `{member.name}#{member.discriminator}` s' purchased role item_id: `{each_order["item_id"]}` in Guild `{guild.name}` is expired."""
                                             )
                                         except Exception:
                                             traceback.print_exc(file=sys.stdout)
@@ -231,7 +214,7 @@ class GShop(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     async def get_guild_role_shop_items(self, guild_id: str):
@@ -249,7 +232,7 @@ class GShop(commands.Cog):
                         return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return []
 
     async def get_guild_role_shop_by_item_id(self, item_id: str, guild_id: str):
@@ -267,7 +250,7 @@ class GShop(commands.Cog):
                         return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return None
 
     async def add_guild_role_shop(
@@ -315,7 +298,7 @@ class GShop(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     async def delete_guild_role_shop(
@@ -331,12 +314,6 @@ class GShop(commands.Cog):
                     await cur.execute(sql, (item_id, guild_id))
                     result = await cur.fetchone()
                     if result:
-                        sql = """ INSERT INTO `discord_guild_role_shop_deleted` (`item_id`, `guild_id`, 
-                        `role_id`, `role_name`, `duration`, `token_name`, `token_decimal`, 
-                        `real_amount`, `max_slot`, `already_ordered`, `created_date`, 
-                        `created_by_uid`, `created_by_uname`, `deleted_date`, `deleted_by_uid`) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-                        """
                         delete_arg = [
                             item_id,
                             guild_id,
@@ -354,16 +331,24 @@ class GShop(commands.Cog):
                             int(time.time()),
                             deleted_by_uid,
                         ]
-                        sql += """ DELETE FROM `discord_guild_role_shop` 
+                        sql = (
+                            """ INSERT INTO `discord_guild_role_shop_deleted` (`item_id`, `guild_id`, 
+                        `role_id`, `role_name`, `duration`, `token_name`, `token_decimal`, 
+                        `real_amount`, `max_slot`, `already_ordered`, `created_date`, 
+                        `created_by_uid`, `created_by_uname`, `deleted_date`, `deleted_by_uid`) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                        """
+                            + """ DELETE FROM `discord_guild_role_shop` 
                         WHERE `item_id`=%s LIMIT 1;
                         """
+                        )
                         delete_arg += [item_id]
                         await cur.execute(sql, tuple(delete_arg))
                         await conn.commit()
                         return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     async def get_guild_role_ordered_list(self, is_expired: int):
@@ -382,7 +367,7 @@ class GShop(commands.Cog):
                         return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return []
 
     async def check_exist_role_ordered(
@@ -405,7 +390,7 @@ class GShop(commands.Cog):
                         return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     async def check_exist_role_item_id(self, item_id, guild_id):
@@ -423,7 +408,7 @@ class GShop(commands.Cog):
                         return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     async def guild_role_ordered(
@@ -484,7 +469,7 @@ class GShop(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("gshop " + str(traceback.format_exc()))
+            await logchanbot(f"gshop {str(traceback.format_exc())}")
         return False
 
     @commands.guild_only()
@@ -790,7 +775,7 @@ class GShop(commands.Cog):
                         coin_name,
                         coin_decimal,
                         str(member.id),
-                        "{}#{}".format(member.name, member.discriminator),
+                        f"{member.name}#{member.discriminator}",
                         renewed_date,
                         expired_date,
                         0,
@@ -846,7 +831,7 @@ class GShop(commands.Cog):
                             # Assign role
                             await member.add_roles(role)
                             duration = seconds_str_days(item_info["duration"])
-                            cost = "{} {}".format(num_format_coin(amount), coin_name)
+                            cost = f"{num_format_coin(amount)} {coin_name}"
                             msg = (
                                 f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully purchased item "
                                 f"`{item_id}` {additional_msg}costs `{cost}` with role `{role.name}` for period {duration}!"

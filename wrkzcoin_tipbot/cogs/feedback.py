@@ -146,10 +146,10 @@ class FeedbackAdd(disnake.ui.Modal):
             return
 
         # We have enough data, let's add
-        feedback_id = "".join(random.choice(ascii_uppercase) for i in range(8))
+        feedback_id = "".join(random.choice(ascii_uppercase) for _ in range(8))
         add = await sql_feedback_add(
             str(inter.author.id),
-            "{}#{}".format(inter.author.name, inter.author.discriminator),
+            f"{inter.author.name}#{inter.author.discriminator}",
             feedback_id,
             topic,
             desc_id,
@@ -215,17 +215,12 @@ class BotFeedback(commands.Cog):
             await ctx.edit_original_message(content="There is no records of feedback!")
             return
         else:
-            list_fb = []
-            for i in get_feedbacks:
-                list_fb.append(
-                    "topic: {}, ref: {}, from: <@{}>".format(
-                        i["topic"], i["feedback_id"], i["user_id"]
-                    )
-                )
+            list_fb = [
+                f'topic: {i["topic"]}, ref: {i["feedback_id"]}, from: <@{i["user_id"]}>'
+                for i in get_feedbacks
+            ]
             list_chunks = list(chunks(list_fb, 5))
-            await ctx.edit_original_message(
-                content="The {} records:".format(len(get_feedbacks))
-            )
+            await ctx.edit_original_message(content=f"The {len(get_feedbacks)} records:")
             for i in list_chunks:
                 list_fb_str = "\n----\n".join(i)
                 await ctx.followup.send(list_fb_str)
@@ -259,11 +254,7 @@ class BotFeedback(commands.Cog):
             try:
                 embed = disnake.Embed(
                     title="Feedback with TipBot",
-                    description="Given by <@{}> ref: {} <t:{}:f>".format(
-                        get_fb["user_id"],
-                        get_fb["feedback_id"],
-                        get_fb["feedback_date"],
-                    ),
+                    description=f'Given by <@{get_fb["user_id"]}> ref: {get_fb["feedback_id"]} <t:{get_fb["feedback_date"]}:f>',
                     timestamp=datetime.now(),
                 )
                 embed.add_field(
@@ -278,9 +269,7 @@ class BotFeedback(commands.Cog):
                     name="Contact", value=get_fb["howto_contact_back"], inline=False
                 )
                 embed.set_footer(
-                    text="Requested by: {}#{}".format(
-                        ctx.author.name, ctx.author.discriminator
-                    )
+                    text=f"Requested by: {ctx.author.name}#{ctx.author.discriminator}"
                 )
                 embed.set_thumbnail(url=self.bot.user.display_avatar)
                 await ctx.edit_original_message(content=None, embed=embed)
