@@ -718,17 +718,13 @@ async def get_summary_detail(slug: str, request: Request):
             getattr(app.coin_list, liq_pair["pool"]["ticker_1_name"]),
             "cexswap_max_swap_percent",
         )
-        max_swap_sell_cap_1 = percent_sell * float(
-            liq_pair["pool"]["amount_ticker_1"]
-        )
+        max_swap_sell_cap_1 = percent_sell * float(liq_pair["pool"]["amount_ticker_1"])
 
         percent_sell = getattr(
             getattr(app.coin_list, liq_pair["pool"]["ticker_2_name"]),
             "cexswap_max_swap_percent",
         )
-        max_swap_sell_cap_2 = percent_sell * float(
-            liq_pair["pool"]["amount_ticker_2"]
-        )
+        max_swap_sell_cap_2 = percent_sell * float(liq_pair["pool"]["amount_ticker_2"])
 
         return {
             "success": True,
@@ -758,12 +754,8 @@ async def get_summary_detail(slug: str, request: Request):
                     liq_pair["pool"]["ticker_2_name"]: truncate(cexswap_min_2, 8),
                 },
                 "maxium": {
-                    liq_pair["pool"]["ticker_1_name"]: truncate(
-                        max_swap_sell_cap_1, 8
-                    ),
-                    liq_pair["pool"]["ticker_2_name"]: truncate(
-                        max_swap_sell_cap_2, 8
-                    ),
+                    liq_pair["pool"]["ticker_1_name"]: truncate(max_swap_sell_cap_1, 8),
+                    liq_pair["pool"]["ticker_2_name"]: truncate(max_swap_sell_cap_2, 8),
                 },
             },
             "time": int(time.time()),

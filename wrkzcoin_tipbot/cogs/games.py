@@ -755,7 +755,7 @@ class Maze_Buttons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = 'You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max).'
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             for child in self.children:
                 if isinstance(child, disnake.ui.Button):
@@ -885,7 +885,7 @@ class Maze_Buttons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = 'You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max).'
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             for child in self.children:
                 if isinstance(child, disnake.ui.Button):

@@ -2413,9 +2413,7 @@ class DropdownLP(disnake.ui.StringSelect):
             disnake.SelectOption(
                 label=each,
                 description=f"Select {each}",
-                emoji=getattr(
-                    getattr(self.bot.coin_list, each), "coin_emoji_discord"
-                ),
+                emoji=getattr(getattr(self.bot.coin_list, each), "coin_emoji_discord"),
             )
             for each in self.list_chunks
         ]
