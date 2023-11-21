@@ -220,7 +220,9 @@ class BotFeedback(commands.Cog):
                 for i in get_feedbacks
             ]
             list_chunks = list(chunks(list_fb, 5))
-            await ctx.edit_original_message(content=f"The {len(get_feedbacks)} records:")
+            await ctx.edit_original_message(
+                content=f"The {len(get_feedbacks)} records:"
+            )
             for i in list_chunks:
                 list_fb_str = "\n----\n".join(i)
                 await ctx.followup.send(list_fb_str)

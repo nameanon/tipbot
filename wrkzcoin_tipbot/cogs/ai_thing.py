@@ -799,7 +799,9 @@ class AiThing(commands.Cog):
                     command = f'ffmpeg -i {path + saved_name + ".wav"} {path + saved_name + ".mp3"}; ffmpeg -i {path + saved_name + ".mp3"} -filter_complex "[0:a]showwaves=s=640x360:mode=cline:r=30,colorkey=0x000000:0.01:0.1,format=yuv420p[vid]" -map "[vid]" -map 0:a -codec:v libx264 -crf 18 -c:a copy {path + saved_name + ".mp4"}'
                     process_video = subprocess.Popen(command, shell=True)
                     process_video.wait(timeout=30000)  # 30s waiting
-                    file = disnake.File(path + saved_name + ".mp4", filename=f"{saved_name}.mp4")
+                    file = disnake.File(
+                        path + saved_name + ".mp4", filename=f"{saved_name}.mp4"
+                    )
                     duration = int(time.time() - start_time)
                     file_size = os.stat(path + saved_name + ".mp4")  # byte
                     if file_size.st_size >= self.bot.config["aithing"]["max_size"]:

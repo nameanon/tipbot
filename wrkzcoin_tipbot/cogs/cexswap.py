@@ -1206,14 +1206,10 @@ async def cexswap_sold_by_api(
             cexswap_max_swap_percent_sell = getattr(
                 getattr(coin_list, sell_token), "cexswap_max_swap_percent"
             )
-            max_swap_sell_cap = cexswap_max_swap_percent_sell * float(
-                amount_liq_sell
-            )
+            max_swap_sell_cap = cexswap_max_swap_percent_sell * float(amount_liq_sell)
 
-                # Check if amount is more than liquidity
-            if truncate(amount_sell, 8) > truncate(
-                float(max_swap_sell_cap), 8
-            ):
+            # Check if amount is more than liquidity
+            if truncate(amount_sell, 8) > truncate(float(max_swap_sell_cap), 8):
                 msg = (
                     f"The given amount {amount_sell}"
                     f" is more than allowable 10% of liquidity {num_format_coin(max_swap_sell_cap)} {sell_token}."
@@ -1351,9 +1347,7 @@ async def cexswap_sold_by_api(
                     + truncate(got_fee_liquidators, 12)
                     + truncate(got_fee_guild, 12)
                 )
-                user_amount_get = num_format_coin(
-                    truncate(amount_get - float(fee), 12)
-                )
+                user_amount_get = num_format_coin(truncate(amount_get - float(fee), 12))
                 user_amount_sell = num_format_coin(amount_sell)
                 coin_decimal = getattr(getattr(coin_list, for_token), "decimal")
 

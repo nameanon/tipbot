@@ -404,7 +404,7 @@ class BlackJackButtons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = 'You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max).'
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             dealer_get_display = blackjack_displayHands(
                 self.playerHand, self.dealerHand, True

@@ -2180,7 +2180,7 @@ class Utils(commands.Cog):
         try:
             id_gecko = getattr(getattr(self.bot.coin_list, coin_name), "id_gecko")
             id_paprika = getattr(getattr(self.bot.coin_list, coin_name), "id_paprika")
-            id_cmc = getattr(getattr(self.bot.coin_list, coin_name), "id_cmc")
+            getattr(getattr(self.bot.coin_list, coin_name), "id_cmc")
             if source == "PAPRIKA":
                 coin_name = id_paprika
                 try:

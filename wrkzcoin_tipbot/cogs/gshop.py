@@ -56,7 +56,9 @@ class GShop(commands.Cog):
 
     async def autocomplete_item_idx(self, string: str) -> List[str]:
         if hasattr(self, "guild") and hasattr(self.guild, "id"):
-            get_guild_items = await external_get_guild_role_shop_items(str(self.guild.id))
+            get_guild_items = await external_get_guild_role_shop_items(
+                str(self.guild.id)
+            )
             if len(get_guild_items) > 0:
                 return [
                     each["item_id"]
