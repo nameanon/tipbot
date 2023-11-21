@@ -1441,14 +1441,22 @@ async def cexswap_sold(
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                # Add sell coin to liq
-                # Remove got coin from liq
-                # Update pool_share
-                # Add got coin to user
-                # Remove sell coin from user
-                # Distribute %
-                # TODO: remove this, use trigger instead
-                sql = """
+                data_rows = [
+                    amount_sell,
+                    sell_ticker,
+                    pool_id,
+                    amount_sell,
+                    sell_ticker,
+                    pool_id,
+                    amount_get,
+                    got_ticker,
+                    pool_id,
+                    amount_get,
+                    got_ticker,
+                    pool_id,
+                ]
+                sql = (
+                    """
                 UPDATE `cexswap_pools`
                 SET `amount_ticker_1`=`amount_ticker_1`+%s
                 WHERE `ticker_1_name`=%s AND `pool_id`=%s;
@@ -1465,23 +1473,7 @@ async def cexswap_sold(
                 SET `amount_ticker_2`=`amount_ticker_2`-%s
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
-                data_rows = [
-                    float(amount_sell),
-                    sell_ticker,
-                    pool_id,
-                    float(amount_sell),
-                    sell_ticker,
-                    pool_id,
-                    float(amount_get),
-                    got_ticker,
-                    pool_id,
-                    float(amount_get),
-                    got_ticker,
-                    pool_id,
-                ]
-                ### END TODO
-
-                sql += """
+                    + """
                 UPDATE `cexswap_pools_share`
                 SET `amount_ticker_1`=`amount_ticker_1`+%s*`amount_ticker_1`
                 WHERE `ticker_1_name`=%s AND `pool_id`=%s;
@@ -1490,11 +1482,12 @@ async def cexswap_sold(
                 SET `amount_ticker_2`=`amount_ticker_2`+%s*`amount_ticker_2`
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
+                )
                 data_rows += [
-                    float(amount_sell) / float(pool_amount_sell),
+                    amount_sell / pool_amount_sell,
                     sell_ticker,
                     pool_id,
-                    float(amount_sell) / float(pool_amount_sell),
+                    amount_sell / pool_amount_sell,
                     sell_ticker,
                     pool_id,
                 ]
@@ -1509,10 +1502,10 @@ async def cexswap_sold(
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
                 data_rows += [
-                    float(amount_get) / float(pool_amount_get),
+                    amount_get / pool_amount_get,
                     got_ticker,
                     pool_id,
-                    float(amount_get) / float(pool_amount_get),
+                    amount_get / pool_amount_get,
                     got_ticker,
                     pool_id,
                 ]
@@ -1536,15 +1529,15 @@ async def cexswap_sold(
                     user_id,
                     sell_ticker,
                     SERVER_BOT,
-                    -float(amount_sell),
+                    -amount_sell,
                     int(time.time()),
                     user_id,
                     got_ticker,
                     SERVER_BOT,
-                    float(amount_get)
-                    - float(got_fee_dev)
-                    - float(got_fee_liquidators)
-                    - float(got_fee_guild),
+                    amount_get
+                    - got_fee_dev
+                    - got_fee_liquidators
+                    - got_fee_guild,
                     int(time.time()),
                 ]
 
@@ -1568,12 +1561,12 @@ async def cexswap_sold(
                     "SYSTEM",
                     got_ticker,
                     SERVER_BOT,
-                    float(got_fee_dev),
+                    got_fee_dev,
                     int(time.time()),
                     guild_id,
                     got_ticker,
                     SERVER_BOT,
-                    float(got_fee_guild),
+                    got_fee_guild,
                     int(time.time()),
                 ]
 
@@ -1587,17 +1580,17 @@ async def cexswap_sold(
                 """
                 data_rows += [
                     pool_id,
-                    "{}->{}".format(sell_ticker, got_ticker),
+                    f"{sell_ticker}->{got_ticker}",
                     ref_log,
                     sell_ticker,
-                    float(amount_sell),
-                    float(amount_sell) * float(per_unit_sell) if per_unit_sell else 0.0,
+                    amount_sell,
+                    amount_sell * per_unit_sell if per_unit_sell else 0.0,
                     guild_id,
-                    float(amount_get),
-                    float(amount_get) * float(per_unit_get) if per_unit_get else 0.0,
-                    float(got_fee_dev),
-                    float(got_fee_liquidators),
-                    float(got_fee_guild),
+                    amount_get,
+                    amount_get * per_unit_get if per_unit_get else 0.0,
+                    got_fee_dev,
+                    got_fee_liquidators,
+                    got_fee_guild,
                     got_ticker,
                     user_id,
                     user_server,
@@ -1632,9 +1625,9 @@ async def cexswap_sold(
                             sell_id,
                             pool_id,
                             got_ticker,
-                            float(amount_get),
+                            amount_get,
                             each[0],
-                            float(each[0]) * float(per_unit_get),
+                            float(each[0]) * per_unit_get,
                             each[1],
                             each[2],
                             int(time.time()),
@@ -1661,7 +1654,7 @@ async def cexswap_sold(
                             guild_id,
                             channel_id,
                             each[0],
-                            each[0] * float(per_unit_get),
+                            each[0] * per_unit_get,
                             coin_decimal,
                             "CEXSWAPLP",
                             int(time.time()),
@@ -1682,8 +1675,8 @@ async def cexswap_sold(
                             guild_id,
                             guild_id,
                             channel_id,
-                            float(got_fee_guild),
-                            float(got_fee_guild) * float(per_unit_get),
+                            got_fee_guild,
+                            got_fee_guild * per_unit_get,
                             coin_decimal,
                             "CEXSWAPLP",
                             int(time.time()),
@@ -1701,7 +1694,7 @@ async def cexswap_sold(
                     `balance`=`balance`+VALUES(`balance`),
                     `update_date`=VALUES(`update_date`);
                 """
-                if len(credit_lp) > 0:
+                if credit_lp:
                     await cur.executemany(sql, credit_lp)
                 await conn.commit()
                 return True
@@ -1760,26 +1753,6 @@ async def cexswap_insert_new(
                     pool_id = cur.lastrowid
 
                 if pool_id is not None:
-                    sql = """
-                    INSERT INTO `cexswap_pools_share`
-                    (`pool_id`, `pairs`, `amount_ticker_1`, `ticker_1_name`,
-                    `amount_ticker_2`, `ticker_2_name`, `user_id`, `user_server`,
-                    `updated_date`)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY 
-                        UPDATE 
-                        `amount_ticker_1`=amount_ticker_1+VALUES(`amount_ticker_1`),
-                        `amount_ticker_2`=amount_ticker_2+VALUES(`amount_ticker_2`),
-                        `updated_date`=VALUES(`updated_date`);
-                    
-                    INSERT INTO `cexswap_add_remove_logs`
-                    (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s);
-
-                    INSERT INTO `cexswap_add_remove_logs`
-                    (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s);
-                    """
                     data_row = [
                         pool_id,
                         pairs,
@@ -1805,8 +1778,28 @@ async def cexswap_insert_new(
                         amount_ticker_2,
                         ticker_2_name,
                     ]
-                    # Insert new pool share
-                    sql += """
+                    sql = (
+                        """
+                    INSERT INTO `cexswap_pools_share`
+                    (`pool_id`, `pairs`, `amount_ticker_1`, `ticker_1_name`,
+                    `amount_ticker_2`, `ticker_2_name`, `user_id`, `user_server`,
+                    `updated_date`)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY 
+                        UPDATE 
+                        `amount_ticker_1`=amount_ticker_1+VALUES(`amount_ticker_1`),
+                        `amount_ticker_2`=amount_ticker_2+VALUES(`amount_ticker_2`),
+                        `updated_date`=VALUES(`updated_date`);
+                    
+                    INSERT INTO `cexswap_add_remove_logs`
+                    (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+
+                    INSERT INTO `cexswap_add_remove_logs`
+                    (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    """
+                        + """
                     INSERT INTO `user_balance_mv_data`
                     (`user_id`, `token_name`, `user_server`, `balance`, `update_date`)
                     VALUES (%s, %s, %s, %s, %s)
@@ -1821,6 +1814,7 @@ async def cexswap_insert_new(
                         `balance`=`balance`+VALUES(`balance`),
                         `update_date`=VALUES(`update_date`);
                     """
+                    )
                     data_row += [
                         user_id,
                         ticker_1_name,
@@ -1834,7 +1828,7 @@ async def cexswap_insert_new(
                         int(time.time()),
                     ]
                     # TODO using trigger instead
-                    if existing_pool is True:
+                    if existing_pool:
                         sql += """ UPDATE `cexswap_pools` 
                         SET `amount_ticker_1`=`amount_ticker_1`+%s,
                             `amount_ticker_2`=`amount_ticker_2`+%s,
@@ -2085,7 +2079,7 @@ class Dropdown_Vol_Fee(disnake.ui.StringSelect):
 
         options = [
             disnake.SelectOption(
-                label=each.lower(), description="Select {}".format(each.lower())
+                label=each.lower(), description=f"Select {each.lower()}"
             )
             for each in ["1D", "7D", "30D"]
         ]
@@ -2106,8 +2100,8 @@ class Dropdown_Vol_Fee(disnake.ui.StringSelect):
         else:
             self.embed.clear_fields()
             self.embed.add_field(
-                name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
-                value="{}".format(", ".join(self.bot.cexswap_coins)),
+                name=f"Coins with CEXSwap: {len(self.bot.cexswap_coins)}",
+                value=f'{", ".join(self.bot.cexswap_coins)}',
                 inline=False,
             )
             self.embed.add_field(
@@ -2177,7 +2171,7 @@ class ViewSummary(disnake.ui.View):
         self.lp_sorted_key = lp_sorted_key
         self.selected_duration = selected_duration
 
-        if has_dropdown is True:
+        if has_dropdown:
             self.add_item(
                 Dropdown_Vol_Fee(
                     self.ctx,
@@ -2240,8 +2234,8 @@ class ViewSummary(disnake.ui.View):
         else:
             self.embed.clear_fields()
             self.embed.add_field(
-                name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
-                value="{}".format(", ".join(self.bot.cexswap_coins)),
+                name=f"Coins with CEXSwap: {len(self.bot.cexswap_coins)}",
+                value=f'{", ".join(self.bot.cexswap_coins)}',
                 inline=False,
             )
             for i in self.lp_sorted_key[
@@ -2254,9 +2248,7 @@ class ViewSummary(disnake.ui.View):
                         self.lp_in_usd[i]["ticker_1_name"],
                         self.lp_in_usd[i]["amount_ticker_2"],
                         self.lp_in_usd[i]["ticker_2_name"],
-                        "\n~{}{}".format(
-                            truncate(self.lp_in_usd[i]["value_usd"], 2), " USD"
-                        )
+                        f'\n~{truncate(self.lp_in_usd[i]["value_usd"], 2)} USD'
                         if self.lp_in_usd[i]["value_usd"] > 0
                         else "",
                     ),
