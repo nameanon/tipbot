@@ -84,7 +84,7 @@ class BFDBotVote(commands.Cog):
                                     await log_to_channel(
                                         "vote",
                                         f"[{SERVER_BOT}] User <@{user_vote}> voted for bot "\
-                                        f"<@{vote_to}> type `{type_vote}` but less than 1h."
+                                            f"<@{vote_to}> type `{type_vote}` but less than 1h."
                                     )
                                     return web.Response(text="Thank you!")
                             except Exception:
@@ -98,7 +98,7 @@ class BFDBotVote(commands.Cog):
                                     await log_to_channel(
                                         "vote",
                                         f"[{SERVER_BOT}] User <@{user_vote}> voted a bot <@{vote_to}> type `{type_vote}` "\
-                                        "in botsfordiscord.com."
+                                            "in botsfordiscord.com."
                                     )
                                     if int(vote_to) == self.bot.config['discord']['bot_id']:
                                         # It's TipBot
@@ -118,7 +118,7 @@ class BFDBotVote(commands.Cog):
                                                 coin_name = get_user_coin['coin_name']
                                                 for each_coin in list_coins:
                                                     if each_coin['coin_name'].upper() == coin_name.upper() and \
-                                                            each_coin['reward_for'] == "botsfordiscord":
+                                                                each_coin['reward_for'] == "botsfordiscord":
                                                         coin_name = each_coin['coin_name'].upper()
                                                         amount = each_coin['reward_amount']
                                                         break
@@ -163,7 +163,7 @@ class BFDBotVote(commands.Cog):
                                                         await log_to_channel(
                                                             "vote",
                                                             f"[{SERVER_BOT}] vote reward for but "\
-                                                            f"TipBot for {coin_name} but empty!!!"
+                                                                f"TipBot for {coin_name} but empty!!!"
                                                         )
                                                         return web.Response(text="Thank you!")
                                                     else:
@@ -206,9 +206,9 @@ class BFDBotVote(commands.Cog):
                                                                         traceback.print_exc(file=sys.stdout)
                                                                 # end advert
                                                                 msg = f"Thank you for voting for our TipBot at "\
-                                                                    f"<{self.bot.config['bot_vote_link']['botsfordiscord']}>. "\
-                                                                    f"You got a reward {num_format_coin(amount)} {coin_name}."\
-                                                                    f" Check with `/claim` for voting list at other websites.{advert_txt}"
+                                                                        f"<{self.bot.config['bot_vote_link']['botsfordiscord']}>. "\
+                                                                        f"You got a reward {num_format_coin(amount)} {coin_name}."\
+                                                                        f" Check with `/claim` for voting list at other websites.{advert_txt}"
                                                                 try:
                                                                     await member.send(msg)
                                                                 except (
@@ -222,7 +222,7 @@ class BFDBotVote(commands.Cog):
                                                                     channel = self.bot.get_channel(self.reward_channel)
                                                                     try:
                                                                         coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
-                                                                        coin_emoji = coin_emoji + " " if coin_emoji else ""
+                                                                        coin_emoji = f"{coin_emoji} " if coin_emoji else ""
                                                                         if channel and channel.guild.get_member(int(self.bot.user.id)).guild_permissions.external_emojis is False:
                                                                             coin_emoji = ""
                                                                     except Exception:
@@ -262,9 +262,9 @@ class BFDBotVote(commands.Cog):
                                                 # User didn't put any prefer coin. Message him he could reward
                                                 if member is not None:
                                                     msg = f"Thank you for voting for our TipBot at "\
-                                                        f"<{self.bot.config['bot_vote_link']['botsfordiscord']}>. "\
-                                                        f"You can get a reward! Know more by `/claim` or `/claim token_name` "\
-                                                        f"to set your preferred coin/token reward."
+                                                            f"<{self.bot.config['bot_vote_link']['botsfordiscord']}>. "\
+                                                            f"You can get a reward! Know more by `/claim` or `/claim token_name` "\
+                                                            f"to set your preferred coin/token reward."
                                                     try:
                                                         await member.send(msg)
                                                     except (disnake.errors.NotFound, disnake.errors.Forbidden) as e:
@@ -283,7 +283,7 @@ class BFDBotVote(commands.Cog):
                         await log_to_channel(
                             "vote",
                             f"[{SERVER_BOT}] User <@{user_vote}> voted for bot <@{self.bot.user.id}> type `{type_vote}` "\
-                            "but not true from botsfordiscord.com."
+                                "but not true from botsfordiscord.com."
                         )
                         return web.Response(text="Thank you but not botsfordiscord!")
             except Exception:

@@ -124,10 +124,10 @@ async def check_reveal_address(item: CheckRevealAddress):
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(item.endpoint + "accounts/" + item.address, headers=headers, timeout=30) as response:
+            async with session.get(f"{item.endpoint}accounts/{item.address}", headers=headers, timeout=30) as response:
                 json_resp = await response.json()
-                if response.status == 200 or response.status == 201:
-                    if json_resp['type'] == "user" and 'revealed' in json_resp and json_resp['revealed'] is True:
+                if json_resp['type'] == "user" and 'revealed' in json_resp and json_resp['revealed'] is True:
+                    if response.status in [200, 201]:
                         return {
                             "result": True,
                             "timestamp": int(time.time())
@@ -144,7 +144,7 @@ async def reveal_address(item: RevealAddress):
     try:
         user_address = pytezos.using(shell=item.endpoint, key=item.key)
         tx = user_address.reveal().autofill().sign().inject()
-        print("XTZ revealed new tx {}".format(tx))
+        print(f"XTZ revealed new tx {tx}")
         return {
             "success": True,
             "hash": tx,
@@ -164,10 +164,10 @@ async def get_head(item: EndpointData):
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(item.endpoint + "head/", headers=headers, timeout=item.timeout) as response:
+            async with session.get(f"{item.endpoint}head/", headers=headers, timeout=item.timeout) as response:
                 json_resp = await response.json()
-                if response.status == 200 or response.status == 201:
-                    if 'synced' in json_resp and json_resp['synced'] is True:
+                if 'synced' in json_resp and json_resp['synced'] is True:
+                    if response.status in [200, 201]:
                         return {
                             "success": True,
                             "result": json_resp,
@@ -187,14 +187,10 @@ async def get_tx(item: TxData):
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(
-                item.endpoint + "operations/transactions/" + item.txhash,
-                headers=headers,
-                timeout=item.timeout
-            ) as response:
+            async with session.get(f"{item.endpoint}operations/transactions/{item.txhash}", headers=headers, timeout=item.timeout) as response:
                 json_resp = await response.json()
-                if response.status == 200 or response.status == 201:
-                    if len(json_resp) == 1 and "status" in json_resp[0] and "level" in json_resp[0]:
+                if len(json_resp) == 1 and "status" in json_resp[0] and "level" in json_resp[0]:
+                    if response.status in [200, 201]:
                         return {
                             "success": True,
                             "result": json_resp[0],
@@ -203,8 +199,8 @@ async def get_tx(item: TxData):
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return {
-        "error": "Get tx {} failed!".format(item.txhash),
-        "timestamp": int(time.time())
+        "error": f"Get tx {item.txhash} failed!",
+        "timestamp": int(time.time()),
     }
 
 @app.post("/send_tezos")
@@ -244,8 +240,8 @@ async def send_tezos_token(item: SendTxDataToken):
         }
     except Exception:
         traceback.print_exc(file=sys.stdout)
-        print("[XTZ 2.0] failed to transfer url: {}, contract {} moving {} to {}".format(
-            item.endpoint, item.contract, acc.key.public_key_hash(), item.to_address)
+        print(
+            f"[XTZ 2.0] failed to transfer url: {item.endpoint}, contract {item.contract} moving {acc.key.public_key_hash()} to {item.to_address}"
         )
     return {
         "error": "Send tezos failed!",
@@ -266,8 +262,8 @@ async def send_tezos_token_fa12(item: SendTxDataToken):
         }
     except Exception:
         traceback.print_exc(file=sys.stdout)
-        print("[XTZ 1.2] failed to transfer url: {}, contract {} moving {} to {}".format(
-            item.endpoint, item.contract, acc.key.public_key_hash(), item.to_address)
+        print(
+            f"[XTZ 1.2] failed to transfer url: {item.endpoint}, contract {item.contract} moving {acc.key.public_key_hash()} to {item.to_address}"
         )
     return {
         "error": "Send tezos failed!",
@@ -280,14 +276,17 @@ async def get_address_token_balances(
 ):
     try:
         token = pytezos.using(shell=item.endpoint).contract(item.token_contract)
-        addresses = []
-        for each_address in item.address:
-            addresses.append({'owner': each_address, 'token_id': item.token_id})
-        token_balance = token.balance_of(requests=addresses, callback=None).view()
-        if token_balance:
-            result_balance = {}
-            for each in token_balance:
-                result_balance[each['request']['owner']] = int(each['balance'])
+        addresses = [
+            {'owner': each_address, 'token_id': item.token_id}
+            for each_address in item.address
+        ]
+        if token_balance := token.balance_of(
+            requests=addresses, callback=None
+        ).view():
+            result_balance = {
+                each['request']['owner']: int(each['balance'])
+                for each in token_balance
+            }
             return {
                 "success": True,
                 "result": result_balance, # dict of address => balance in float
@@ -306,27 +305,25 @@ async def get_balance_token_tezos(
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(
-                item.endpoint + "tokens/balances?account=" + item.address,
-                headers=headers,
-                timeout=item.timeout
-            ) as response:
+            async with session.get(f"{item.endpoint}tokens/balances?account={item.address}", headers=headers, timeout=item.timeout) as response:
                 json_resp = await response.json()
-                if response.status == 200 or response.status == 201:
+                if response.status in [200, 201]:
                     return {
                         "success": True,
                         "result": json_resp,
                         "timestamp": int(time.time())
                     }
                 else:
-                    print("tezos_check_token_balances: return {}".format(response.status))
+                    print(f"tezos_check_token_balances: return {response.status}")
     except asyncio.exceptions.TimeoutError:
-        print("Tezos check balances timeout for url: {} / addr: {}. Time: {}".format(item.endpoint, item.address, item.timeout))
+        print(
+            f"Tezos check balances timeout for url: {item.endpoint} / addr: {item.address}. Time: {item.timeout}"
+        )
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return {
-        "error": "Error trying to get balance from endpoint for token address {}.".format(item.address),
-        "timestamp": int(time.time())
+        "error": f"Error trying to get balance from endpoint for token address {item.address}.",
+        "timestamp": int(time.time()),
     }
 
 @app.post("/get_balance_tezos")
@@ -342,16 +339,15 @@ async def get_balance_tezos(
                 "error": "Error trying to get balance from endpoint.",
                 "timestamp": int(time.time())
             }
-        else:
-            result = {
-                "success": True,
-                "result": {
-                    "balance": float(client.balance())
-                },
-                "timestamp": int(time.time())
-            }
-            app.pending_cache_balance[item.key] = result
-            return result
+        result = {
+            "success": True,
+            "result": {
+                "balance": float(client.balance())
+            },
+            "timestamp": int(time.time())
+        }
+        app.pending_cache_balance[item.key] = result
+        return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -360,10 +356,9 @@ async def create_address():
     mnemo = Mnemonic("english")
     words = str(mnemo.generate(strength=128))
     key = Key.from_mnemonic(mnemonic=words, passphrase="", email="")
-    print("{} create a new address: {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        key.public_key_hash()
-    ))
+    print(
+        f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} create a new address: {key.public_key_hash()}'
+    )
     return {
         "success": True,
         "address": key.public_key_hash(),
@@ -374,11 +369,9 @@ async def create_address():
     }
 
 if __name__ == "__main__":
-    print("{} running with IP: {} and port {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        config['api_helper']['bind_ip'],
-        bind_port
-    ))
+    print(
+        f"""{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} running with IP: {config['api_helper']['bind_ip']} and port {bind_port}"""
+    )
     uvicorn.run(
         app,
         host=config['api_helper']['bind_ip'],

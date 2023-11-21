@@ -87,7 +87,7 @@ class Admin(commands.Cog):
                         return [i['user_id'] for i in result]
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return []
 
     async def insert_ban_user(self, user_id: str, user_server: str, reason: str):
@@ -136,7 +136,7 @@ class Admin(commands.Cog):
                         self.local_db_extra = json.loads(decrypt_string(result['value']))
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return None
 
     async def purge_msg(self, number_msg: int = 1000):
@@ -180,15 +180,13 @@ class Admin(commands.Cog):
                                         await store.openConnection()
                                         async with store.pool.acquire() as conn:
                                             async with conn.cursor() as cur:
-                                                sql = " DELETE FROM `discord_messages` WHERE `id` IN (%s)" % ",".join(
-                                                    ["%s"] * len(delete_ids))
+                                                sql = f' DELETE FROM `discord_messages` WHERE `id` IN ({",".join(["%s"] * len(delete_ids))})'
                                                 await cur.execute(sql, tuple(delete_ids))
                                                 await conn.commit()
-                                                deleted = cur.rowcount
-                                                return deleted
+                                                return cur.rowcount
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return 0
 
     async def get_coin_list_name(self, including_disable: bool = False):
@@ -196,23 +194,20 @@ class Admin(commands.Cog):
             await store.openConnection()
             async with store.pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    coin_list_name = []
                     sql = """
                     SELECT `coin_name` FROM `coin_settings` WHERE `enable`=1
                     """
-                    if including_disable is True:
+                    if including_disable:
                         sql = """
                         SELECT `coin_name` FROM `coin_settings`
                         """
                     await cur.execute(sql, ())
                     result = await cur.fetchall()
                     if result and len(result) > 0:
-                        for each in result:
-                            coin_list_name.append(each['coin_name'])
-                        return coin_list_name
+                        return [each['coin_name'] for each in result]
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return None
 
     async def get_all_addresses(self, coin_name: str, type_coin: str):
@@ -384,7 +379,7 @@ class Admin(commands.Cog):
                     return user_balance_coin
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return None
 
     async def user_balance(
@@ -404,8 +399,18 @@ class Admin(commands.Cog):
             await store.openConnection()
             async with store.pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    # moving tip + / -
-                    sql = """
+                    query_param = [user_id, token_name, user_server,
+                                   user_id, token_name, "ONGOING",
+                                   user_id, token_name, "ONGOING",
+                                   user_id, token_name, "ONGOING",
+                                   token_name, user_id, "OPEN",
+                                   token_name, user_id, user_server, "REGISTERED",
+                                   user_id, token_name, "ONGOING",
+                                   user_id, token_name, "ONGOING",
+                                   user_id, token_name, "ONGOING",
+                                   user_id, token_name, "ONGOING"]
+                    sql = (
+                        """
                             SELECT 
                             (SELECT IFNULL((SELECT (`balance`-`withdrew`+`deposited`)  
                             FROM `user_balance_mv_data` 
@@ -447,30 +452,18 @@ class Admin(commands.Cog):
                             FROM `discord_talkdrop_tmp` 
                             WHERE `from_userid`=%s AND `token_name`=%s AND `status`=%s), 0))
                           """
-                    query_param = [user_id, token_name, user_server,
-                                   user_id, token_name, "ONGOING",
-                                   user_id, token_name, "ONGOING",
-                                   user_id, token_name, "ONGOING",
-                                   token_name, user_id, "OPEN",
-                                   token_name, user_id, user_server, "REGISTERED",
-                                   user_id, token_name, "ONGOING",
-                                   user_id, token_name, "ONGOING",
-                                   user_id, token_name, "ONGOING",
-                                   user_id, token_name, "ONGOING"]
-                    sql += """ AS mv_balance"""
+                        + """ AS mv_balance"""
+                    )
                     await cur.execute(sql, tuple(query_param))
                     result = await cur.fetchone()
-                    if result:
-                        mv_balance = result['mv_balance']
-                    else:
-                        mv_balance = 0
+                    mv_balance = result['mv_balance'] if result else 0
                 balance = {}
                 try:
                     balance['adjust'] = 0
                     balance['mv_balance'] = float("%.12f" % mv_balance) if mv_balance else 0
                     balance['adjust'] = float("%.12f" % balance['mv_balance'])
                 except Exception:
-                    print("issue user_balance coin name: {}".format(token_name))
+                    print(f"issue user_balance coin name: {token_name}")
                     traceback.print_exc(file=sys.stdout)
                 # Negative check
                 try:
@@ -483,7 +476,7 @@ class Admin(commands.Cog):
                 return balance
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
 
     async def audit_update_poolshare(self, diff_1, diff_2, pool_id):
         try:
@@ -618,7 +611,7 @@ class Admin(commands.Cog):
                     return pool
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return None
 
     async def cog_check(self, ctx):
@@ -641,7 +634,7 @@ class Admin(commands.Cog):
                         return coin_list
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return None
 
     async def sql_get_all_userid_by_coin(self, coin: str):
@@ -751,7 +744,7 @@ class Admin(commands.Cog):
                         if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("admin " +str(traceback.format_exc()))
+            await logchanbot(f"admin {str(traceback.format_exc())}")
         return []
 
     async def enable_disable_coin(self, coin: str, what: str, toggle: int):
@@ -779,8 +772,17 @@ class Admin(commands.Cog):
             await store.openConnection()
             async with store.pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    sql = """ UPDATE coin_settings SET `""" + what + """`=%s 
-                    WHERE `coin_name`=%s AND `""" + what + """`<>%s LIMIT 1 """
+                    sql = (
+                        (
+                            (
+                                f""" UPDATE coin_settings SET `{what}"""
+                                + """`=%s 
+                    WHERE `coin_name`=%s AND `"""
+                            )
+                            + what
+                        )
+                        + """`<>%s LIMIT 1 """
+                    )
                     await cur.execute(sql, (toggle, coin_name, toggle))
                     await conn.commit()
                     return cur.rowcount
@@ -824,14 +826,16 @@ class Admin(commands.Cog):
     ):
         try:
             if ctx.author.id != self.bot.config['discord']['owner']:
-                await ctx.response.send_message(f"You have no permission!", ephemeral=True)
+                await ctx.response.send_message("You have no permission!", ephemeral=True)
             else:
                 # let bot post some message (testing) etc.
                 await logchanbot(f"[TIPBOT SAY] {ctx.author.id} / {ctx.author.name}#{ctx.author.discriminator} asked to say:\n{text}")
-                await ctx.channel.send("{} asked:\{}".format(ctx.author.mention, text))
-                await ctx.response.send_message(f"Message sent!", ephemeral=True)
+                await ctx.channel.send(f"{ctx.author.mention} asked:\{text}")
+                await ctx.response.send_message("Message sent!", ephemeral=True)
         except disnake.errors.Forbidden:
-            await ctx.response.send_message(f"I have no permission to send text!", ephemeral=True)
+            await ctx.response.send_message(
+                "I have no permission to send text!", ephemeral=True
+            )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -863,23 +867,25 @@ class Admin(commands.Cog):
         try:
             if type_coin == "BTC":
                 get_addresses = await self.get_all_addresses(coin_name, type_coin)
-                number = 0
                 if len(get_addresses) > 0:
                     daemon_addresses = await self.wallet_api.call_doge('listreceivedbyaddress', coin_name, payload='0, true')
                     if len(daemon_addresses) > 0:
                         daemon_addresses = [i['address'] for i in daemon_addresses]
                     else:
                         daemon_addresses = []
-                    print("Daemon address for {}: {}".format(coin_name, len(daemon_addresses)))
+                    print(f"Daemon address for {coin_name}: {len(daemon_addresses)}")
+                    number = 0
                     for i in get_addresses:
                         if i['balance_wallet_address'] in daemon_addresses:
-                            print("Skip importing {} - {}".format(coin_name, i['balance_wallet_address']))
+                            print(f"Skip importing {coin_name} - {i['balance_wallet_address']}")
                             continue
                         try:
-                            payload = '"{}", "{}", {}'.format(decrypt_string(i['privateKey']), i['user_id'], "true")
+                            payload = f""""{decrypt_string(i['privateKey'])}", "{i['user_id']}", true"""
                             importing = await self.wallet_api.call_doge('importprivkey', coin_name, payload=payload)
                             number += 1
-                            print("{}/{}) Importing {} - {}".format(number, len(get_addresses), coin_name, i['balance_wallet_address']))
+                            print(
+                                f"{number}/{len(get_addresses)}) Importing {coin_name} - {i['balance_wallet_address']}"
+                            )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                     await ctx.reply(f"{ctx.author.mention}, completed importing {str(number)} address(es) for {coin_name}.")
@@ -896,12 +902,12 @@ class Admin(commands.Cog):
     async def dumpthread(self, ctx):
         try:
             all_threads = threading.enumerate()
-            thread_list = []
-            for i in all_threads:
-                thread_list.append(str(i))
+            thread_list = [str(i) for i in all_threads]
             joi_thread_list = "\n".join(thread_list)
-            data_file = disnake.File(BytesIO(joi_thread_list.encode()),
-                                    filename=f"list_thread_{str(int(time.time()))}.txt")
+            data_file = disnake.File(
+                BytesIO(joi_thread_list.encode()),
+                filename=f"list_thread_{int(time.time())}.txt",
+            )
             await ctx.reply(file=data_file)
             return
         except Exception:
@@ -927,12 +933,13 @@ class Admin(commands.Cog):
             if self.bot.other_data.get('ban_list') and len(self.bot.other_data.get('ban_list')) == 0:
                 msg = f"{ctx.author.mention}, there is no blocked users."
                 await ctx.reply(msg)
-                return
-            elif self.bot.other_data.get('ban_list') and len(self.bot.other_data.get('ban_list')) > 0 and \
-                str(user_id) not in self.bot.other_data.get('ban_list'):
+            elif (
+                self.bot.other_data.get('ban_list')
+                and len(self.bot.other_data.get('ban_list')) > 0
+                and user_id not in self.bot.other_data.get('ban_list')
+            ):
                 msg = f"{ctx.author.mention}, ✅ user `{user_id}` was not blocked."
                 await ctx.reply(msg)
-                return
             else:
                 # async def delete_ban_user(self, user_id: str, user_server: str):
                 deleting = await self.delete_ban_user(user_id, user_server)
@@ -943,7 +950,7 @@ class Admin(commands.Cog):
                     await ctx.reply(msg)
                 else:
                     await ctx.reply(f"{ctx.author.mention}, 🔴 error deleting a blocked user `{user_id}@{user_server}`.")
-                return
+            return
         except ValueError:
             msg = f"{ctx.author.mention}, invalid given user ID."
             await ctx.reply(msg)
@@ -965,7 +972,7 @@ class Admin(commands.Cog):
                 msg = f"{ctx.author.mention}, please have reasons!"
                 await ctx.reply(msg)
                 return
-            
+
             user_server = user_server.upper()
             if user_server not in ["DISCORD", "TELEGRAM"]:
                 msg = f"{ctx.author.mention}, invalid user_server `{user_server}`."
@@ -980,11 +987,13 @@ class Admin(commands.Cog):
                     return
 
             # Check in table
-            if self.bot.other_data.get('ban_list') and len(self.bot.other_data.get('ban_list')) > 0 and \
-                str(user_id) in self.bot.other_data.get('ban_list'):
+            if (
+                self.bot.other_data.get('ban_list')
+                and len(self.bot.other_data.get('ban_list')) > 0
+                and user_id in self.bot.other_data.get('ban_list')
+            ):
                 msg = f"{ctx.author.mention}, ✅ user `{user_id}` was already blocked."
                 await ctx.reply(msg)
-                return
             else:
                 adding = await self.insert_ban_user(user_id, user_server, reasons)
                 if adding is True:
@@ -994,7 +1003,7 @@ class Admin(commands.Cog):
                     await ctx.reply(msg)
                 else:
                     await ctx.reply(f"{ctx.author.mention}, 🔴 error adding user `{user_id}@{user_server}`.")
-                return
+            return
         except ValueError:
             msg = f"{ctx.author.mention}, invalid given user ID."
             await ctx.reply(msg)
@@ -1044,9 +1053,13 @@ class Admin(commands.Cog):
                         erc20_approve_spend, 7200
                     )
                     await self.bot.loop.run_in_executor(None, check_min_deposit)
-                    await ctx.reply("{}, processing {} update. Time token {}s".format(ctx.author.mention, coin_name, time.time()-start_time))
+                    await ctx.reply(
+                        f"{ctx.author.mention}, processing {coin_name} update. Time token {time.time() - start_time}s"
+                    )
                 else:
-                    await ctx.reply("{}, not support yet for this method for {}.".format(ctx.author.mention, coin_name))
+                    await ctx.reply(
+                        f"{ctx.author.mention}, not support yet for this method for {coin_name}."
+                    )
                 await msg.delete()
             except Exception:
                 traceback.print_exc(file=sys.stdout)
@@ -1083,7 +1096,7 @@ class Admin(commands.Cog):
                                  "name": wallet_name, "address_pool_gap": number}
                     async with aiohttp.ClientSession() as session:
                         async with session.post(url, headers=headers, json=data_json, timeout=timeout) as response:
-                            if response.status == 200 or response.status == 201:
+                            if response.status in [200, 201]:
                                 res_data = await response.read()
                                 res_data = res_data.decode('utf-8')
                                 decoded_data = json.loads(res_data)
@@ -1143,7 +1156,7 @@ class Admin(commands.Cog):
                     msg = f"{ctx.author.mention}, invalid <param> (wallet_name.number)!"
                     await ctx.reply(msg)
                     return
-        elif action == "MOVE" or action == "MV":  # no param, move from all deposit balance to withdraw
+        elif action in {"MOVE", "MV"}:  # no param, move from all deposit balance to withdraw
             async def fetch_wallet_status(url, timeout):
                 try:
                     headers = {
@@ -1229,47 +1242,46 @@ class Admin(commands.Cog):
                                             amount = fetch_wallet['balance']['available']['quantity']
                                             if amount < min_balance:
                                                 continue
-                                            else:
-                                                assets = []
-                                                if 'available' in fetch_wallet['assets'] and len(
-                                                        fetch_wallet['assets']['available']) > 0:
-                                                    for each_asset in fetch_wallet['assets']['available']:
-                                                        # Check if they are in TipBot
-                                                        for each_coin in self.bot.coin_name_list:
-                                                            if getattr(getattr(self.bot.coin_list, each_coin),
-                                                                       "type") == "ADA" and getattr(
-                                                                getattr(self.bot.coin_list, each_coin), "header") == \
+                                            assets = []
+                                            if 'available' in fetch_wallet['assets'] and len(
+                                                    fetch_wallet['assets']['available']) > 0:
+                                                for each_asset in fetch_wallet['assets']['available']:
+                                                    # Check if they are in TipBot
+                                                    for each_coin in self.bot.coin_name_list:
+                                                        if getattr(getattr(self.bot.coin_list, each_coin),
+                                                                   "type") == "ADA" and getattr(
+                                                            getattr(self.bot.coin_list, each_coin), "header") == \
                                                                     each_asset['asset_name']:
-                                                                # We have it
-                                                                policy_id = getattr(
-                                                                    getattr(self.bot.coin_list, each_coin), "contract")
-                                                                assets.append({"policy_id": policy_id,
-                                                                               "asset_name": each_asset['asset_name'],
-                                                                               "quantity": each_asset['quantity']})
-                                                # async def estimate_fee_with_asset(url: str, to_address: str, assets, amount_atomic: int, timeout: int=90):
-                                                estimate_tx = await estimate_fee_with_asset(
-                                                    each_w['wallet_rpc'] + "v2/wallets/" + each_w['wallet_id'] \
+                                                            # We have it
+                                                            policy_id = getattr(
+                                                                getattr(self.bot.coin_list, each_coin), "contract")
+                                                            assets.append({"policy_id": policy_id,
+                                                                           "asset_name": each_asset['asset_name'],
+                                                                           "quantity": each_asset['quantity']})
+                                            # async def estimate_fee_with_asset(url: str, to_address: str, assets, amount_atomic: int, timeout: int=90):
+                                            estimate_tx = await estimate_fee_with_asset(
+                                                each_w['wallet_rpc'] + "v2/wallets/" + each_w['wallet_id'] \
                                                         + "/payment-fees", withdraw_address, assets, amount, 10)
-                                                if estimate_tx and "minimum_coins" in estimate_tx and "estimated_min" in estimate_tx:
-                                                    sending_tx = await send_tx(
-                                                        each_w['wallet_rpc'] + "v2/wallets/" + each_w[
-                                                            'wallet_id'] + "/transactions", withdraw_address,
-                                                        amount - estimate_tx['estimated_min'][
-                                                            'quantity'] - reserved_balance, assets,
-                                                        each_w['passphrase'], 30)
-                                                    if "code" in sending_tx and "message" in sending_tx:
-                                                        # send error
-                                                        wallet_id = each_w['wallet_id']
-                                                        msg = f"{ctx.author.mention}, error with `{wallet_id}`\n````{str(sending_tx)}``"
-                                                        await ctx.reply(msg)
-                                                        print(msg)
-                                                    elif "status" in sending_tx and sending_tx['status'] == "pending":
-                                                        has_deposit = True
-                                                        # success
-                                                        wallet_id = each_w['wallet_id']
-                                                        tx_hash = sending_tx['id']
-                                                        msg = f"{ctx.author.mention}, successfully transfer `{wallet_id}` to `{withdraw_address}` via `{tx_hash}`."
-                                                        await ctx.reply(msg)
+                                            if estimate_tx and "minimum_coins" in estimate_tx and "estimated_min" in estimate_tx:
+                                                sending_tx = await send_tx(
+                                                    each_w['wallet_rpc'] + "v2/wallets/" + each_w[
+                                                        'wallet_id'] + "/transactions", withdraw_address,
+                                                    amount - estimate_tx['estimated_min'][
+                                                        'quantity'] - reserved_balance, assets,
+                                                    each_w['passphrase'], 30)
+                                                if "code" in sending_tx and "message" in sending_tx:
+                                                    # send error
+                                                    wallet_id = each_w['wallet_id']
+                                                    msg = f"{ctx.author.mention}, error with `{wallet_id}`\n````{str(sending_tx)}``"
+                                                    await ctx.reply(msg)
+                                                    print(msg)
+                                                elif "status" in sending_tx and sending_tx['status'] == "pending":
+                                                    has_deposit = True
+                                                    # success
+                                                    wallet_id = each_w['wallet_id']
+                                                    tx_hash = sending_tx['id']
+                                                    msg = f"{ctx.author.mention}, successfully transfer `{wallet_id}` to `{withdraw_address}` via `{tx_hash}`."
+                                                    await ctx.reply(msg)
                                     except Exception:
                                         traceback.print_exc(file=sys.stdout)
                             if has_deposit is False:
@@ -1282,7 +1294,7 @@ class Admin(commands.Cog):
                             return
             except Exception:
                 traceback.print_exc(file=sys.stdout)
-        elif action == "DELETE" or action == "DEL":  # param is name only
+        elif action in {"DELETE", "DEL"}:  # param is name only
             if param is None:
                 msg = f"{ctx.author.mention}, required param `wallet_name`!"
                 await ctx.reply(msg)
@@ -1357,8 +1369,10 @@ class Admin(commands.Cog):
                                 list_wallets.append(
                                     "Name: {}, ID: {}".format(each_w['wallet_name'], each_w['wallet_id']))
                             list_wallets_j = "\n".join(list_wallets)
-                            data_file = disnake.File(BytesIO(list_wallets_j.encode()),
-                                                     filename=f"list_ada_wallets_{str(int(time.time()))}.csv")
+                            data_file = disnake.File(
+                                BytesIO(list_wallets_j.encode()),
+                                filename=f"list_ada_wallets_{int(time.time())}.csv",
+                            )
                             await ctx.author.send(file=data_file)
                             return
                         else:
@@ -1380,12 +1394,12 @@ class Admin(commands.Cog):
     )
     async def guildlist(self, ctx):
         try:
-            list_g = []
-            for g in self.bot.guilds:
-                list_g.append("{}, {}, {}".format(str(g.id), len(g.members), g.name))
+            list_g = [f"{str(g.id)}, {len(g.members)}, {g.name}" for g in self.bot.guilds]
             list_g_str = "ID, Numbers, Name\n" + "\n".join(list_g)
-            data_file = disnake.File(BytesIO(list_g_str.encode()),
-                                     filename=f"list_bot_guilds_{str(int(time.time()))}.csv")
+            data_file = disnake.File(
+                BytesIO(list_g_str.encode()),
+                filename=f"list_bot_guilds_{int(time.time())}.csv",
+            )
             await ctx.author.send(file=data_file)
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -1400,17 +1414,14 @@ class Admin(commands.Cog):
         try:
             _channel: disnake.TextChannel = await self.bot.fetch_channel(int(channel_id))
             _msg: disnake.Message = await _channel.fetch_message(int(msg_id))
-            if _msg is not None:
-                if _msg.author != self.bot.user:
-                    msg = f"{ctx.author.mention}, that message `{msg_id}` was not belong to me."
-                    await ctx.reply(msg)
-                else:
-                    await _msg.edit(view=None)
-                    msg = f"{ctx.author.mention}, removed all view from `{msg_id}`."
-                    await ctx.reply(msg)
-            else:
+            if _msg is None:
                 msg = f"{ctx.author.mention}, I can not find message `{msg_id}`."
-                await ctx.reply(msg)
+            elif _msg.author != self.bot.user:
+                msg = f"{ctx.author.mention}, that message `{msg_id}` was not belong to me."
+            else:
+                await _msg.edit(view=None)
+                msg = f"{ctx.author.mention}, removed all view from `{msg_id}`."
+            await ctx.reply(msg)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -1443,14 +1454,14 @@ class Admin(commands.Cog):
     )
     async def checkshare(self, ctx):
         if ctx.author.id != self.bot.config['discord']['owner_id']:
-            await logchanbot("⚠️⚠️⚠️⚠️ {}#{} / {} is trying checkshare!".format(
-                ctx.author.name, ctx.author.discriminator, ctx.author.mention)
+            await logchanbot(
+                f"⚠️⚠️⚠️⚠️ {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} is trying checkshare!"
             )
             return
         try:
-            pools = {}
             get_poolshares = await self.audit_lp_share()
             if len(get_poolshares['shares']) > 0 and len(get_poolshares['pools']) > 0:
+                pools = {}
                 for sh in get_poolshares['shares']:
                     # sum all share of each coins
                     if sh['pairs'] not in pools:
@@ -1463,28 +1474,31 @@ class Admin(commands.Cog):
                 updating = False
                 for p in get_poolshares['pools']:
                     if p['pairs'] not in pools:
-                        checked_lines.append("!{} /pool_id: {} in pools but not in share!".format(p['pairs'], p['pool_id']))
+                        checked_lines.append(
+                            f"!{p['pairs']} /pool_id: {p['pool_id']} in pools but not in share!"
+                        )
                     else:
                         diff_1 = pools[p['pairs']][p['ticker_1_name']] - p['amount_ticker_1']
                         diff_2 = pools[p['pairs']][p['ticker_2_name']] - p['amount_ticker_2']
                         if truncate(abs(diff_1), 6) != Decimal(0) or truncate(abs(diff_2), 6) != Decimal(0):
                             # check amount
-                            checked_lines.append("⚆ {} /pool_id: {} has {} {}/{} {} in pool vs {} {} / {} {} in pool shares!".format(
-                                p['pairs'], p['pool_id'],
-                                num_format_coin(p['amount_ticker_1']), p['ticker_1_name'],
-                                num_format_coin(p['amount_ticker_2']), p['ticker_2_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_1_name']]), p['ticker_1_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_2_name']]), p['ticker_2_name']
-                            ))
+                            checked_lines.append(
+                                f"⚆ {p['pairs']} /pool_id: {p['pool_id']} has {num_format_coin(p['amount_ticker_1'])} {p['ticker_1_name']}/{num_format_coin(p['amount_ticker_2'])} {p['ticker_2_name']} in pool vs {num_format_coin(pools[p['pairs']][p['ticker_1_name']])} {p['ticker_1_name']} / {num_format_coin(pools[p['pairs']][p['ticker_2_name']])} {p['ticker_2_name']} in pool shares!"
+                            )
                         if truncate(abs(diff_1), 6) != Decimal(0):
-                            checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_1), p['ticker_1_name']))
+                            checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_1)} {p['ticker_1_name']}"
+                            )
                         if truncate(abs(diff_2), 6) != Decimal(0):
-                            checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_2), p['ticker_2_name']))
+                            checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_2)} {p['ticker_2_name']}"
+                            )
                         if truncate(abs(diff_1), 6) != Decimal(0) or truncate(abs(diff_2), 6) != Decimal(0):
                             updating = await self.audit_update_poolshare(diff_1, diff_2, p['pool_id'])
                             if updating is True:
-                                checked_lines.append("    Fixed amount pool: {} {} / {} {} for pool_id: {}".format(
-                                    diff_1, p['ticker_1_name'], diff_2, p['ticker_2_name'], p['pool_id']))
+                                checked_lines.append(
+                                    f"    Fixed amount pool: {diff_1} {p['ticker_1_name']} / {diff_2} {p['ticker_2_name']} for pool_id: {p['pool_id']}"
+                                )
                                 break
                 reply_msg = await ctx.reply(response + "```{}```".format("\n".join(checked_lines)))
         except Exception:
@@ -1498,14 +1512,14 @@ class Admin(commands.Cog):
     )
     async def auditshare(self, ctx):
         if ctx.author.id != self.bot.config['discord']['owner_id']:
-            await logchanbot("⚠️⚠️⚠️⚠️ {}#{} / {} is trying auditshare!".format(
-                ctx.author.name, ctx.author.discriminator, ctx.author.mention)
+            await logchanbot(
+                f"⚠️⚠️⚠️⚠️ {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} is trying auditshare!"
             )
             return
         try:
-            pools = {}
             get_poolshares = await self.audit_lp_share()
             if len(get_poolshares['shares']) > 0 and len(get_poolshares['pools']) > 0:
+                pools = {}
                 for sh in get_poolshares['shares']:
                     # sum all share of each coins
                     if sh['pairs'] not in pools:
@@ -1516,50 +1530,54 @@ class Admin(commands.Cog):
                 checked_lines = []
                 for p in get_poolshares['pools']:
                     if p['pairs'] not in pools:
-                        checked_lines.append("!{} /pool_id: {} in pools but not in share!".format(p['pairs'], p['pool_id']))
+                        checked_lines.append(
+                            f"!{p['pairs']} /pool_id: {p['pool_id']} in pools but not in share!"
+                        )
                     else:
                         diff_1 = pools[p['pairs']][p['ticker_1_name']] - p['amount_ticker_1']
                         diff_2 = pools[p['pairs']][p['ticker_2_name']] - p['amount_ticker_2']
                         if truncate(abs(diff_1), 6) != Decimal(0) or truncate(abs(diff_2), 6) != Decimal(0):
                             # check amount
-                            checked_lines.append("⚆ {} /pool_id: {} has {} {}/{} {} in pool vs {} {} / {} {} in pool shares!".format(
-                                p['pairs'], p['pool_id'],
-                                num_format_coin(p['amount_ticker_1']), p['ticker_1_name'],
-                                num_format_coin(p['amount_ticker_2']), p['ticker_2_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_1_name']]), p['ticker_1_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_2_name']]), p['ticker_2_name']
-                            ))
+                            checked_lines.append(
+                                f"⚆ {p['pairs']} /pool_id: {p['pool_id']} has {num_format_coin(p['amount_ticker_1'])} {p['ticker_1_name']}/{num_format_coin(p['amount_ticker_2'])} {p['ticker_2_name']} in pool vs {num_format_coin(pools[p['pairs']][p['ticker_1_name']])} {p['ticker_1_name']} / {num_format_coin(pools[p['pairs']][p['ticker_2_name']])} {p['ticker_2_name']} in pool shares!"
+                            )
                         if truncate(abs(diff_1), 6) != Decimal(0):
-                            checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_1), p['ticker_1_name']))
+                            checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_1)} {p['ticker_1_name']}"
+                            )
                         if truncate(abs(diff_2), 6) != Decimal(0):
-                            checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_2), p['ticker_2_name']))
+                            checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_2)} {p['ticker_2_name']}"
+                            )
                 # a pools
                 a_checked_lines = []
                 for p in get_poolshares['a_pools']:
                     if p['pairs'] not in pools:
-                        a_checked_lines.append("!{} /pool_id: {} in pools but not in share!".format(p['pairs'], p['pool_id']))
+                        a_checked_lines.append(
+                            f"!{p['pairs']} /pool_id: {p['pool_id']} in pools but not in share!"
+                        )
                     else:
                         diff_1 = pools[p['pairs']][p['ticker_1_name']] - p['amount_ticker_1']
                         diff_2 = pools[p['pairs']][p['ticker_2_name']] - p['amount_ticker_2']
                         if truncate(abs(diff_1), 6) != Decimal(0) or truncate(abs(diff_2), 6) != Decimal(0):
                             # check amount
-                            a_checked_lines.append("⚆ {} /pool_id: {} has {} {}/{} {} in pool vs {} {} / {} {} in pool shares!".format(
-                                p['pairs'], p['pool_id'],
-                                num_format_coin(p['amount_ticker_1']), p['ticker_1_name'],
-                                num_format_coin(p['amount_ticker_2']), p['ticker_2_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_1_name']]), p['ticker_1_name'],
-                                num_format_coin(pools[p['pairs']][p['ticker_2_name']]), p['ticker_2_name']
-                            ))
+                            a_checked_lines.append(
+                                f"⚆ {p['pairs']} /pool_id: {p['pool_id']} has {num_format_coin(p['amount_ticker_1'])} {p['ticker_1_name']}/{num_format_coin(p['amount_ticker_2'])} {p['ticker_2_name']} in pool vs {num_format_coin(pools[p['pairs']][p['ticker_1_name']])} {p['ticker_1_name']} / {num_format_coin(pools[p['pairs']][p['ticker_2_name']])} {p['ticker_2_name']} in pool shares!"
+                            )
                         if truncate(abs(diff_1), 6) != Decimal(0):
-                            a_checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_1), p['ticker_1_name']))
+                            a_checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_1)} {p['ticker_1_name']}"
+                            )
                         if truncate(abs(diff_2), 6) != Decimal(0):
-                            a_checked_lines.append("    diff ({})[share - pool] = {} {}".format(p['pairs'], num_format_coin(diff_2), p['ticker_2_name']))
+                            a_checked_lines.append(
+                                f"    diff ({p['pairs']})[share - pool] = {num_format_coin(diff_2)} {p['ticker_2_name']}"
+                            )
                 # send result
                 msg = "1) Using pools:" + "\n".join(checked_lines)
                 if len(msg) >= 2000:
                     data_file = disnake.File(
                         BytesIO(msg.encode()),
-                        filename=f"auditshare_{str(int(time.time()))}.txt"
+                        filename=f"auditshare_{int(time.time())}.txt",
                     )
                     await ctx.reply(file=data_file)
                 else:
@@ -1569,7 +1587,7 @@ class Admin(commands.Cog):
                 if len(msg) >= 2000:
                     data_file = disnake.File(
                         BytesIO(msg.encode()),
-                        filename=f"a_auditshare_{str(int(time.time()))}.txt"
+                        filename=f"a_auditshare_{int(time.time())}.txt",
                     )
                     await ctx.reply(file=data_file)
                 else:

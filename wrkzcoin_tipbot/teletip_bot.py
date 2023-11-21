@@ -144,9 +144,7 @@ async def openConnection_node_monitor():
 
 async def handle_best_node(network: str):
     global pool_netmon
-    table = ""
-    if network.upper() == "TRX":
-        table = "chain_trx"
+    table = "chain_trx" if network.upper() == "TRX" else ""
     try:
         await openConnection_node_monitor()
         async with pool_netmon.acquire() as conn:
@@ -229,9 +227,9 @@ class WalletTG:
                 async with conn.cursor() as cur:
                     if type_coin.upper() == "ERC-20":
                         sql = """ UPDATE `erc20_user` SET `called_Update`=%s WHERE `user_id`=%s """
-                    elif type_coin.upper() == "TRC-10" or type_coin.upper() == "TRC-20":
+                    elif type_coin.upper() in {"TRC-10", "TRC-20"}:
                         sql = """ UPDATE `trc20_user` SET `called_Update`=%s WHERE `user_id`=%s """
-                    elif type_coin.upper() == "SOL" or type_coin.upper() == "SPL":
+                    elif type_coin.upper() in {"SOL", "SPL"}:
                         sql = """ UPDATE `sol_user` SET `called_Update`=%s WHERE `user_id`=%s """
                     elif type_coin.upper() == "XTZ":
                         sql = """ UPDATE `tezos_user` SET `called_Update`=%s WHERE `user_id`=%s """
@@ -246,7 +244,7 @@ class WalletTG:
                     return True
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("utils " +str(traceback.format_exc()))
+            await logchanbot(f"utils {str(traceback.format_exc())}")
         return None
 
     async def insert_messages(self, msg_list):
@@ -276,20 +274,15 @@ class WalletTG:
                         sql = """ SELECT DISTINCT `from_username` FROM `telegram_messages` 
                                   WHERE `chat_id`=%s AND `date`>%s """
                         await cur.execute(sql, (chat_id, lapDuration))
-                        result = await cur.fetchall()
-                        if result:
-                            for item in result:
-                                if item['from_username'] not in list_talker:
-                                    list_talker.append(item['from_username'])
                     else:
                         sql = """ SELECT `from_username` FROM `telegram_messages` WHERE `chat_id`=%s 
                                   GROUP BY `from_username` ORDER BY max(`date`) DESC LIMIT %s """
                         await cur.execute(sql, (chat_id, num_user))
-                        result = await cur.fetchall()
-                        if result:
-                            for item in result:
-                                if item['from_username'] not in list_talker:
-                                    list_talker.append(item['from_username'])
+                    result = await cur.fetchall()
+                    if result:
+                        for item in result:
+                            if item['from_username'] not in list_talker:
+                                list_talker.append(item['from_username'])
                     return list_talker
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
@@ -307,76 +300,81 @@ class WalletTG:
                     WHERE `notified`=%s AND `failed_notify`=%s AND `user_server`=%s
                     """
                     await cur.execute(sql, (notified, failed_notify, user_server))
-                    result = await cur.fetchall()
-                    return result
+                    return await cur.fetchall()
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
         return []
 
     async def get_coin_paprika_list(self):
-        if self.coin_paprika_id_list is None or self.coin_paprika_symbol_list is None:
-            try:
-                await self.openConnection()
-                async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        sql = """ SELECT * FROM `coin_paprika_list` """
-                        await cur.execute(sql, ())
-                        result = await cur.fetchall()
-                        if result and len(result) > 0:
-                            id_list = {}
-                            symbol_list = {}
-                            for each_item in result:
-                                id_list[each_item['id']] = each_item  # key example: btc-bitcoin
-                                symbol_list[each_item['symbol'].upper()] = each_item  # key example: BTC
-                            self.coin_paprika_id_list = id_list
-                            self.coin_paprika_symbol_list = symbol_list
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
+        if (
+            self.coin_paprika_id_list is not None
+            and self.coin_paprika_symbol_list is not None
+        ):
+            return
+        try:
+            await self.openConnection()
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    sql = """ SELECT * FROM `coin_paprika_list` """
+                    await cur.execute(sql, ())
+                    result = await cur.fetchall()
+                    if result and len(result) > 0:
+                        id_list = {}
+                        symbol_list = {}
+                        for each_item in result:
+                            id_list[each_item['id']] = each_item  # key example: btc-bitcoin
+                            symbol_list[each_item['symbol'].upper()] = each_item  # key example: BTC
+                        self.coin_paprika_id_list = id_list
+                        self.coin_paprika_symbol_list = symbol_list
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
 
     # Call: await self.get_coin_setting()
     async def get_coin_setting(self):
-        if self.coin_list is None:
-            await self.get_token_hints()
-            await self.get_coin_paprika_list()
-            try:
-                await self.openConnection()
-                async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        coin_list = {}
-                        coin_list_name = []
-                        sql = """ SELECT * FROM `coin_settings` 
+        if self.coin_list is not None:
+            return
+        await self.get_token_hints()
+        await self.get_coin_paprika_list()
+        try:
+            await self.openConnection()
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    coin_list = {}
+                    sql = """ SELECT * FROM `coin_settings` 
                         WHERE `enable_telegram`=1 """
-                        await cur.execute(sql, )
-                        result = await cur.fetchall()
-                        if result and len(result) > 0:
-                            for each in result:
-                                coin_list[each['coin_name']] = each
-                                coin_list_name.append(each['coin_name'])
-                            self.coin_list = AttrDict(coin_list)
-                            self.coin_list_name = coin_list_name
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
+                    await cur.execute(sql, )
+                    result = await cur.fetchall()
+                    if result and len(result) > 0:
+                        coin_list_name = []
+                        for each in result:
+                            coin_list[each['coin_name']] = each
+                            coin_list_name.append(each['coin_name'])
+                        self.coin_list = AttrDict(coin_list)
+                        self.coin_list_name = coin_list_name
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
 
     async def get_token_hints(self):
-        if self.token_hints is None:
-            try:
-                await self.openConnection()
-                async with self.pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        sql = """ SELECT * FROM `coin_alias_price` """
-                        await cur.execute(sql, ())
-                        result = await cur.fetchall()
-                        if result and len(result) > 0:
-                            hints = {}
-                            hint_names = {}
-                            for each_item in result:
-                                hints[each_item['ticker']] = each_item
-                                hint_names[each_item['name'].upper()] = each_item
-                            self.token_hints = hints
-                            self.token_hint_names = hint_names
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
+        if self.token_hints is not None:
+            return
+        try:
+            await self.openConnection()
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    sql = """ SELECT * FROM `coin_alias_price` """
+                    await cur.execute(sql, ())
+                    result = await cur.fetchall()
+                    if result and len(result) > 0:
+                        hints = {}
+                        hint_names = {}
+                        for each_item in result:
+                            hints[each_item['ticker']] = each_item
+                            hint_names[each_item['name'].upper()] = each_item
+                        self.token_hints = hints
+                        self.token_hint_names = hint_names
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
 
     async def generate_qr_address(
             self,
@@ -387,26 +385,25 @@ class WalletTG:
         # return address if success, else None
         address_path = address.replace('{', '_').replace('}', '_').replace(
             ':', '_').replace('"', "_").replace(',', "_").replace(' ', "_")
-        if not os.path.exists(config['storage']['path_deposit_qr_create'] + address_path + ".png"):
-            try:
-                # do some QR code
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=2,
-                )
-                qr.add_data(address)
-                qr.make(fit=True)
-                img = qr.make_image(fill_color="black", back_color="white")
-                img = img.resize((256, 256))
-                img.save(config['storage']['path_deposit_qr_create'] + address_path + ".png")
-                return address
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
-                await logchanbot(traceback.format_exc())
-        else:
+        if os.path.exists(config['storage']['path_deposit_qr_create'] + address_path + ".png"):
             return address
+        try:
+            # do some QR code
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=2,
+            )
+            qr.add_data(address)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            img = img.resize((256, 256))
+            img.save(config['storage']['path_deposit_qr_create'] + address_path + ".png")
+            return address
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+            await logchanbot(traceback.format_exc())
         return None
 
     # ERC-20, TRC-20, native is one

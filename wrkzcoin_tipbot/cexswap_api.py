@@ -95,7 +95,7 @@ class BackgroundRunner:
                     SELECT * FROM `coin_paprika_list`
                     WHERE `symbol`=%s
                     """
-                    if by_id is True:
+                    if by_id:
                         sql = """
                         SELECT * FROM `coin_paprika_list`
                         WHERE `id`=%s
@@ -103,16 +103,16 @@ class BackgroundRunner:
                     await cur.execute(sql, (token_name))
                     result = await cur.fetchall()
                     if result:
-                        price_list = []
-                        for i in result:
-                            price_list.append({
+                        return [
+                            {
                                 "id": i['id'],
                                 "symbol": i['symbol'],
                                 "name": i['name'],
                                 "price_usd": i['price_usd'],
-                                "price_date": i['last_updated']
-                            })
-                        return price_list
+                                "price_date": i['last_updated'],
+                            }
+                            for i in result
+                        ]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
@@ -126,7 +126,7 @@ class BackgroundRunner:
                     SELECT * FROM `coin_coingecko_list`
                     WHERE `symbol`=%s
                     """
-                    if by_id is True:
+                    if by_id:
                         sql = """
                         SELECT * FROM `coin_coingecko_list`
                         WHERE `id`=%s
@@ -134,16 +134,16 @@ class BackgroundRunner:
                     await cur.execute(sql, (token_name))
                     result = await cur.fetchall()
                     if result:
-                        price_list = []
-                        for i in result:
-                            price_list.append({
+                        return [
+                            {
                                 "id": i['id'],
                                 "symbol": i['symbol'],
                                 "name": i['name'],
                                 "price_usd": i['price_usd'],
-                                "price_date": i['price_date']
-                            })
-                        return price_list
+                                "price_date": i['price_date'],
+                            }
+                            for i in result
+                        ]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
@@ -159,7 +159,7 @@ except Exception:
 def set_cache_kv(appr, table: str, key: str, value):
     try:
         p_mydict = pickle.dumps(value)
-        appr.r.set(table + "_" + key, p_mydict, ex=60)
+        appr.r.set(f"{table}_{key}", p_mydict, ex=60)
         return True
     except Exception:
         traceback.print_exc(file=sys.stdout)
@@ -167,7 +167,7 @@ def set_cache_kv(appr, table: str, key: str, value):
 
 def get_cache_kv(appr, table: str, key: str):
     try:
-        res = appr.r.get(table + "_" + key)
+        res = appr.r.get(f"{table}_{key}")
         result = pickle.loads(res)
         if result is not None:
             return result

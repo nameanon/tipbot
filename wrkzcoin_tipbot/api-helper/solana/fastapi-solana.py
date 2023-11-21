@@ -37,7 +37,9 @@ async def fetch_wallet_balance(url: str, address: str, timeout: int=60):
                 await client.close()
                 return balance
             else:
-                print("{} Error fetch_wallet_balance: {}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), balance))
+                print(
+                    f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} Error fetch_wallet_balance: {balance}'
+                )
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -45,19 +47,17 @@ async def fetch_wallet_balance(url: str, address: str, timeout: int=60):
 async def send_solana(url: str, from_key: str, to_address: str, atomic_amount: int, timeout: int=60):
     try:
         sender = Keypair.from_bytes(bytes.fromhex(from_key))
-        print("{} SOL trying to send from {} to {}, lamports={}".format(
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sender.pubkey(), to_address, atomic_amount
-
-        ))
+        print(
+            f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} SOL trying to send from {sender.pubkey()} to {to_address}, lamports={atomic_amount}'
+        )
         txn = Transaction().add(
             transfer(TransferParams(from_pubkey=sender.pubkey(), to_pubkey=Pubkey.from_string(to_address), lamports=atomic_amount))
         )
         solana_client = AsyncClient(url, timeout=timeout)
         sending = await solana_client.send_transaction(txn, sender)
-        print("{} SOL successfully sent from {} to {}, lamports={}, {}".format(
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sender.pubkey(), to_address, atomic_amount, sending.value
-
-        ))
+        print(
+            f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} SOL successfully sent from {sender.pubkey()} to {to_address}, lamports={atomic_amount}, {sending.value}'
+        )
         return sending.value
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -66,8 +66,7 @@ async def send_solana(url: str, from_key: str, to_address: str, atomic_amount: i
 async def get_sig(url: str, sig: str, timeout: int=60):
     try:
         solana_client = AsyncClient(url, timeout=timeout)
-        signature = await solana_client.get_transaction(Signature.from_string(sig))
-        return signature
+        return await solana_client.get_transaction(Signature.from_string(sig))
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -120,16 +119,18 @@ async def post_create_account_token(
     url: str, token_address: str, owner_address: str, program_id: str, from_key: str, timeout: int=60
 ):
     try:
-        async with AsyncClient(url, timeout=timeout) as client:            
+        async with AsyncClient(url, timeout=timeout) as client:    
             spl_client = AsyncToken(
                 conn=client,
                 pubkey=Pubkey.from_string(token_address),
                 program_id=Pubkey.from_string(program_id),
                 payer=Keypair.from_bytes(bytes.fromhex(from_key))
             )
-            token_wallet_address_public_key = await spl_client.create_associated_token_account(
-                owner=Pubkey.from_string(owner_address), skip_confirmation=False, recent_blockhash=None)
-            return token_wallet_address_public_key
+            return await spl_client.create_associated_token_account(
+                owner=Pubkey.from_string(owner_address),
+                skip_confirmation=False,
+                recent_blockhash=None,
+            )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -140,7 +141,7 @@ async def post_transfer_token(
     timeout: int=60
 ):
     try:
-        async with AsyncClient(url, timeout=timeout) as client:            
+        async with AsyncClient(url, timeout=timeout) as client:    
             spl_client = AsyncToken(
                 conn=client,
                 pubkey=Pubkey.from_string(token_address),
@@ -152,12 +153,11 @@ async def post_transfer_token(
                 owner=Keypair.from_bytes(bytes.fromhex(owner_key)).pubkey(), commitment=None, encoding='base64')
             if len(token_wallet_address_public_key.value) > 0:
                 addr_sender = token_wallet_address_public_key.value[0].pubkey
-                print("Owner {} has token address: {}".format(
-                    Keypair.from_bytes(bytes.fromhex(owner_key)).pubkey(),
-                    addr_sender
-                ))
+                print(
+                    f"Owner {Keypair.from_bytes(bytes.fromhex(owner_key)).pubkey()} has token address: {addr_sender}"
+                )
             else:
-                error = "Owner {} has no token address!".format(Keypair.from_bytes(bytes.fromhex(owner_key)).pubkey())
+                error = f"Owner {Keypair.from_bytes(bytes.fromhex(owner_key)).pubkey()} has no token address!"
                 print(error)
                 addr_sender = None
                 return {"error": error}
@@ -169,7 +169,7 @@ async def post_transfer_token(
             token_addr_owner = dest
             if len(token_wallet_address_public_key.value) > 0:
                 addr_receiver = token_wallet_address_public_key.value[0].pubkey
-                error = "Receiver {} has token address: {}".format(dest, addr_receiver)
+                error = f"Receiver {dest} has token address: {addr_receiver}"
             else:
                 # If destination has no account token, there will be SOL fee to cover. Currently, 0.0021 SOL
                 # Check if give address is a token address
@@ -184,18 +184,15 @@ async def post_transfer_token(
                     addr_receiver = Pubkey.from_string(dest)
                     token_addr_owner = check_token['owner']
                 else:
-                    error = "Receiver {} has no token address!".format(dest)
+                    error = f"Receiver {dest} has no token address!"
                     print(error)
                     addr_receiver = None
                     return {"error": error}
 
             if addr_sender and addr_receiver:
-                print("{} Token {}/{} trying to send to {}, lamports={}".format(
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    token_address, program_id,
-                    dest,
-                    atomic_amount
-                ))
+                print(
+                    f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} Token {token_address}/{program_id} trying to send to {dest}, lamports={atomic_amount}'
+                )
                 blockhash = await client.get_latest_blockhash()
                 txn = await spl_client.transfer(
                     source=addr_sender,
@@ -205,13 +202,9 @@ async def post_transfer_token(
                     multi_signers=[Keypair.from_bytes(bytes.fromhex(owner_key)), Keypair.from_bytes(bytes.fromhex(fee_payer_key))],
                     recent_blockhash=blockhash.value.blockhash
                 )
-                print("{} Token {}/{} trying to send to {}, lamports={}. Hash: {}".format(
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    token_address, program_id,
-                    dest,
-                    atomic_amount,
-                    str(txn.value)
-                ))
+                print(
+                    f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} Token {token_address}/{program_id} trying to send to {dest}, lamports={atomic_amount}. Hash: {str(txn.value)}'
+                )
                 return {"error": None, "hash": str(txn.value), "owner": token_addr_owner}
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -286,23 +279,22 @@ async def send_token_account(
         )
         if sending is None:
             return {
-                "error": "Internal error when transfering token {}.".format(item.token_address),
+                "error": f"Internal error when transfering token {item.token_address}.",
+                "timestamp": int(time.time()),
+            }
+        if sending.get("error"):
+            return {
+                "success": False,
+                "error": sending['error'],
                 "timestamp": int(time.time())
             }
         else:
-            if sending.get("error"):
-                return {
-                    "success": False,
-                    "error": sending['error'],
-                    "timestamp": int(time.time())
-                }
-            else:
-                return {
-                    "success": True,
-                    "result": sending['hash'],
-                    "dump": sending,
-                    "timestamp": int(time.time())
-                }
+            return {
+                "success": True,
+                "result": sending['hash'],
+                "dump": sending,
+                "timestamp": int(time.time())
+            }
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return {
@@ -325,8 +317,8 @@ async def create_token_account(
         )
         if addr is None:
             return {
-                "error": "Internal error when creating Account address for {}.".format(item.owner_address),
-                "timestamp": int(time.time())
+                "error": f"Internal error when creating Account address for {item.owner_address}.",
+                "timestamp": int(time.time()),
             }
         else:
             return {
@@ -362,32 +354,31 @@ async def get_token_account_info(
                 "result": check_token,
                 "timestamp": int(time.time())
             }
+        # Try with verify
+        check_account = await post_verify_account_token(
+            item.endpoint,
+            item.token_address,
+            item.address,
+            item.program_id,
+            timeout=60
+        )
+        if check_account is None:
+            return {
+                "error": f"Internal error when checking Account address for {item.address}.",
+                "timestamp": int(time.time()),
+            }
+        elif len(check_account) > 0:
+            return {
+                "success": True,
+                "token_account": [str(i.pubkey) for i in check_account],
+                "owner": item.address,
+                "timestamp": int(time.time())
+            }
         else:
-            # Try with verify
-            check_account = await post_verify_account_token(
-                item.endpoint,
-                item.token_address,
-                item.address,
-                item.program_id,
-                timeout=60
-            )
-            if check_account is None:
-                return {
-                    "error": "Internal error when checking Account address for {}.".format(item.address),
-                    "timestamp": int(time.time())
-                }
-            elif len(check_account) > 0:
-                return {
-                    "success": True,
-                    "token_account": [str(i.pubkey) for i in check_account],
-                    "owner": item.address,
-                    "timestamp": int(time.time())
-                }
-            else:
-                return {
-                    "error": "There's no Account address with {}.".format(item.address),
-                    "timestamp": int(time.time())
-                }
+            return {
+                "error": f"There's no Account address with {item.address}.",
+                "timestamp": int(time.time()),
+            }
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return {
@@ -410,8 +401,8 @@ async def verify_token_account(
         )
         if check is None:
             return {
-                "error": "Internal error when checking Account address for {}.".format(item.address),
-                "timestamp": int(time.time())
+                "error": f"Internal error when checking Account address for {item.address}.",
+                "timestamp": int(time.time()),
             }
         elif len(check) > 0:
             return {
@@ -421,8 +412,8 @@ async def verify_token_account(
             }
         else:
             return {
-                "error": "There's no Account address with {}.".format(item.address),
-                "timestamp": int(time.time())
+                "error": f"There's no Account address with {item.address}.",
+                "timestamp": int(time.time()),
             }
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -435,10 +426,9 @@ async def verify_token_account(
 async def create_address():
     kp = Keypair()
     public_key = str(kp.pubkey())
-    print("{} create a new address: {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        public_key
-    ))
+    print(
+        f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} create a new address: {public_key}'
+    )
     return {
         "success": True,
         "address": public_key,
@@ -448,29 +438,28 @@ async def create_address():
 
 @app.get("/reset_cache/{address}")
 async def reset_balance_cache(address: str):
-    if app.pending_cache_balance.get(address):
-        print("{} X Delete balance cache for {}".format(
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), address
-        ))
-        del app.pending_cache_balance[address]
+    if not app.pending_cache_balance.get(address):
         return {
-            "success": True,
-            "timestamp": int(time.time())
+            "error": f"Cache not exist for: {address}",
+            "timestamp": int(time.time()),
         }
-    else:
-        return {
-            "error": "Cache not exist for: {}".format(address),
-            "timestamp": int(time.time())
-        }
+    print(
+        f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} X Delete balance cache for {address}'
+    )
+    del app.pending_cache_balance[address]
+    return {
+        "success": True,
+        "timestamp": int(time.time())
+    }
 
 @app.post("/get_balance_solana")
 async def get_balance_solana(
     item: BalanceSolData
 ):
     if app.pending_cache_balance.get(item.address):
-        print("{} use balance cache for {}".format(
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), item.address
-        ))
+        print(
+            f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} use balance cache for {item.address}'
+        )
         return app.pending_cache_balance[item.address]
 
     balance = await fetch_wallet_balance(item.endpoint, item.address, timeout=60)
@@ -479,17 +468,16 @@ async def get_balance_solana(
             "error": "Error trying to get balance from endpoint with addr: ".format(item.address),
             "timestamp": int(time.time())
         }
-    else:
-        result = {
-            "success": True,
-            "result": {
-                "balance": balance.value,
-                "slot": balance.context.slot
-            },
-            "timestamp": int(time.time())
-        }
-        app.pending_cache_balance[item.address] = result
-        return result
+    result = {
+        "success": True,
+        "result": {
+            "balance": balance.value,
+            "slot": balance.context.slot
+        },
+        "timestamp": int(time.time())
+    }
+    app.pending_cache_balance[item.address] = result
+    return result
 
 @app.post("/get_sig")
 async def get_signature(
@@ -507,16 +495,15 @@ async def send_transaction(item: TxData):
         valid = check_address(item.to_addr)
         if valid is False:
             return {
-                "error": "Invalid address {}!".format(item.to_addr),
-                "timestamp": int(time.time())
+                "error": f"Invalid address {item.to_addr}!",
+                "timestamp": int(time.time()),
             }
-        else:
-            sending = await send_solana(item.endpoint, item.from_key, item.to_addr, item.atomic_amount, 60)
-            return {
-                "success": True,
-                "hash": str(sending),
-                "timestamp": int(time.time())
-            }
+        sending = await send_solana(item.endpoint, item.from_key, item.to_addr, item.atomic_amount, 60)
+        return {
+            "success": True,
+            "hash": str(sending),
+            "timestamp": int(time.time())
+        }
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return {
@@ -550,11 +537,9 @@ async def validate_address(item: Address):
     }
 
 if __name__ == "__main__":
-    print("{} running with IP: {} and port {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        config['api_helper']['bind_ip'],
-        bind_port
-    ))
+    print(
+        f"""{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} running with IP: {config['api_helper']['bind_ip']} and port {bind_port}"""
+    )
     uvicorn.run(
         app,
         host=config['api_helper']['bind_ip'],

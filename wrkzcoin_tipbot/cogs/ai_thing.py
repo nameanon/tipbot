@@ -73,11 +73,11 @@ async def ai_tts_get(
     url: str, text: str, saved_name: str, model: str, timeout: int=900
 ):
     text = text.strip()
-    print("processing remote work model {}->{}: {}".format(model, url, text[0:100]))
+    print(f"processing remote work model {model}->{url}: {text[:100]}")
     if model == "en/vctk/vits":
-        url += "api/tts?text=" + urllib.parse.quote(text) + "&speaker_id=p376&style_wav=&language_id="
+        url += f"api/tts?text={urllib.parse.quote(text)}&speaker_id=p376&style_wav=&language_id="
     else:
-        url += "api/tts?text=" + urllib.parse.quote(text) + "&speaker_id=&style_wav=&language_id="
+        url += f"api/tts?text={urllib.parse.quote(text)}&speaker_id=&style_wav=&language_id="
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -90,9 +90,7 @@ async def ai_tts_get(
                     await f.close()
                     return saved_name
     except asyncio.TimeoutError:
-        await logchanbot(
-            "ai_tts_get timeout: {} for url: {}".format(timeout, url)
-        )
+        await logchanbot(f"ai_tts_get timeout: {timeout} for url: {url}")
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -100,13 +98,13 @@ async def ai_tts_get(
 class DownloadAudioMP3(disnake.ui.View):
     def __init__(self, base_url: str):
         super().__init__()
-        self.add_item(disnake.ui.Button(label="📥 MP3", url=base_url + ".mp3"))
+        self.add_item(disnake.ui.Button(label="📥 MP3", url=f"{base_url}.mp3"))
 
 class DownloadAudio(disnake.ui.View):
     def __init__(self, base_url: str):
         super().__init__()
-        self.add_item(disnake.ui.Button(label="📥 WAV", url=base_url + ".wav"))
-        self.add_item(disnake.ui.Button(label="📥 MP3", url=base_url + ".mp3"))
+        self.add_item(disnake.ui.Button(label="📥 WAV", url=f"{base_url}.wav"))
+        self.add_item(disnake.ui.Button(label="📥 MP3", url=f"{base_url}.mp3"))
 
 class AiThing(commands.Cog):
     def __init__(self, bot):
@@ -209,7 +207,7 @@ class AiThing(commands.Cog):
         text: str,
         language: str=None,
     ):
-        await ctx.response.send_message(f"{ctx.author.mention}, loading ai tools ...")    
+        await ctx.response.send_message(f"{ctx.author.mention}, loading ai tools ...")
         try:
             self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
                                          str(ctx.author.id), SERVER_BOT, "/aitool auto-edge-tts", int(time.time())))
@@ -256,7 +254,7 @@ class AiThing(commands.Cog):
                     await ctx.edit_original_message(
                         content=f"{EMOJI_INFORMATION} {ctx.author.mention}, language **{language}** is not available!")
                     return
-                
+
                 # do process
                 if language:
                     detect_lang = language
@@ -278,11 +276,12 @@ class AiThing(commands.Cog):
             # normal use
             if ctx.author.id not in self.bot.config['aithing']['testers'] and len(text) > self.bot.config['aithing']['mormal_user_len']:
                 await ctx.edit_original_message(
-                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {str(len(text))} > { self.bot.config['aithing']['mormal_user_len']}!")
+                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {len(text)} > {self.bot.config['aithing']['mormal_user_len']}!"
+                )
                 return
 
             if ctx.author.id in self.ai_tss_progress and self.ai_tss_progress[ctx.author.id] > int(time.time()) - 90 and \
-                ctx.author.id not in self.bot.config['aithing']['testers']:
+                    ctx.author.id not in self.bot.config['aithing']['testers']:
                 await ctx.edit_original_message(
                     content=f"{EMOJI_INFORMATION} {ctx.author.mention}, you executed too recent of this tool! Wait a bit.")
                 return
@@ -296,9 +295,10 @@ class AiThing(commands.Cog):
                     content=f"{EMOJI_INFORMATION} {ctx.author.mention}, you reached max. usage per last 24 hours!")
                 return
             await ctx.edit_original_message(
-                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {str(len(text))} characters ....!")
+                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {len(text)} characters ....!"
+            )
 
-            content = text if len(text) <= 1000 else text[0:950] + " ... (more)"
+            content = text if len(text) <= 1000 else f"{text[:950]} ... (more)"
             guild_id = "DM"
             guild_name = "DM"
             if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
@@ -306,13 +306,14 @@ class AiThing(commands.Cog):
                 guild_name = ctx.guild.name
             await log_to_channel(
                 "aitool",
-                f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} "\
-                f"used AUTO TTS {str(len(text))} characters ({tts_engine}) / language: '{language}' in {guild_id} / {guild_name}.",
-                self.bot.config['discord']['aitool']
+                f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} used AUTO TTS {len(text)} characters ({tts_engine}) / language: '{language}' in {guild_id} / {guild_name}.",
+                self.bot.config['discord']['aitool'],
             )
             start_time = int(time.time())
             path = self.bot.config['aithing']['path']
-            saved_name = str(int(time.time())) + "_" + ''.join(random.choice(ascii_uppercase) for i in range(8))
+            saved_name = f"{int(time.time())}_" + ''.join(
+                random.choice(ascii_uppercase) for _ in range(8)
+            )
             tts = await ai_tts_edge(text, path + saved_name + ".mp3", tts_engine)
             if tts:
                 await ctx.edit_original_message(
@@ -320,7 +321,7 @@ class AiThing(commands.Cog):
                 command = f'ffmpeg -i {path + saved_name + ".mp3"} -filter_complex "[0:a]showwaves=s=640x360:mode=cline:r=30,colorkey=0x000000:0.01:0.1,format=yuv420p[vid]" -map "[vid]" -map 0:a -codec:v libx264 -crf 18 -c:a copy {path + saved_name + ".mp4"}'
                 process_video = subprocess.Popen(command, shell=True)
                 process_video.wait(timeout=30000) # 30s waiting
-                file = disnake.File(path + saved_name + ".mp4", filename=saved_name + ".mp4")
+                file = disnake.File(path + saved_name + ".mp4", filename=f"{saved_name}.mp4")
                 duration = int(time.time() - start_time)
                 file_size = os.stat(path + saved_name + ".mp4") # byte
                 if file_size.st_size >= self.bot.config['aithing']['max_size']:
@@ -336,14 +337,19 @@ class AiThing(commands.Cog):
                         view=DownloadAudioMP3(self.bot.config['aithing']['url'] + saved_name)
                     )
                 await self.insert_ai_tts(
-                    str(ctx.author.id), "{}#{}".format(ctx.author.name, ctx.author.discriminator),
-                    guild_id, text, len(text), int(time.time()), saved_name + ".mp3",
-                    duration
+                    str(ctx.author.id),
+                    f"{ctx.author.name}#{ctx.author.discriminator}",
+                    guild_id,
+                    text,
+                    len(text),
+                    int(time.time()),
+                    f"{saved_name}.mp3",
+                    duration,
                 )
                 await log_to_channel(
                     "aitool",
                     f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} "\
-                    f"completed AUTO TTS:\n{content}\n" + self.bot.config['aithing']['url'] + saved_name + ".mp4",
+                        f"completed AUTO TTS:\n{content}\n" + self.bot.config['aithing']['url'] + saved_name + ".mp4",
                     self.bot.config['discord']['aitool']
                 )
         except Exception:
@@ -351,13 +357,14 @@ class AiThing(commands.Cog):
 
     @ai_thing_auto_edge_tts.autocomplete("language")
     async def ai_thing_auto_edge_tts_autocomp(self, inter: disnake.CommandInteraction, string: str):
-        string = string.lower()
         if self.bot.other_data.get('ai_edge_tts_all_models') is None:
             return [disnake.OptionChoice(name="Failed to load...", value=0)]
-        else:
-            return [disnake.OptionChoice(
-                name=k, value=k) for k in self.bot.other_data['ai_edge_tts_all_models'].keys() if string.lower() in k.lower()
-            ][0:15]
+        string = string.lower()
+        return [
+            disnake.OptionChoice(name=k, value=k)
+            for k in self.bot.other_data['ai_edge_tts_all_models'].keys()
+            if string.lower() in k.lower()
+        ][:15]
 
     @ai_thing.sub_command(
         name="edge-tts",
@@ -374,7 +381,7 @@ class AiThing(commands.Cog):
         text: str,
         model: str='en-GB-SoniaNeural',
     ):
-        await ctx.response.send_message(f"{ctx.author.mention}, loading ai tools ...")    
+        await ctx.response.send_message(f"{ctx.author.mention}, loading ai tools ...")
         try:
             self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
                                          str(ctx.author.id), SERVER_BOT, "/aitool edge-tts", int(time.time())))
@@ -414,7 +421,8 @@ class AiThing(commands.Cog):
             # normal use
             if ctx.author.id not in self.bot.config['aithing']['testers'] and len(text) > self.bot.config['aithing']['mormal_user_len']:
                 await ctx.edit_original_message(
-                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {str(len(text))} > { self.bot.config['aithing']['mormal_user_len']}!")
+                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {len(text)} > {self.bot.config['aithing']['mormal_user_len']}!"
+                )
                 return
 
             model_list = self.bot.other_data['ai_edge_tts_models']
@@ -429,7 +437,7 @@ class AiThing(commands.Cog):
                 return
 
             if ctx.author.id in self.ai_tss_progress and self.ai_tss_progress[ctx.author.id] > int(time.time()) - 90 and \
-                ctx.author.id not in self.bot.config['aithing']['testers']:
+                    ctx.author.id not in self.bot.config['aithing']['testers']:
                 await ctx.edit_original_message(
                     content=f"{EMOJI_INFORMATION} {ctx.author.mention}, you executed too recent of this tool! Wait a bit.")
                 return
@@ -443,9 +451,10 @@ class AiThing(commands.Cog):
                     content=f"{EMOJI_INFORMATION} {ctx.author.mention}, you reached max. usage per last 24 hours!")
                 return
             await ctx.edit_original_message(
-                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {str(len(text))} characters ....!")
+                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {len(text)} characters ....!"
+            )
 
-            content = text if len(text) <= 1000 else text[0:950] + " ... (more)"
+            content = text if len(text) <= 1000 else f"{text[:950]} ... (more)"
             guild_id = "DM"
             guild_name = "DM"
             if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
@@ -453,13 +462,14 @@ class AiThing(commands.Cog):
                 guild_name = ctx.guild.name
             await log_to_channel(
                 "aitool",
-                f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} "\
-                f"used TTS {str(len(text))} characters ({model}) in {guild_id} / {guild_name}.",
-                self.bot.config['discord']['aitool']
+                f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} used TTS {len(text)} characters ({model}) in {guild_id} / {guild_name}.",
+                self.bot.config['discord']['aitool'],
             )
             start_time = int(time.time())
             path = self.bot.config['aithing']['path']
-            saved_name = str(int(time.time())) + "_" + ''.join(random.choice(ascii_uppercase) for i in range(8))
+            saved_name = f"{int(time.time())}_" + ''.join(
+                random.choice(ascii_uppercase) for _ in range(8)
+            )
             tts = await ai_tts_edge(text, path + saved_name + ".mp3", model)
             if tts:
                 await ctx.edit_original_message(
@@ -467,7 +477,7 @@ class AiThing(commands.Cog):
                 command = f'ffmpeg -i {path + saved_name + ".mp3"} -filter_complex "[0:a]showwaves=s=640x360:mode=cline:r=30,colorkey=0x000000:0.01:0.1,format=yuv420p[vid]" -map "[vid]" -map 0:a -codec:v libx264 -crf 18 -c:a copy {path + saved_name + ".mp4"}'
                 process_video = subprocess.Popen(command, shell=True)
                 process_video.wait(timeout=30000) # 30s waiting
-                file = disnake.File(path + saved_name + ".mp4", filename=saved_name + ".mp4")
+                file = disnake.File(path + saved_name + ".mp4", filename=f"{saved_name}.mp4")
                 duration = int(time.time() - start_time)
                 file_size = os.stat(path + saved_name + ".mp4") # byte
                 if file_size.st_size >= self.bot.config['aithing']['max_size']:
@@ -483,14 +493,19 @@ class AiThing(commands.Cog):
                         view=DownloadAudioMP3(self.bot.config['aithing']['url'] + saved_name)
                     )
                 await self.insert_ai_tts(
-                    str(ctx.author.id), "{}#{}".format(ctx.author.name, ctx.author.discriminator),
-                    guild_id, text, len(text), int(time.time()), saved_name + ".mp3",
-                    duration
+                    str(ctx.author.id),
+                    f"{ctx.author.name}#{ctx.author.discriminator}",
+                    guild_id,
+                    text,
+                    len(text),
+                    int(time.time()),
+                    f"{saved_name}.mp3",
+                    duration,
                 )
                 await log_to_channel(
                     "aitool",
                     f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} "\
-                    f"completed TTS:\n{content}\n" + self.bot.config['aithing']['url'] + saved_name + ".mp4",
+                        f"completed TTS:\n{content}\n" + self.bot.config['aithing']['url'] + saved_name + ".mp4",
                     self.bot.config['discord']['aitool']
                 )
         except Exception:

@@ -33,23 +33,22 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        if "local_node_trx" in bot_settings and bot_settings['local_node_trx'] is not None:
+            self.bot.erc_node_list['TRX'] = bot_settings['local_node_trx']
         else:
-            if "local_node_trx" in bot_settings and bot_settings['local_node_trx'] is not None:
-                self.bot.erc_node_list['TRX'] = bot_settings['local_node_trx']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_trx'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # trx needs to fetch best node from their public
-                            self.bot.erc_node_list['TRX'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for TRX.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_trx'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # trx needs to fetch best node from their public
+                        self.bot.erc_node_list['TRX'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for TRX.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -65,23 +64,22 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        if "local_node_arb1eth" in bot_settings and bot_settings['local_node_arb1eth'] is not None:
+            self.bot.erc_node_list['ARB1ETH'] = bot_settings['local_node_arb1eth']
         else:
-            if "local_node_arb1eth" in bot_settings and bot_settings['local_node_arb1eth'] is not None:
-                self.bot.erc_node_list['ARB1ETH'] = bot_settings['local_node_arb1eth']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_arb1eth'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # ARB1ETH needs to fetch best node from their public
-                            self.bot.erc_node_list['ARB1ETH'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for ARB1ETH.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_arb1eth'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # ARB1ETH needs to fetch best node from their public
+                        self.bot.erc_node_list['ARB1ETH'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for ARB1ETH.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -97,26 +95,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_opeth_withdraw'):
+            self.bot.erc_node_list['OPETH_WITHDRAW'] = bot_settings['local_node_opeth_withdraw']
+        if "local_node_opeth" in bot_settings and bot_settings['local_node_opeth'] is not None:
+            self.bot.erc_node_list['OPETH'] = bot_settings['local_node_opeth']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_opeth_withdraw'):
-                self.bot.erc_node_list['OPETH_WITHDRAW'] = bot_settings['local_node_opeth_withdraw']
-            if "local_node_opeth" in bot_settings and bot_settings['local_node_opeth'] is not None:
-                self.bot.erc_node_list['OPETH'] = bot_settings['local_node_opeth']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_opeth'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # OPETH needs to fetch best node from their public
-                            self.bot.erc_node_list['OPETH'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for OPETH.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_opeth'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # OPETH needs to fetch best node from their public
+                        self.bot.erc_node_list['OPETH'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for OPETH.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -134,17 +131,17 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                bot_settings['api_best_node_bsc'],
-                headers={'Content-Type': 'application/json'},
-                timeout=5.0
-            ) as response:
+                        bot_settings['api_best_node_bsc'],
+                        headers={'Content-Type': 'application/json'},
+                        timeout=5.0
+                    ) as response:
                 if response.status == 200:
                     res_data = await response.read()
                     res_data = res_data.decode('utf-8')
                     # BSC needs to fetch best node from their public
                     self.bot.erc_node_list['BSC'] = res_data.replace('"', '')
                 else:
-                    await logchanbot(f"Can not fetch best node for BSC.")
+                    await logchanbot("Can not fetch best node for BSC.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -160,26 +157,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_sol_withdraw'):
+            self.bot.erc_node_list['SOL_WITHDRAW'] = bot_settings['local_node_sol_withdraw']
+        if "local_node_sol" in bot_settings and bot_settings['local_node_sol'] is not None:
+            self.bot.erc_node_list['SOL'] = bot_settings['local_node_sol']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_sol_withdraw'):
-                self.bot.erc_node_list['SOL_WITHDRAW'] = bot_settings['local_node_sol_withdraw']
-            if "local_node_sol" in bot_settings and bot_settings['local_node_sol'] is not None:
-                self.bot.erc_node_list['SOL'] = bot_settings['local_node_sol']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_sol'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # SOL needs to fetch best node from their public
-                            self.bot.erc_node_list['SOL'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for SOL.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_sol'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # SOL needs to fetch best node from their public
+                        self.bot.erc_node_list['SOL'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for SOL.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -195,26 +191,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_matic_withdraw'):
+            self.bot.erc_node_list['MATIC_WITHDRAW'] = bot_settings['local_node_matic_withdraw']
+        if "local_node_matic" in bot_settings and bot_settings['local_node_matic'] is not None:
+            self.bot.erc_node_list['MATIC'] = bot_settings['local_node_matic']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_matic_withdraw'):
-                self.bot.erc_node_list['MATIC_WITHDRAW'] = bot_settings['local_node_matic_withdraw']
-            if "local_node_matic" in bot_settings and bot_settings['local_node_matic'] is not None:
-                self.bot.erc_node_list['MATIC'] = bot_settings['local_node_matic']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_matic'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # MATIC needs to fetch best node from their public
-                            self.bot.erc_node_list['MATIC'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for MATIC.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_matic'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # MATIC needs to fetch best node from their public
+                        self.bot.erc_node_list['MATIC'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for MATIC.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -230,26 +225,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_celo_withdraw'):
+            self.bot.erc_node_list['CELO_WITHDRAW'] = bot_settings['local_node_celo_withdraw']
+        if "local_node_celo" in bot_settings and bot_settings['local_node_celo'] is not None:
+            self.bot.erc_node_list['CELO'] = bot_settings['local_node_celo']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_celo_withdraw'):
-                self.bot.erc_node_list['CELO_WITHDRAW'] = bot_settings['local_node_celo_withdraw']
-            if "local_node_celo" in bot_settings and bot_settings['local_node_celo'] is not None:
-                self.bot.erc_node_list['CELO'] = bot_settings['local_node_celo']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_celo'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # CELO needs to fetch best node from their public
-                            self.bot.erc_node_list['CELO'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for CELO.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_celo'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # CELO needs to fetch best node from their public
+                        self.bot.erc_node_list['CELO'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for CELO.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -265,26 +259,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_ftm_withdraw'):
+            self.bot.erc_node_list['FTM_WITHDRAW'] = bot_settings['local_node_ftm_withdraw']
+        if "local_node_ftm" in bot_settings and bot_settings['local_node_ftm'] is not None:
+            self.bot.erc_node_list['FTM'] = bot_settings['local_node_ftm']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_ftm_withdraw'):
-                self.bot.erc_node_list['FTM_WITHDRAW'] = bot_settings['local_node_ftm_withdraw']
-            if "local_node_ftm" in bot_settings and bot_settings['local_node_ftm'] is not None:
-                self.bot.erc_node_list['FTM'] = bot_settings['local_node_ftm']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_ftm'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # FTM needs to fetch best node from their public
-                            self.bot.erc_node_list['FTM'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for FTM.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_ftm'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # FTM needs to fetch best node from their public
+                        self.bot.erc_node_list['FTM'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for FTM.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -300,26 +293,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_avax_withdraw'):
+            self.bot.erc_node_list['AVAX_WITHDRAW'] = bot_settings['local_node_avax_withdraw']
+        if "local_node_avax" in bot_settings and bot_settings['local_node_avax'] is not None:
+            self.bot.erc_node_list['AVAX'] = bot_settings['local_node_avax']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_avax_withdraw'):
-                self.bot.erc_node_list['AVAX_WITHDRAW'] = bot_settings['local_node_avax_withdraw']
-            if "local_node_avax" in bot_settings and bot_settings['local_node_avax'] is not None:
-                self.bot.erc_node_list['AVAX'] = bot_settings['local_node_avax']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_avax'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # AVAX needs to fetch best node from their public
-                            self.bot.erc_node_list['AVAX'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for AVAX.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_avax'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # AVAX needs to fetch best node from their public
+                        self.bot.erc_node_list['AVAX'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for AVAX.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -335,29 +327,28 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_xdai_withdraw'):
+            self.bot.erc_node_list['XDAI_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
+            self.bot.erc_node_list['xDai_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
+        if "local_node_xdai" in bot_settings and bot_settings['local_node_xdai'] is not None:
+            self.bot.erc_node_list['XDAI'] = bot_settings['local_node_xdai']
+            self.bot.erc_node_list['xDai'] = bot_settings['local_node_xdai']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_xdai_withdraw'):
-                self.bot.erc_node_list['XDAI_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
-                self.bot.erc_node_list['xDai_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
-            if "local_node_xdai" in bot_settings and bot_settings['local_node_xdai'] is not None:
-                self.bot.erc_node_list['XDAI'] = bot_settings['local_node_xdai']
-                self.bot.erc_node_list['xDai'] = bot_settings['local_node_xdai']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_xdai'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # XDAI needs to fetch best node from their public
-                            self.bot.erc_node_list['XDAI'] = res_data.replace('"', '')
-                            self.bot.erc_node_list['xDai'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for XDAI.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_xdai'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # XDAI needs to fetch best node from their public
+                        self.bot.erc_node_list['XDAI'] = res_data.replace('"', '')
+                        self.bot.erc_node_list['xDai'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for XDAI.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -375,17 +366,17 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                bot_settings['api_best_node_one'],
-                headers={'Content-Type': 'application/json'},
-                timeout=5.0
-            ) as response:
+                        bot_settings['api_best_node_one'],
+                        headers={'Content-Type': 'application/json'},
+                        timeout=5.0
+                    ) as response:
                 if response.status == 200:
                     res_data = await response.read()
                     res_data = res_data.decode('utf-8')
                     # ONE needs to fetch best node from their public
                     self.bot.erc_node_list['ONE'] = res_data.replace('"', '')
                 else:
-                    await logchanbot(f"Can not fetch best node for ONE.")
+                    await logchanbot("Can not fetch best node for ONE.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -401,26 +392,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_xtz_withdraw'):
+            self.bot.erc_node_list['XTZ_WITHDRAW'] = bot_settings['local_node_xtz_withdraw']
+        if "local_node_xtz" in bot_settings and bot_settings['local_node_xtz'] is not None:
+            self.bot.erc_node_list['XTZ'] = bot_settings['local_node_xtz']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_xtz_withdraw'):
-                self.bot.erc_node_list['XTZ_WITHDRAW'] = bot_settings['local_node_xtz_withdraw']
-            if "local_node_xtz" in bot_settings and bot_settings['local_node_xtz'] is not None:
-                self.bot.erc_node_list['XTZ'] = bot_settings['local_node_xtz']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_xtz'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # XTZ needs to fetch best node from their public
-                            self.bot.erc_node_list['XTZ'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for XTZ.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_xtz'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # XTZ needs to fetch best node from their public
+                        self.bot.erc_node_list['XTZ'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for XTZ.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -436,26 +426,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_near_withdraw'):
+            self.bot.erc_node_list['NEAR_WITHDRAW'] = bot_settings['local_node_near_withdraw']
+        if "local_node_near" in bot_settings and bot_settings['local_node_near'] is not None:
+            self.bot.erc_node_list['NEAR'] = bot_settings['local_node_near']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_near_withdraw'):
-                self.bot.erc_node_list['NEAR_WITHDRAW'] = bot_settings['local_node_near_withdraw']
-            if "local_node_near" in bot_settings and bot_settings['local_node_near'] is not None:
-                self.bot.erc_node_list['NEAR'] = bot_settings['local_node_near']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_near'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # NEAR needs to fetch best node from their public
-                            self.bot.erc_node_list['NEAR'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for NEAR.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_near'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # NEAR needs to fetch best node from their public
+                        self.bot.erc_node_list['NEAR'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for NEAR.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -471,26 +460,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_xrp_withdraw'):
+            self.bot.erc_node_list['XRP_WITHDRAW'] = bot_settings['local_node_xrp_withdraw']
+        if "local_node_xrp" in bot_settings and bot_settings['local_node_xrp'] is not None:
+            self.bot.erc_node_list['XRP'] = bot_settings['local_node_xrp']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_xrp_withdraw'):
-                self.bot.erc_node_list['XRP_WITHDRAW'] = bot_settings['local_node_xrp_withdraw']
-            if "local_node_xrp" in bot_settings and bot_settings['local_node_xrp'] is not None:
-                self.bot.erc_node_list['XRP'] = bot_settings['local_node_xrp']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_xrp'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # XRP needs to fetch best node from their public
-                            self.bot.erc_node_list['XRP'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for XRP.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_xrp'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # XRP needs to fetch best node from their public
+                        self.bot.erc_node_list['XRP'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for XRP.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -508,17 +496,17 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                bot_settings['api_best_node_zil'],
-                headers={'Content-Type': 'application/json'},
-                timeout=5.0
-            ) as response:
+                        bot_settings['api_best_node_zil'],
+                        headers={'Content-Type': 'application/json'},
+                        timeout=5.0
+                    ) as response:
                 if response.status == 200:
                     res_data = await response.read()
                     res_data = res_data.decode('utf-8')
                     # ZIL needs to fetch best node from their public
                     self.bot.erc_node_list['ZIL'] = res_data.replace('"', '')
                 else:
-                    await logchanbot(f"Can not fetch best node for ZIL.")
+                    await logchanbot("Can not fetch best node for ZIL.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -534,23 +522,22 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        if "local_node_vet" in bot_settings and bot_settings['local_node_vet'] is not None:
+            self.bot.erc_node_list['VET'] = bot_settings['local_node_vet']
         else:
-            if "local_node_vet" in bot_settings and bot_settings['local_node_vet'] is not None:
-                self.bot.erc_node_list['VET'] = bot_settings['local_node_vet']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_vet'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # VET needs to fetch best node from their public
-                            self.bot.erc_node_list['VET'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for VET.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_vet'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # VET needs to fetch best node from their public
+                        self.bot.erc_node_list['VET'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for VET.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -566,26 +553,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_nova_withdraw'):
+            self.bot.erc_node_list['NOVA_WITHDRAW'] = bot_settings['local_node_nova_withdraw']
+        if "local_node_nova" in bot_settings and bot_settings['local_node_nova'] is not None:
+            self.bot.erc_node_list['NOVA'] = bot_settings['local_node_nova']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_nova_withdraw'):
-                self.bot.erc_node_list['NOVA_WITHDRAW'] = bot_settings['local_node_nova_withdraw']
-            if "local_node_nova" in bot_settings and bot_settings['local_node_nova'] is not None:
-                self.bot.erc_node_list['NOVA'] = bot_settings['local_node_nova']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_nova'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # NOVA needs to fetch best node from their public
-                            self.bot.erc_node_list['NOVA'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for NOVA.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_nova'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # NOVA needs to fetch best node from their public
+                        self.bot.erc_node_list['NOVA'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for NOVA.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -601,26 +587,25 @@ class EthScan(commands.Cog):
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
+        # Use withdraw node differently
+        if bot_settings.get('local_node_eth_withdraw'):
+            self.bot.erc_node_list['ETH_WITHDRAW'] = bot_settings['local_node_eth_withdraw']
+        if "local_node_eth" in bot_settings and bot_settings['local_node_eth'] is not None:
+            self.bot.erc_node_list['ETH'] = bot_settings['local_node_eth']
         else:
-            # Use withdraw node differently
-            if bot_settings.get('local_node_eth_withdraw'):
-                self.bot.erc_node_list['ETH_WITHDRAW'] = bot_settings['local_node_eth_withdraw']
-            if "local_node_eth" in bot_settings and bot_settings['local_node_eth'] is not None:
-                self.bot.erc_node_list['ETH'] = bot_settings['local_node_eth']
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        bot_settings['api_best_node_eth'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
-                        if response.status == 200:
-                            res_data = await response.read()
-                            res_data = res_data.decode('utf-8')
-                            # ETH needs to fetch best node from their public
-                            self.bot.erc_node_list['ETH'] = res_data.replace('"', '')
-                        else:
-                            await logchanbot(f"Can not fetch best node for ETH.")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                                    bot_settings['api_best_node_eth'],
+                                    headers={'Content-Type': 'application/json'},
+                                    timeout=5.0
+                                ) as response:
+                    if response.status == 200:
+                        res_data = await response.read()
+                        res_data = res_data.decode('utf-8')
+                        # ETH needs to fetch best node from their public
+                        self.bot.erc_node_list['ETH'] = res_data.replace('"', '')
+                    else:
+                        await logchanbot("Can not fetch best node for ETH.")
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(10.0)
@@ -676,9 +661,9 @@ class EthScan(commands.Cog):
                     )
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    await logchanbot("ethscan pull_trc20_scanning " + str(traceback.format_exc()))
+                    await logchanbot(f"ethscan pull_trc20_scanning {str(traceback.format_exc())}")
 
-            for each_contract in trc_contracts:
+            for _ in trc_contracts:
                 try:
                     pass
                     # TODO, blocked IO
@@ -708,12 +693,8 @@ class EthScan(commands.Cog):
             for each_c in erc_contracts:
                 if each_c['net_name'] not in contracts:
                     contracts[each_c['net_name']] = []
-                    if each_c['contract']:
-                        contracts[each_c['net_name']].append(each_c['contract'])
-                else:
-                    if each_c['contract']:
-                        contracts[each_c['net_name']].append(each_c['contract'])
-
+                if each_c['contract']:
+                    contracts[each_c['net_name']].append(each_c['contract'])
             # Update contract list setting
             for k, v in contracts.items():
                 try:
@@ -732,10 +713,10 @@ class EthScan(commands.Cog):
                                 return
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
-                            await logchanbot("ethscan pull_erc20_scanning " + str(traceback.format_exc()))
+                            await logchanbot(f"ethscan pull_erc20_scanning {str(traceback.format_exc())}")
 
-                        # TODO: this blocked IO
-                        # await self.fetch_txes(self.bot.erc_node_list[k], k, v, net_names[k]['scanned_from_height'])
+                                        # TODO: this blocked IO
+                                        # await self.fetch_txes(self.bot.erc_node_list[k], k, v, net_names[k]['scanned_from_height'])
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
             await asyncio.sleep(10.0)
@@ -755,7 +736,7 @@ class EthScan(commands.Cog):
                     if result and len(result) > 0: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("ethscan get_all_contracts " + str(traceback.format_exc()))
+            await logchanbot(f"ethscan get_all_contracts {str(traceback.format_exc())}")
         return []
 
     async def get_all_net_names(self):
@@ -774,7 +755,7 @@ class EthScan(commands.Cog):
                         return net_names
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("ethscan get_all_net_names " + str(traceback.format_exc()))
+            await logchanbot(f"ethscan get_all_net_names {str(traceback.format_exc())}")
         return {}
 
     async def update_scan_setting(self, net_name: str, contracts):
@@ -789,7 +770,7 @@ class EthScan(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("ethscan update_scan_setting " + str(traceback.format_exc()))
+            await logchanbot(f"ethscan update_scan_setting {str(traceback.format_exc())}")
         return None
 
     async def fetch_txes(self, url: str, net_name: str, contracts, scanned_from_height: int, timeout: int = 64):
@@ -815,7 +796,7 @@ class EthScan(commands.Cog):
                     return
             except Exception:
                 traceback.print_exc(file=sys.stdout)
-                await logchanbot("ethscan fetch_txes " + str(traceback.format_exc()))
+                await logchanbot(f"ethscan fetch_txes {str(traceback.format_exc())}")
 
             # Check height in DB
             height = max([height, scanned_from_height])
@@ -852,7 +833,7 @@ class EthScan(commands.Cog):
                 try:
                     async with aiohttp.ClientSession(connector=TCPConnector(ssl=False)) as session:
                         async with session.post(url, headers={'Content-Type': 'application/json'},
-                                                json=json.loads(data), timeout=timeout) as response:
+                                                                    json=json.loads(data), timeout=timeout) as response:
                             if response.status == 200:
                                 res_data = await response.read()
                                 res_data = res_data.decode('utf-8')
@@ -910,7 +891,7 @@ class EthScan(commands.Cog):
                                                         traceback.print_exc(file=sys.stdout)
                                                     # print("{} Append row {}".format(net_name, len(rows)))
                                         # print("{} Got {} row(s)".format(net_name, len(rows)))
-                                        if len(rows) > 0:
+                                        if rows:
                                             # insert data
                                             # print(rows[-1])
                                             insert_data = await store.get_monit_contract_tx_insert_erc(rows)
@@ -922,13 +903,13 @@ class EthScan(commands.Cog):
                                                 net_name, to_block)
                                             if update_height is None:
                                                 print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
-                                        elif len(rows) == 0:
+                                        elif not rows:
                                             # Update height to DB
                                             update_height = await store.get_monit_scanning_net_name_update_height(
                                                 net_name, to_block)
                                             if update_height is None:
                                                 print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
-                                        ##return records
+                                                                        ##return records
                                     elif len(records) == 0:
                                         # Update height to DB
                                         update_height = await store.get_monit_scanning_net_name_update_height(
@@ -968,15 +949,14 @@ class EthScan(commands.Cog):
                 return
 
             try:
-                url = "https://api.trongrid.io/v1/contracts/" + contract + "/events?event_name=Transfer&only_confirmed=true&order_by=block_timestamp,desc&limit=200"
+                url = f"https://api.trongrid.io/v1/contracts/{contract}/events?event_name=Transfer&only_confirmed=true&order_by=block_timestamp,desc&limit=200"
                 if last_timestamp:
-                    url = "https://api.trongrid.io/v1/contracts/" + contract + "/events?event_name=Transfer&only_confirmed=true&order_by=block_timestamp,desc&limit=200&min_block_timestamp=" + str(
-                        last_timestamp * 1000)
+                    url = f"https://api.trongrid.io/v1/contracts/{contract}/events?event_name=Transfer&only_confirmed=true&order_by=block_timestamp,desc&limit=200&min_block_timestamp={str(last_timestamp * 1000)}"
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url, headers={'Content-Type': 'application/json',
-                                                             'TRON-PRO-API-KEY': self.bot.config['Tron_Node']['trongrid_api']},
-                                               timeout=timeout) as response:
+                                                                                 'TRON-PRO-API-KEY': self.bot.config['Tron_Node']['trongrid_api']},
+                                                                   timeout=timeout) as response:
                             if response.status == 200:
                                 res_data = await response.read()
                                 res_data = res_data.decode('utf-8')
@@ -1033,7 +1013,7 @@ class EthScan(commands.Cog):
                                                         traceback.print_exc(file=sys.stdout)
                                                     # print("{} Append row {}".format(net_name, len(rows)))
                                         # print("{} / {} Got {} row(s)".format(net_name, coin_name, len(rows)))
-                                        if len(rows) > 0:
+                                        if rows:
                                             # insert data
                                             # print(rows[-1])
                                             insert_data = await store.get_monit_contract_tx_insert_trc(rows)
@@ -1045,14 +1025,17 @@ class EthScan(commands.Cog):
                                                 net_name, to_block, coin_name)
                                             if update_height is None:
                                                 print(
-                                                    f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
-                                        elif len(rows) == 0:
+                                                    f"to_block {to_block} No tx for `erc_contract_scan` for net_name {net_name}"
+                                                )
+                                        elif not rows:
                                             # Update height to DB
                                             update_height = await store.get_monit_scanning_net_name_update_height(
                                                 net_name, to_block, coin_name)
                                             if update_height is None:
-                                                print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
-                                        ##return records
+                                                print(
+                                                    f"to_block {to_block} No tx for `erc_contract_scan` for net_name {net_name}"
+                                                )
+                                                                        ##return records
                                     elif len(records) == 0:
                                         # Update height to DB
                                         update_height = await store.get_monit_scanning_net_name_update_height(
@@ -1072,101 +1055,103 @@ class EthScan(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if self.bot.config['discord']['enable_bg_tasks'] == 1:
-            if not self.fetch_arb1eth_node.is_running():
-                self.fetch_arb1eth_node.start()
-            if not self.fetch_opeth_node.is_running():
-                self.fetch_opeth_node.start()
-            if not self.fetch_bsc_node.is_running():
-                self.fetch_bsc_node.start()
-            if not self.fetch_sol_node.is_running():
-                self.fetch_sol_node.start()
-            if not self.fetch_trx_node.is_running():
-                self.fetch_trx_node.start()
-            if not self.fetch_matic_node.is_running():
-                self.fetch_matic_node.start()
-            if not self.fetch_celo_node.is_running():
-                self.fetch_celo_node.start()
-            if not self.fetch_ftm_node.is_running():
-                self.fetch_ftm_node.start()
-            if not self.fetch_avax_node.is_running():
-                self.fetch_avax_node.start()
-            if not self.fetch_xdai_node.is_running():
-                self.fetch_xdai_node.start()
-            if not self.fetch_one_node.is_running():
-                self.fetch_one_node.start()
-            if not self.fetch_tezos_node.is_running():
-                self.fetch_tezos_node.start()
-            if not self.fetch_near_node.is_running():
-                self.fetch_near_node.start()
-            if not self.fetch_xrp_node.is_running():
-                self.fetch_xrp_node.start()
-            if not self.fetch_zil_node.is_running():
-                self.fetch_zil_node.start()
-            if not self.fetch_vet_node.is_running():
-                self.fetch_vet_node.start()
-            if not self.fetch_nova_node.is_running():
-                self.fetch_nova_node.start()
-            if not self.fetch_eth_node.is_running():
-                self.fetch_eth_node.start()
+        if self.bot.config['discord']['enable_bg_tasks'] != 1:
+            return
+        if not self.fetch_arb1eth_node.is_running():
+            self.fetch_arb1eth_node.start()
+        if not self.fetch_opeth_node.is_running():
+            self.fetch_opeth_node.start()
+        if not self.fetch_bsc_node.is_running():
+            self.fetch_bsc_node.start()
+        if not self.fetch_sol_node.is_running():
+            self.fetch_sol_node.start()
+        if not self.fetch_trx_node.is_running():
+            self.fetch_trx_node.start()
+        if not self.fetch_matic_node.is_running():
+            self.fetch_matic_node.start()
+        if not self.fetch_celo_node.is_running():
+            self.fetch_celo_node.start()
+        if not self.fetch_ftm_node.is_running():
+            self.fetch_ftm_node.start()
+        if not self.fetch_avax_node.is_running():
+            self.fetch_avax_node.start()
+        if not self.fetch_xdai_node.is_running():
+            self.fetch_xdai_node.start()
+        if not self.fetch_one_node.is_running():
+            self.fetch_one_node.start()
+        if not self.fetch_tezos_node.is_running():
+            self.fetch_tezos_node.start()
+        if not self.fetch_near_node.is_running():
+            self.fetch_near_node.start()
+        if not self.fetch_xrp_node.is_running():
+            self.fetch_xrp_node.start()
+        if not self.fetch_zil_node.is_running():
+            self.fetch_zil_node.start()
+        if not self.fetch_vet_node.is_running():
+            self.fetch_vet_node.start()
+        if not self.fetch_nova_node.is_running():
+            self.fetch_nova_node.start()
+        if not self.fetch_eth_node.is_running():
+            self.fetch_eth_node.start()
 
-            # scan
-            if not self.pull_trc20_scanning.is_running():
-                self.pull_trc20_scanning.start()
+        # scan
+        if not self.pull_trc20_scanning.is_running():
+            self.pull_trc20_scanning.start()
 
-            # temporary, blocking IO
-            if not self.pull_erc20_scanning.is_running():
-                self.pull_erc20_scanning.start()
-            if not self.remove_all_tx_ethscan.is_running():
-                self.remove_all_tx_ethscan.start()
+        # temporary, blocking IO
+        if not self.pull_erc20_scanning.is_running():
+            self.pull_erc20_scanning.start()
+        if not self.remove_all_tx_ethscan.is_running():
+            self.remove_all_tx_ethscan.start()
 
     async def cog_load(self):
-        if self.bot.config['discord']['enable_bg_tasks'] == 1:
-            if not self.fetch_arb1eth_node.is_running():
-                self.fetch_arb1eth_node.start()
-            if not self.fetch_opeth_node.is_running():
-                self.fetch_opeth_node.start()
-            if not self.fetch_bsc_node.is_running():
-                self.fetch_bsc_node.start()
-            if not self.fetch_sol_node.is_running():
-                self.fetch_sol_node.start()
-            if not self.fetch_trx_node.is_running():
-                self.fetch_trx_node.start()
-            if not self.fetch_matic_node.is_running():
-                self.fetch_matic_node.start()
-            if not self.fetch_celo_node.is_running():
-                self.fetch_celo_node.start()
-            if not self.fetch_ftm_node.is_running():
-                self.fetch_ftm_node.start()
-            if not self.fetch_avax_node.is_running():
-                self.fetch_avax_node.start()
-            if not self.fetch_xdai_node.is_running():
-                self.fetch_xdai_node.start()
-            if not self.fetch_one_node.is_running():
-                self.fetch_one_node.start()
-            if not self.fetch_tezos_node.is_running():
-                self.fetch_tezos_node.start()
-            if not self.fetch_near_node.is_running():
-                self.fetch_near_node.start()
-            if not self.fetch_xrp_node.is_running():
-                self.fetch_xrp_node.start()
-            if not self.fetch_zil_node.is_running():
-                self.fetch_zil_node.start()
-            if not self.fetch_vet_node.is_running():
-                self.fetch_vet_node.start()
-            if not self.fetch_nova_node.is_running():
-                self.fetch_nova_node.start()
-            if not self.fetch_eth_node.is_running():
-                self.fetch_eth_node.start()
+        if self.bot.config['discord']['enable_bg_tasks'] != 1:
+            return
+        if not self.fetch_arb1eth_node.is_running():
+            self.fetch_arb1eth_node.start()
+        if not self.fetch_opeth_node.is_running():
+            self.fetch_opeth_node.start()
+        if not self.fetch_bsc_node.is_running():
+            self.fetch_bsc_node.start()
+        if not self.fetch_sol_node.is_running():
+            self.fetch_sol_node.start()
+        if not self.fetch_trx_node.is_running():
+            self.fetch_trx_node.start()
+        if not self.fetch_matic_node.is_running():
+            self.fetch_matic_node.start()
+        if not self.fetch_celo_node.is_running():
+            self.fetch_celo_node.start()
+        if not self.fetch_ftm_node.is_running():
+            self.fetch_ftm_node.start()
+        if not self.fetch_avax_node.is_running():
+            self.fetch_avax_node.start()
+        if not self.fetch_xdai_node.is_running():
+            self.fetch_xdai_node.start()
+        if not self.fetch_one_node.is_running():
+            self.fetch_one_node.start()
+        if not self.fetch_tezos_node.is_running():
+            self.fetch_tezos_node.start()
+        if not self.fetch_near_node.is_running():
+            self.fetch_near_node.start()
+        if not self.fetch_xrp_node.is_running():
+            self.fetch_xrp_node.start()
+        if not self.fetch_zil_node.is_running():
+            self.fetch_zil_node.start()
+        if not self.fetch_vet_node.is_running():
+            self.fetch_vet_node.start()
+        if not self.fetch_nova_node.is_running():
+            self.fetch_nova_node.start()
+        if not self.fetch_eth_node.is_running():
+            self.fetch_eth_node.start()
 
-            # scan
-            # Temporary disable
-            if not self.pull_trc20_scanning.is_running():
-                self.pull_trc20_scanning.start()
-            if not self.pull_erc20_scanning.is_running():
-                self.pull_erc20_scanning.start()
-            if not self.remove_all_tx_ethscan.is_running():
-                self.remove_all_tx_ethscan.start()
+        # scan
+        # Temporary disable
+        if not self.pull_trc20_scanning.is_running():
+            self.pull_trc20_scanning.start()
+        if not self.pull_erc20_scanning.is_running():
+            self.pull_erc20_scanning.start()
+        if not self.remove_all_tx_ethscan.is_running():
+            self.remove_all_tx_ethscan.start()
 
     def cog_unload(self):
         # Ensure the task is stopped when the cog is unloaded.

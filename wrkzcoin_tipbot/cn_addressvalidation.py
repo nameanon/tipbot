@@ -90,21 +90,7 @@ def _uint8be_to_64(data):
     res = 0
     switch = 9 - l_data
     for i in range(l_data):
-        if switch == 1:
-            res = res << 8 | data[i]
-        elif switch == 2:
-            res = res << 8 | data[i]
-        elif switch == 3:
-            res = res << 8 | data[i]
-        elif switch == 4:
-            res = res << 8 | data[i]
-        elif switch == 5:
-            res = res << 8 | data[i]
-        elif switch == 6:
-            res = res << 8 | data[i]
-        elif switch == 7:
-            res = res << 8 | data[i]
-        elif switch == 8:
+        if switch in [1, 2, 3, 4, 5, 6, 7, 8]:
             res = res << 8 | data[i]
         else:
             return "Impossible condition"
@@ -128,7 +114,7 @@ def encode_block(data, buf, index):
     l_data = len(data)
 
     if l_data < 1 or l_data > __fullEncodedBlockSize:
-        return "Invalid block length: " + str(l_data)
+        return f"Invalid block length: {l_data}"
 
     num = _uint8be_to_64(data)
     i = __encodedBlockSizes[l_data] - 1
@@ -174,7 +160,7 @@ def decode_block(data, buf, index):
     l_data = len(data)
 
     if l_data < 1 or l_data > __fullEncodedBlockSize:
-        return "Invalid block length: " + l_data
+        return f"Invalid block length: {l_data}"
 
     res_size = __encodedBlockSizes.index(l_data)
     if res_size <= 0:
@@ -279,8 +265,8 @@ def intToHexStr(i):
 def cn_validate_address(wallet_address: str, get_prefix: int, get_addrlen: int, get_prefix_char: str):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_addrlen - len(get_prefix_char)
-    my_regex = r"" + get_prefix_char + r"[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
-    if len(wallet_address) != int(get_addrlen):
+    my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
+    if len(wallet_address) != get_addrlen:
         return None
     if not re.match(my_regex, wallet_address.strip()):
         return None
@@ -292,7 +278,7 @@ def cn_validate_address(wallet_address: str, get_prefix: int, get_addrlen: int, 
             spend = address_no_prefix[1:65]
             view = address_no_prefix[65:129]
             checksum = address_no_prefix[129:137]
-            expectedChecksum = cn_fast_hash(prefix_hex + spend + view)[0:8]
+            expectedChecksum = cn_fast_hash(prefix_hex + spend + view)[:8]
             if checksum == expectedChecksum:
                 return wallet_address
     except Exception as e:
@@ -304,8 +290,8 @@ def cn_validate_address(wallet_address: str, get_prefix: int, get_addrlen: int, 
 def cn_validate_integrated(wallet_address: str, get_prefix_char: str, get_prefix: int, get_intaddrlen: int):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_intaddrlen - len(get_prefix_char)
-    my_regex = r"" + get_prefix_char + r"[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
-    if len(wallet_address) != int(get_intaddrlen):
+    my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
+    if len(wallet_address) != get_intaddrlen:
         return None
     if not re.match(my_regex, wallet_address.strip()):
         return None
@@ -318,13 +304,14 @@ def cn_validate_integrated(wallet_address: str, get_prefix_char: str, get_prefix
             spend = address_no_prefix[(128 + 1):(128 + 65)]
             view = address_no_prefix[(128 + 65):(128 + 129)]
             checksum = address_no_prefix[(128 + 129):(128 + 137)]
-            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[0:8]
+            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[:8]
             if checksum == expectedChecksum:
                 checksum = cn_fast_hash(prefix_hex + spend + view);
-                address_b58 = encode(prefix_hex + spend + view + checksum[0:8])
-                result = {}
-                result['address'] = str(address_b58)
-                result['integrated_id'] = str(hextostr(integrated_id))
+                address_b58 = encode(prefix_hex + spend + view + checksum[:8])
+                result = {
+                    'address': str(address_b58),
+                    'integrated_id': str(hextostr(integrated_id)),
+                }
             else:
                 return 'invalid'
     except Exception as e:
@@ -336,7 +323,7 @@ def cn_validate_integrated(wallet_address: str, get_prefix_char: str, get_prefix
 def cn_make_integrated(wallet_address, get_prefix_char: str, get_prefix: int, get_addrlen: int, integrated_id=None):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_addrlen - len(get_prefix_char)
-    my_regex = r"" + get_prefix_char + r"[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
+    my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
     if integrated_id is None:
         integrated_id = paymentid()
     if len(wallet_address) != get_addrlen:
@@ -354,14 +341,14 @@ def cn_make_integrated(wallet_address, get_prefix_char: str, get_prefix: int, ge
             address_no_prefix = address_hex[i:]
             spend = address_no_prefix[1:65]
             view = address_no_prefix[65:129]
-            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[0:8]
+            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[:8]
             address = (prefix_hex + integrated_id + spend + view + expectedChecksum)
             address = str(encode(address))
-            result = {}
-            result['address'] = wallet_address
-            result['paymentid'] = checkPaymentID
-            result['integrated_address'] = address
-            return result
+            return {
+                'address': wallet_address,
+                'paymentid': checkPaymentID,
+                'integrated_address': address,
+            }
     except Exception as e:
         pass
     return None

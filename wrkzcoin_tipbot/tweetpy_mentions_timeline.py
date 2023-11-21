@@ -20,8 +20,7 @@ sleep_no_records = 60
 def logchanbot(content: str):
     try:
         webhook = DiscordWebhook(
-            url=config['discord']['twitter_webhook'],
-            content=content[0:1000]
+            url=config['discord']['twitter_webhook'], content=content[:1000]
         )
         webhook.execute()
     except Exception as e:
@@ -102,7 +101,7 @@ async def fetch_bot_timeline():
                             data_rows.append((each_rec['id'], each_rec['id_str'], int_timestamp, each_rec['created_at'],
                                               each_rec['text'], user_mentions, json.dumps(each_rec), fetched_at))
                         # insert to DB
-                        if len(data_rows) > 0:
+                        if data_rows:
                             sql = """ INSERT INTO `twitter_mentions_timeline` (`twitter_id`, `twitter_id_str`, `created_at`, `created_at_str`, `text`, `user_mentions_list`, `json_dump`, `fetched_at`)
                                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s) """
                             await cur.executemany(sql, data_rows)

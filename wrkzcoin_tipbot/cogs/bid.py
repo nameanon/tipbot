@@ -77,7 +77,11 @@ class ReportBid(disnake.ui.Modal):
                 style=TextInputStyle.paragraph
             )
         ]
-        super().__init__(title="Report bid ID: {}".format(self.message_id), custom_id="modal_bidding_report", components=components)
+        super().__init__(
+            title=f"Report bid ID: {self.message_id}",
+            custom_id="modal_bidding_report",
+            components=components,
+        )
 
     async def callback(self, interaction: disnake.ModalInteraction) -> None:
         # Check if type of question is bool or multipe
@@ -94,21 +98,27 @@ class ReportBid(disnake.ui.Modal):
 
         try:
             adding_report = await self.utils.bid_add_report(
-                str(interaction.author.id), "{}#{}".format(interaction.author.name, interaction.author.discriminator), 
-                str(self.message_id), str(self.owner_userid), str(interaction.channel.id), str(interaction.guild.id), 
-                str(interaction.guild.name), desc_id, contact_id
+                str(interaction.author.id),
+                f"{interaction.author.name}#{interaction.author.discriminator}",
+                str(self.message_id),
+                str(self.owner_userid),
+                str(interaction.channel.id),
+                str(interaction.guild.id),
+                str(interaction.guild.name),
+                desc_id,
+                contact_id,
             )
             if adding_report is True:
                 msg = f"{EMOJI_INFORMATION} {self.ctx.author.mention}, we received your report! "\
-                    f"We suggest you to join in our Discord guild <http://chat.wrkz.work> as well for quick checking and reporting!"
+                        f"We suggest you to join in our Discord guild <http://chat.wrkz.work> as well for quick checking and reporting!"
                 await interaction.edit_original_message(content=msg)
                 await log_to_channel(
                     "bid",
                     f"[BID REPORT]: User {interaction.author.mention} submitted a report in Guild "\
-                    f"{interaction.guild.name} / {interaction.guild.id} for bid id: {str(self.message_id)} owner <@{str(self.owner_userid)}>. Content:\n\n"\
-                    f"{desc_id[:1000]}"\
-                    "\n\n"\
-                    f"How to contact: {contact_id[:200]}",
+                        f"{interaction.guild.name} / {interaction.guild.id} for bid id: {str(self.message_id)} owner <@{str(self.owner_userid)}>. Content:\n\n"\
+                        f"{desc_id[:1000]}"\
+                        "\n\n"\
+                        f"How to contact: {contact_id[:200]}",
                     self.bot.config['discord']['general_report_webhook']
                 )
             else:
@@ -158,13 +168,13 @@ class EditBid(disnake.ui.Modal):
                     get_message = await self.utils.get_bid_id(str(self.message_id))
                     _msg: disnake.Message = await interaction.channel.fetch_message(self.message_id)
                     embed = _msg.embeds[0] # embeds is list, we take 0
-                    embed.title = "NEW BID | {}".format(self.caption_new)
+                    embed.title = f"NEW BID | {self.caption_new}"
                     embed.description = get_message['description'][:1024]
                     await _msg.edit(content=None, embed=embed)
                     await log_to_channel(
                         "bid",
                         f"[BID EDIT]: User {interaction.author.mention} edited a bid in Guild ID {interaction.guild.id}. "\
-                        f"Ref: {self.message_id} / Guild name: {interaction.guild.name}!",
+                            f"Ref: {self.message_id} / Guild name: {interaction.guild.name}!",
                         self.bot.config['discord']['bid_webhook']
                     )
                     if 'fetched_msg' not in self.bot.other_data:
@@ -173,11 +183,10 @@ class EditBid(disnake.ui.Modal):
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                 await interaction.delete_original_message()
-                return
             else:
                 msg = f"{EMOJI_INFORMATION} {self.ctx.author.mention}, internal error!"
                 await interaction.edit_original_message(content=msg)
-                return
+            return
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -205,7 +214,11 @@ class PlaceBid(disnake.ui.Modal):
                 max_length=16
             ),
         ]
-        super().__init__(title="Place your bid amount {}".format(self.coin_name), custom_id="modal_bidding_amount", components=components)
+        super().__init__(
+            title=f"Place your bid amount {self.coin_name}",
+            custom_id="modal_bidding_amount",
+            components=components,
+        )
 
     async def callback(self, interaction: disnake.ModalInteraction) -> None:
         # Check if type of question is bool or multipe

@@ -78,14 +78,14 @@ def get_min_sell(coin: str, token_info = None):
     if COIN_NAME in ENABLE_COIN_ERC+ENABLE_COIN_TRC:
         return token_info['min_buysell']
     else:
-        return getattr(config,"daemon"+coin,config.daemonWRKZ).min_buysell
+        return getattr(config, f"daemon{coin}", config.daemonWRKZ).min_buysell
 
 def get_max_sell(coin: str, token_info = None):
     COIN_NAME = coin.upper()
     if COIN_NAME in ENABLE_COIN_ERC+ENABLE_COIN_TRC:
         return token_info['max_buysell']
     else:
-        return getattr(config,"daemon"+coin,config.daemonWRKZ).max_buysell
+        return getattr(config, f"daemon{coin}", config.daemonWRKZ).max_buysell
 ## END OF Section of Trade
 
 # Create ETH
@@ -103,10 +103,7 @@ def is_tradeable_coin(coin: str):
     try:
         openRedis()
         key = config.redis_setting.prefix_coin_setting + COIN_NAME + '_TRADEABLE'
-        if redis_conn and redis_conn.exists(key):
-            return True
-        else:
-            return False
+        return bool(redis_conn and redis_conn.exists(key))
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -120,10 +117,7 @@ def is_maintenance_coin(coin: str):
     try:
         openRedis()
         key = config.redis_setting.prefix_coin_setting + COIN_NAME + '_MAINT'
-        if redis_conn and redis_conn.exists(key):
-            return True
-        else:
-            return False
+        return bool(redis_conn and redis_conn.exists(key))
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -142,14 +136,18 @@ async def handle_get_all(request):
         check_auth = await store.check_header(userid, key)
     if check_auth is None:
         try:
-            print('Denied client ip: {} / {} / requested {}'.format(client_ip, request.headers.get('cf-ipcountry', None), request.rel_url))
+            print(
+                f"Denied client ip: {client_ip} / {request.headers.get('cf-ipcountry', None)} / requested {request.rel_url}"
+            )
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
         return await respond_unauthorized_request()
 
     if CF:
         try:
-            print('Client ip: {} / {} / Browser: {} requested {}'.format(client_ip, request.headers.get('cf-ipcountry', None), request.headers.get('User-Agent', None), request.rel_url))
+            print(
+                f"Client ip: {client_ip} / {request.headers.get('cf-ipcountry', None)} / Browser: {request.headers.get('User-Agent', None)} requested {request.rel_url}"
+            )
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
 
@@ -157,153 +155,149 @@ async def handle_get_all(request):
     if uri.startswith("/get_balance/"):
         # there is coin after
         COIN_NAME = uri.replace("/get_balance/", "").upper().replace("/", "")
-        if COIN_NAME not in ENABLE_COIN+ENABLE_COIN_DOGE+ENABLE_XMR+ENABLE_COIN_NANO+ENABLE_COIN_ERC+ENABLE_COIN_TRC+ENABLE_XCH:
+        if (
+            COIN_NAME
+            not in ENABLE_COIN
+            + ENABLE_COIN_DOGE
+            + ENABLE_XMR
+            + ENABLE_COIN_NANO
+            + ENABLE_COIN_ERC
+            + ENABLE_COIN_TRC
+            + ENABLE_XCH
+        ):
             return await respond_bad_request()
-        else:
-            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            if wallet is None:
-                if COIN_NAME in ENABLE_COIN_ERC:
-                    w = create_eth_wallet()
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, w)
-                elif COIN_NAME in ENABLE_COIN_TRC:
-                    result = await store.create_address_trx()
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, result)
-                else:
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            userdata_balance = await store.sql_user_balance(userid, COIN_NAME)
-            xfer_in = 0
-            if COIN_NAME not in ENABLE_COIN_ERC+ENABLE_COIN_TRC:
-                xfer_in = await store.sql_user_balance_get_xfer_in(userid, COIN_NAME)
-            if COIN_NAME in ENABLE_COIN_DOGE+ENABLE_COIN_ERC+ENABLE_COIN_TRC:
-                actual_balance = float(xfer_in) + float(userdata_balance['Adjust'])
-            elif COIN_NAME in ENABLE_COIN_NANO:
-                actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
-                actual_balance = round(actual_balance / get_decimal(COIN_NAME), 6) * get_decimal(COIN_NAME)
-            else:
-                actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
-            balance_actual = num_format_coin(actual_balance, COIN_NAME)
-            result = {"success": True, COIN_NAME: {"balance": balance_actual, "maintenance": True if is_maintenance_coin(COIN_NAME) else False}}
-            # add to api call
-            try:
-                call = await store.api_trade_store(userid, uri)
-            except Exception as e:
-                traceback.print_exc(file=sys.stdout)
-            return web.Response(text=json.dumps(result).replace("\\", ""), status=200)
-    elif uri.startswith("/deposit/"):
-        # there is coin after
-        COIN_NAME = uri.replace("/deposit/", "").upper().replace("/", "")
-        if COIN_NAME not in ENABLE_COIN+ENABLE_COIN_DOGE+ENABLE_XMR+ENABLE_COIN_NANO+ENABLE_COIN_ERC+ENABLE_COIN_TRC+ENABLE_XCH:
-            return await respond_bad_request()
-        else:
+        wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        if wallet is None:
             if COIN_NAME in ENABLE_COIN_ERC:
-                coin_family = "ERC-20"
+                w = create_eth_wallet()
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, w)
             elif COIN_NAME in ENABLE_COIN_TRC:
-                coin_family = "TRC-20"
+                result = await store.create_address_trx()
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, result)
             else:
-                try:
-                    coin_family = getattr(getattr(config,"daemon"+COIN_NAME),"coin_family","TRTL")
-                except Exception as e:
-                    return await respond_internal_error()
-            if is_maintenance_coin(COIN_NAME):
-                result = {"success": False, COIN_NAME: {"maintenance": True if is_maintenance_coin(COIN_NAME) else False}}
-                return web.Response(text=json.dumps(result).replace("\\", ""), status=500)
-
-            if coin_family in ["TRTL", "BCN"]:
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "XMR":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "XCH":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "DOGE":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "NANO":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "ERC-20":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    w = await create_address_eth()
-                    wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, w)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            elif coin_family == "TRC-20":
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-                if wallet is None:
-                    result = await store.create_address_trx()
-                    wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, result)
-                    wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            else:
-                return await respond_bad_request_404()
-
-            if wallet is None:
-                return await respond_internal_error()
-            else:
-                # add to api call
-                try:
-                    call = await store.api_trade_store(userid, uri)
-                except Exception as e:
-                    traceback.print_exc(file=sys.stdout)
-                result = {"success": True, COIN_NAME: {"deposit_address": wallet['balance_wallet_address'], "maintenance": True if is_maintenance_coin(COIN_NAME) else False}}
-                return web.Response(text=json.dumps(result).replace("\\", ""), status=200)
-    elif uri.startswith("/get_balance"):
-        # TODO: rate limit check for all coin balance check
-        # Disable temporary
-        return await respond_bad_request_404()
-        
-        balance_list = {}
-        maintenance_list = []
-        for COIN_NAME in [coinItem.upper() for coinItem in ENABLE_COIN+ENABLE_COIN_DOGE+ENABLE_XMR+ENABLE_COIN_NANO+ENABLE_COIN_ERC+ENABLE_COIN_TRC+ENABLE_XCH]:
-            # TODO: add maintenance check
-            if is_maintenance_coin(COIN_NAME):
-                maintenance_list.append(COIN_NAME)
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
             wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            if wallet is None:
-                if COIN_NAME in ENABLE_COIN_ERC:
-                    w = create_eth_wallet()
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, w)
-                elif COIN_NAME in ENABLE_COIN_TRC:
-                    result = await store.create_address_trx()
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, result)
-                else:
-                    userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
-                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
-            userdata_balance = await store.sql_user_balance(userid, COIN_NAME)
-            xfer_in = 0
-            if COIN_NAME not in ENABLE_COIN_ERC+ENABLE_COIN_TRC:
-                xfer_in = await store.sql_user_balance_get_xfer_in(userid, COIN_NAME)
-            if COIN_NAME in ENABLE_COIN_DOGE+ENABLE_COIN_ERC+ENABLE_COIN_TRC:
-                actual_balance = float(xfer_in) + float(userdata_balance['Adjust'])
-            elif COIN_NAME in ENABLE_COIN_NANO:
-                actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
-                actual_balance = round(actual_balance / get_decimal(COIN_NAME), 6) * get_decimal(COIN_NAME)
-            else:
-                actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
-            # TODO: add negative check
-            balance_actual = num_format_coin(actual_balance, COIN_NAME)
-            if actual_balance > 0:
-                balance_list[COIN_NAME] = balance_actual
+        userdata_balance = await store.sql_user_balance(userid, COIN_NAME)
+        xfer_in = (
+            await store.sql_user_balance_get_xfer_in(userid, COIN_NAME)
+            if COIN_NAME not in ENABLE_COIN_ERC + ENABLE_COIN_TRC
+            else 0
+        )
+        if COIN_NAME in ENABLE_COIN_DOGE+ENABLE_COIN_ERC+ENABLE_COIN_TRC:
+            actual_balance = float(xfer_in) + float(userdata_balance['Adjust'])
+        elif COIN_NAME in ENABLE_COIN_NANO:
+            actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
+            actual_balance = round(actual_balance / get_decimal(COIN_NAME), 6) * get_decimal(COIN_NAME)
+        else:
+            actual_balance = int(xfer_in) + int(userdata_balance['Adjust'])
+        balance_actual = num_format_coin(actual_balance, COIN_NAME)
+        result = {
+            "success": True,
+            COIN_NAME: {
+                "balance": balance_actual,
+                "maintenance": bool(is_maintenance_coin(COIN_NAME)),
+            },
+        }
         # add to api call
         try:
             call = await store.api_trade_store(userid, uri)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-        result = {"success": True, "balances": balance_list, "maitenance": maintenance_list}
+        return web.Response(text=json.dumps(result).replace("\\", ""), status=200)
+    elif uri.startswith("/deposit/"):
+        # there is coin after
+        COIN_NAME = uri.replace("/deposit/", "").upper().replace("/", "")
+        if (
+            COIN_NAME
+            not in ENABLE_COIN
+            + ENABLE_COIN_DOGE
+            + ENABLE_XMR
+            + ENABLE_COIN_NANO
+            + ENABLE_COIN_ERC
+            + ENABLE_COIN_TRC
+            + ENABLE_XCH
+        ):
+            return await respond_bad_request()
+        if COIN_NAME in ENABLE_COIN_ERC:
+            coin_family = "ERC-20"
+        elif COIN_NAME in ENABLE_COIN_TRC:
+            coin_family = "TRC-20"
+        else:
+            try:
+                coin_family = getattr(
+                    getattr(config, f"daemon{COIN_NAME}"),
+                    "coin_family",
+                    "TRTL",
+                )
+            except Exception as e:
+                return await respond_internal_error()
+        if is_maintenance_coin(COIN_NAME):
+            result = {
+                "success": False,
+                COIN_NAME: {
+                    "maintenance": bool(is_maintenance_coin(COIN_NAME))
+                },
+            }
+            return web.Response(text=json.dumps(result).replace("\\", ""), status=500)
+
+        if coin_family in ["TRTL", "BCN"]:
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "XMR":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "XCH":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                userregister = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "DOGE":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "NANO":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "ERC-20":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                w = await create_address_eth()
+                wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, w)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        elif coin_family == "TRC-20":
+            wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+            if wallet is None:
+                result = await store.create_address_trx()
+                wallet = await store.sql_register_user(userid, COIN_NAME, 'DISCORD', 0, result)
+                wallet = await store.sql_get_userwallet(userid, COIN_NAME)
+        else:
+            return await respond_bad_request_404()
+
+        if wallet is None:
+            return await respond_internal_error()
+        # add to api call
+        try:
+            call = await store.api_trade_store(userid, uri)
+        except Exception as e:
+            traceback.print_exc(file=sys.stdout)
+        result = {
+            "success": True,
+            COIN_NAME: {
+                "deposit_address": wallet['balance_wallet_address'],
+                "maintenance": bool(is_maintenance_coin(COIN_NAME)),
+            },
+        }
         return web.Response(text=json.dumps(result).replace("\\", ""), status=200)
     else:
+        # TODO: rate limit check for all coin balance check
+        # Disable temporary
         return await respond_bad_request_404()
 
 
@@ -392,7 +386,7 @@ async def handle_post_all(request):
             if buy_ticker == sell_ticker:
                 result = {"success": False, "result": {"error": "Same ticker(s)."}}
                 return web.Response(text=json.dumps(result).replace("\\", ""), status=500)
-            
+
             # get opened order:
             user_count_order = await store.sql_count_open_order_by_sellerid(userid, 'DISCORD')
             if user_count_order >= config.trade.Max_Open_Order:
@@ -407,7 +401,11 @@ async def handle_post_all(request):
                 coin_family_sell = "TRC-20"
                 sell_token_info = await store.get_token_info(sell_ticker)
             else:
-                coin_family_sell = getattr(getattr(config,"daemon"+sell_ticker),"coin_family","TRTL")
+                coin_family_sell = getattr(
+                    getattr(config, f"daemon{sell_ticker}"),
+                    "coin_family",
+                    "TRTL",
+                )
                 sell_token_info = None
             real_amount_sell = int(sell_amount * get_decimal(sell_ticker)) if coin_family_sell in ["BCN", "XMR", "TRTL", "NANO", "XCH"] else float(sell_amount)
             if real_amount_sell == 0:
@@ -428,7 +426,11 @@ async def handle_post_all(request):
                 coin_family_buy = "TRC-20"
                 buy_token_info = await store.get_token_info(buy_ticker)
             else:
-                coin_family_buy = getattr(getattr(config,"daemon"+buy_ticker),"coin_family","TRTL")
+                coin_family_buy = getattr(
+                    getattr(config, f"daemon{buy_ticker}"),
+                    "coin_family",
+                    "TRTL",
+                )
                 buy_token_info = None
 
             real_amount_buy = int(buy_amount * get_decimal(buy_ticker)) if coin_family_buy in ["BCN", "XMR", "TRTL", "NANO", "XCH"] else float(buy_amount)
@@ -590,11 +592,11 @@ async def sell_process(userid, real_amount_sell: float, sell_ticker: str, real_a
     global TRADE_PERCENT
     sell_ticker = sell_ticker.upper()
     buy_ticker = buy_ticker.upper()
-    if sell_ticker in ["NANO", "BAN"]:
+    if sell_ticker in {"NANO", "BAN"}:
         real_amount_sell = round(real_amount_sell, 20)
     else:
         real_amount_sell = round(real_amount_sell, 8)
-    if buy_ticker in ["NANO", "BAN"]:
+    if buy_ticker in {"NANO", "BAN"}:
         real_amount_buy = round(real_amount_buy, 20)
     else:
         real_amount_buy = round(real_amount_buy, 8)
@@ -604,14 +606,21 @@ async def sell_process(userid, real_amount_sell: float, sell_ticker: str, real_a
     if fee_sell == 0: fee_sell = 0.00000100
     if fee_buy == 0: fee_buy = 0.00000100
     # No need to check if order same rate exists
-    order_add = await store.sql_store_openorder(userid, "API: {}".format(json.dumps(data)), sell_ticker, 
-                            real_amount_sell, real_amount_sell-fee_sell, userid, 
-                            buy_ticker, real_amount_buy, real_amount_buy-fee_buy, sell_div_get, 'DISCORD')
+    order_add = await store.sql_store_openorder(
+        userid,
+        f"API: {json.dumps(data)}",
+        sell_ticker,
+        real_amount_sell,
+        real_amount_sell - fee_sell,
+        userid,
+        buy_ticker,
+        real_amount_buy,
+        real_amount_buy - fee_buy,
+        sell_div_get,
+        'DISCORD',
+    )
     if order_add:
-        get_message = "New open order created: **#{}** Selling: {} {} For: {} {} Fee: {} {}".format(order_add, 
-                                                                        num_format_coin(real_amount_sell, sell_ticker), sell_ticker,
-                                                                        num_format_coin(real_amount_buy, buy_ticker), buy_ticker,
-                                                                        num_format_coin(fee_sell, sell_ticker), sell_ticker)
+        get_message = f"New open order created: **#{order_add}** Selling: {num_format_coin(real_amount_sell, sell_ticker)} {sell_ticker} For: {num_format_coin(real_amount_buy, buy_ticker)} {buy_ticker} Fee: {num_format_coin(fee_sell, sell_ticker)} {sell_ticker}"
         # trade webhook
         try:
             await tradeapi_webhook(get_message)

@@ -89,7 +89,7 @@ class DiscordBotList(commands.Cog):
                                     await log_to_channel(
                                         "vote",
                                         f"[{SERVER_BOT}] User <@{user_vote}> voted for bot <@{bot_id}> "\
-                                        f"type `{type_vote}` but less than 1h."
+                                            f"type `{type_vote}` but less than 1h."
                                     )
                                     return web.Response(text="Thank you!")
                             except Exception:
@@ -102,7 +102,7 @@ class DiscordBotList(commands.Cog):
                                     await log_to_channel(
                                         "vote",
                                         f"[{SERVER_BOT}] User <@{user_vote}> voted a bot <@{bot_id}> type `{type_vote}` "\
-                                        "in discordbotlist.com."
+                                            "in discordbotlist.com."
                                     )
                                 except Exception:
                                     traceback.print_exc(file=sys.stdout)
@@ -167,7 +167,7 @@ class DiscordBotList(commands.Cog):
                                                 await log_to_channel(
                                                     "vote",
                                                     f"[{SERVER_BOT}] vote reward for but TipBot for "\
-                                                    f"{coin_name} but empty!!!"
+                                                        f"{coin_name} but empty!!!"
                                                 )
                                                 return web.Response(text="Thank you!")
                                             else:
@@ -207,22 +207,22 @@ class DiscordBotList(commands.Cog):
                                                                 traceback.print_exc(file=sys.stdout)
                                                         # end advert
                                                         msg = f"Thank you for voting for our TipBot at "\
-                                                            f"<{self.bot.config['bot_vote_link']['discordbotlist']}>. "\
-                                                            f"You got a reward {num_format_coin(amount)} "\
-                                                            f"{coin_name}. Check with `/claim` for voting list at other websites.{advert_txt}"
+                                                                f"<{self.bot.config['bot_vote_link']['discordbotlist']}>. "\
+                                                                f"You got a reward {num_format_coin(amount)} "\
+                                                                f"{coin_name}. Check with `/claim` for voting list at other websites.{advert_txt}"
                                                         try:
                                                             await member.send(msg)
                                                         except (disnake.errors.NotFound, disnake.errors.Forbidden) as e:
                                                             await log_to_channel(
                                                                 "vote",
                                                                 f"[{SERVER_BOT}] Failed to thank message to "\
-                                                                f"<@{user_vote}>."
+                                                                    f"<@{user_vote}>."
                                                             )
                                                         try:
                                                             channel = self.bot.get_channel(self.reward_channel)
                                                             try:
                                                                 coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
-                                                                coin_emoji = coin_emoji + " " if coin_emoji else ""
+                                                                coin_emoji = f"{coin_emoji} " if coin_emoji else ""
                                                                 if channel and channel.guild.get_member(int(self.bot.user.id)).guild_permissions.external_emojis is False:
                                                                     coin_emoji = ""
                                                             except Exception:
@@ -260,9 +260,9 @@ class DiscordBotList(commands.Cog):
                                         # User didn't put any prefer coin. Message him he could reward
                                         if member is not None:
                                             msg = f"Thank you for voting for our TipBot at "\
-                                                f"<{self.bot.config['bot_vote_link']['discordbotlist']}>. "\
-                                                f"You can get a reward! Know more by `/claim` or `/claim token_name` "\
-                                                f"to set your preferred coin/token reward."
+                                                    f"<{self.bot.config['bot_vote_link']['discordbotlist']}>. "\
+                                                    f"You can get a reward! Know more by `/claim` or `/claim token_name` "\
+                                                    f"to set your preferred coin/token reward."
                                             try:
                                                 await member.send(msg)
                                             except (disnake.errors.NotFound, disnake.errors.Forbidden) as e:
@@ -277,7 +277,7 @@ class DiscordBotList(commands.Cog):
                         await log_to_channel(
                             "vote",
                             f"[{SERVER_BOT}] User <@{user_vote}> voted for bot <@{self.bot.user.id}> "\
-                            f"type `{type_vote}` but not true from discordbotlist.com."
+                                f"type `{type_vote}` but not true from discordbotlist.com."
                         )
                         return web.Response(text="Thank you but not discordbotlist.com!")
             except KeyError:

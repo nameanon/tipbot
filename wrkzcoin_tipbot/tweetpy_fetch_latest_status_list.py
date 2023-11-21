@@ -19,8 +19,7 @@ sleep_no_records = 60
 def logchanbot(content: str):
     try:
         webhook = DiscordWebhook(
-            url=config['discord']['twitter_webhook'],
-            content=content[0:1000]
+            url=config['discord']['twitter_webhook'], content=content[:1000]
         )
         webhook.execute()
     except Exception as e:
@@ -48,9 +47,9 @@ async def fetch_latest_status_list():
         return []
 
     async def list_rt_update(
-        rt_by_uids: str, rt_counts: int, guild_id: str, tweet_link: str,
-        expired_date: int
-    ):  # id_num
+            rt_by_uids: str, rt_counts: int, guild_id: str, tweet_link: str,
+            expired_date: int
+        ):  # id_num
         try:
             await store.openConnection()
             async with store.pool.acquire() as conn:
@@ -78,7 +77,7 @@ async def fetch_latest_status_list():
                               WHERE `tweet_link`=%s AND `guild_id`=%s LIMIT 1;
                               """
                     await cur.execute(sql, (rt_by_uids, rt_counts, int(time.time()), tweet_link, guild_id))
-                    if len(data_rows) > 0:
+                    if data_rows:
                         sql = """ INSERT INTO `twitter_rt_reward_logs` (`guild_id`, `tweet_link`, `twitter_id`, 
                         `rewarded_date`, `expired_date`)
                         VALUES (%s, %s, %s, %s, %s)

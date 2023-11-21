@@ -24,8 +24,7 @@ prefix_command_dm = ('deposit', 'balance', 'withdraw', 'donate', 'help')
 def logchanbot(content: str):
     try:
         webhook = DiscordWebhook(
-            url=config['discord']['twitter_webhook'],
-            content=content[0:1000]
+            url=config['discord']['twitter_webhook'], content=content[:1000]
         )
         webhook.execute()
     except Exception as e:

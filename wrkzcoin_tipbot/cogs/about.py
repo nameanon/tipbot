@@ -27,8 +27,7 @@ class About(commands.Cog):
                     (SELECT COUNT(*) FROM user_balance_mv_data) AS nos_user
                     """
                     await cur.execute(sql, ())
-                    result = await cur.fetchone()
-                    return result
+                    return await cur.fetchone()
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -49,9 +48,9 @@ class About(commands.Cog):
                 try:
                     random.shuffle(self.bot.advert_list)
                     embed.add_field(
-                        name="{}".format(self.bot.advert_list[0]['title']),
-                        value="```{}```👉 <{}>".format(self.bot.advert_list[0]['content'], self.bot.advert_list[0]['link']),
-                        inline=False
+                        name=f"{self.bot.advert_list[0]['title']}",
+                        value=f"```{self.bot.advert_list[0]['content']}```👉 <{self.bot.advert_list[0]['link']}>",
+                        inline=False,
                     )
                     await self.utils.advert_impress(
                         self.bot.advert_list[0]['id'], str(ctx.author.id),
@@ -72,19 +71,13 @@ class About(commands.Cog):
         ts = datetime.now()
         try:
             guilds = '{:,.0f}'.format(len(self.bot.guilds))
-            total_members = '{:,.0f}'.format(sum(1 for m in self.bot.get_all_members()))
+            total_members = '{:,.0f}'.format(sum(1 for _ in self.bot.get_all_members()))
             total_unique = '{:,.0f}'.format(len(self.bot.users))
             total_bots = '{:,.0f}'.format(sum(1 for m in self.bot.get_all_members() if m.bot is True))
             total_online = '{:,.0f}'.format(sum(1 for m in self.bot.get_all_members() if m.status != disnake.Status.offline))
             cpu_usage = psutil.cpu_percent() / psutil.cpu_count()
             memory_usage = psutil.Process().memory_full_info().uss / 1024**2
-            description = "Total guild(s): `{}` Total member(s): `{}`\n" \
-                "Unique: `{}` Bots: `{}`\n" \
-                "Online: `{}`\n\n" \
-                "**Usage**: CPU: `{} %` Memory: `{} MiB`".format(
-                    guilds, total_members, total_unique, total_bots,
-                    total_online, round(cpu_usage, 1), round(memory_usage, 1)
-            )
+            description = f"Total guild(s): `{guilds}` Total member(s): `{total_members}`\nUnique: `{total_unique}` Bots: `{total_bots}`\nOnline: `{total_online}`\n\n**Usage**: CPU: `{round(cpu_usage, 1)} %` Memory: `{round(memory_usage, 1)} MiB`"
             ts = datetime.fromtimestamp(int(psutil.Process().create_time()))
         except Exception:
             traceback.print_exc(file=sys.stdout)

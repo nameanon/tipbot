@@ -81,7 +81,10 @@ redis_conn = None
 redis_expired = 120
 
 # logging.basicConfig(filename='debug-log-{}'.format(datetime.today().strftime('%Y-%m-%d_%H-%M-%S')), level=logging.DEBUG)
-logging.basicConfig(filename='info-log-{}'.format(datetime.today().strftime('%Y-%m-%d_%H-%M-%S')), level=logging.INFO)
+logging.basicConfig(
+    filename=f"info-log-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}",
+    level=logging.INFO,
+)
 
 SERVER_BOT = "DISCORD"
 
@@ -226,7 +229,9 @@ async def load(ctx, extension):
     try:
         extension = extension.lower()
         bot.load_extension(f'cogs.{extension}')
-        await ctx.send('{}, {} has been loaded.'.format(ctx.author.mention, extension.capitalize()))
+        await ctx.send(
+            f'{ctx.author.mention}, {extension.capitalize()} has been loaded.'
+        )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -238,7 +243,9 @@ async def unload(ctx, extension):
     try:
         extension = extension.lower()
         bot.unload_extension(f'cogs.{extension}')
-        await ctx.send('{}, {} has been unloaded.'.format(ctx.author.mention, extension.capitalize()))
+        await ctx.send(
+            f'{ctx.author.mention}, {extension.capitalize()} has been unloaded.'
+        )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -249,7 +256,9 @@ async def reload(ctx, extension):
     try:
         extension = extension.lower()
         bot.reload_extension(f'cogs.{extension}')
-        await ctx.send('{}, {} has been reloaded.'.format(ctx.author.mention, extension.capitalize()))
+        await ctx.send(
+            f'{ctx.author.mention}, {extension.capitalize()} has been reloaded.'
+        )
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -266,8 +275,8 @@ async def reconfig(ctx):
 async def add_msg_redis(msg: str, delete_temp: bool = False):
     try:
         openRedis()
-        key = bot.config['redis']['prefix'] + ":MSG"
         if redis_conn:
+            key = bot.config['redis']['prefix'] + ":MSG"
             if delete_temp:
                 redis_conn.delete(key)
             else:
@@ -278,15 +287,16 @@ async def add_msg_redis(msg: str, delete_temp: bool = False):
 
 
 async def store_message_list():
+    interval_msg_list = 15  # in second
     while True:
-        interval_msg_list = 15  # in second
         try:
             openRedis()
             key = bot.config['redis']['prefix'] + ":MSG"
             if redis_conn and redis_conn.llen(key) > 0:
-                temp_msg_list = []
-                for each in redis_conn.lrange(key, 0, -1):
-                    temp_msg_list.append(tuple(json.loads(each)))
+                temp_msg_list = [
+                    tuple(json.loads(each))
+                    for each in redis_conn.lrange(key, 0, -1)
+                ]
                 num_add = None
                 try:
                     num_add = await store.sql_add_messages(temp_msg_list)
@@ -369,7 +379,7 @@ def seconds_str_days(time: float):
         return seconds_str(time)
 
     day = time // (24 * 3600)
-    time = time % (24 * 3600)
+    time %= 24 * 3600
     hour = time // 3600
     time %= 3600
     minutes = time // 60
@@ -388,10 +398,11 @@ def num_format_coin(amount, coin: str, coin_decimal: int, atomic: bool = False):
         amount_str = 'Invalid.'
         if coin_decimal == 0:
             amount_test = '{:,f}'.format(float(('%f' % amount).rstrip('0').rstrip('.')))
-            if '.' in amount_test and len(amount_test.split('.')[1]) > 6:
-                amount_str = '{:,.6f}'.format(amount)
-            else:
-                amount_str = amount_test
+            amount_str = (
+                '{:,.6f}'.format(amount)
+                if '.' in amount_test and len(amount_test.split('.')[1]) > 6
+                else amount_test
+            )
         elif coin_decimal < 4:
             amount = truncate(amount, 2)
             amount_str = '{:,.2f}'.format(amount)
@@ -417,29 +428,28 @@ def num_format_coin(amount, coin: str, coin_decimal: int, atomic: bool = False):
                 amount_str = '{:,.8f}'.format(amount)
             else:
                 amount_str = amount_test
+    elif amount < 0.00000001:
+        amount_str = '{:,.10f}'.format(amount)
+    elif amount < 0.000001:
+        amount_str = '{:,.8f}'.format(amount)
+    elif amount < 0.00001:
+        amount_str = '{:,.7f}'.format(amount)
+    elif amount < 0.01:
+        amount_str = '{:,.6f}'.format(amount)
+    elif amount < 1.0:
+        amount_str = '{:,.5f}'.format(amount)
+    elif amount < 10:
+        amount_str = '{:,.4f}'.format(amount)
+    elif amount < 1000.00:
+        amount_str = '{:,.3f}'.format(amount)
     else:
-        if amount < 0.00000001:
-            amount_str = '{:,.10f}'.format(amount)
-        elif amount < 0.000001:
-            amount_str = '{:,.8f}'.format(amount)
-        elif amount < 0.00001:
-            amount_str = '{:,.7f}'.format(amount)
-        elif amount < 0.01:
-            amount_str = '{:,.6f}'.format(amount)
-        elif amount < 1.0:
-            amount_str = '{:,.5f}'.format(amount)
-        elif amount < 10:
-            amount_str = '{:,.4f}'.format(amount)
-        elif amount < 1000.00:
-            amount_str = '{:,.3f}'.format(amount)
-        else:
-            amount_str = '{:,.2f}'.format(amount)
+        amount_str = '{:,.2f}'.format(amount)
     return amount_str.rstrip('0').rstrip('.') if '.' in amount_str else amount_str
 
 
 def randomString(stringLength=8):
     letters = string.ascii_lowercase
-    return ''.join(random.choice(letters) for i in range(stringLength))
+    return ''.join(random.choice(letters) for _ in range(stringLength))
 
 
 def truncate(number, digits) -> float:
@@ -449,7 +459,7 @@ def truncate(number, digits) -> float:
 
 def hex_to_base58(hex_string):
     if hex_string[:2] in ["0x", "0X"]:
-        hex_string = "41" + hex_string[2:]
+        hex_string = f"41{hex_string[2:]}"
     bytes_str = bytes.fromhex(hex_string)
     base58_str = base58.b58encode_check(bytes_str)
     return base58_str.decode("UTF-8")
@@ -495,13 +505,20 @@ def createBox(value, maxValue, size, show_percentage: bool = False):
 
     progressText = '█'
     emptyProgressText = '—'
-    percentageText = str(round(percentage * 100)) + '%'
+    percentageText = f'{str(round(percentage * 100))}%'
 
-    if show_percentage:
-        bar = '[' + progressText * progress + emptyProgressText * emptyProgress + ']' + percentageText
-    else:
-        bar = '[' + progressText * progress + emptyProgressText * emptyProgress + ']'
-    return bar
+    return (
+        '['
+        + progressText * progress
+        + emptyProgressText * emptyProgress
+        + ']'
+        + percentageText
+        if show_percentage
+        else '['
+        + progressText * progress
+        + emptyProgressText * emptyProgress
+        + ']'
+    )
 
 
 async def alert_if_userlock(ctx, cmd: str):

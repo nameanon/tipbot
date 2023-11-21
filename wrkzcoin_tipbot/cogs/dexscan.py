@@ -82,7 +82,7 @@ class DexScan(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("dexscan " +str(traceback.format_exc()))
+            await logchanbot(f"dexscan {str(traceback.format_exc())}")
         return False
 
     @tasks.loop(seconds=10.0)
