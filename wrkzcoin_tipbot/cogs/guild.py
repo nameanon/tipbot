@@ -83,7 +83,7 @@ class Guild(commands.Cog):
                         return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("guild " + str(traceback.format_exc()))
+            await logchanbot(f"guild {str(traceback.format_exc())}")
         return None
 
     @tasks.loop(seconds=60.0)
