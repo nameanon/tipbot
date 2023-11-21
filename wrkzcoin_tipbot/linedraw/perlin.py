@@ -88,9 +88,9 @@ def noise(x, y=0, z=0):
 
 def noiseDetail(lod, falloff):
     if lod > 0:
-        perlin_octaves = lod
+        pass
     if falloff > 0:
-        perlin_amp_falloff = falloff
+        pass
 
 
 class LCG:

@@ -744,7 +744,7 @@ class AiThing(commands.Cog):
                     and len(text) > self.bot.config["aithing"]["mormal_user_len"]
                 ):
                     await ctx.edit_original_message(
-                        content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {str(len(text))} > { self.bot.config['aithing']['mormal_user_len']}!"
+                        content=f"{EMOJI_INFORMATION} {ctx.author.mention}, the text is too long {len(text)} > {self.bot.config['aithing']['mormal_user_len']}!"
                     )
                     return
 
@@ -770,9 +770,8 @@ class AiThing(commands.Cog):
                     )
                     return
                 await ctx.edit_original_message(
-                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {str(len(text))} characters ....!"
+                    content=f"{EMOJI_INFORMATION} {ctx.author.mention}, processing {len(text)} characters ....!"
                 )
-                content = text if len(text) <= 1000 else text[0:950] + " ... (more)"
                 guild_id = "DM"
                 guild_name = "DM"
                 if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
@@ -780,21 +779,19 @@ class AiThing(commands.Cog):
                     guild_name = ctx.guild.name
                 await log_to_channel(
                     "aitool",
-                    f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} "
-                    f"used TTS {str(len(text))} characters ({model}) in {guild_id} / {guild_name}.",
+                    f"[AI TOOL] User {ctx.author.name}#{ctx.author.discriminator} / {ctx.author.mention} used TTS {len(text)} characters ({model}) in {guild_id} / {guild_name}.",
                     self.bot.config["discord"]["aitool"],
                 )
                 start_time = int(time.time())
                 url = self.bot.other_data["ai_tts_models"][model]
                 path = self.bot.config["aithing"]["path"]
-                saved_name = (
-                    str(int(time.time()))
-                    + "_"
-                    + "".join(random.choice(ascii_uppercase) for i in range(8))
+                saved_name = f"{int(time.time())}_" + "".join(
+                    random.choice(ascii_uppercase) for _ in range(8)
                 )
                 tts = await ai_tts_get(
                     url, text, path + saved_name + ".wav", model, 1200
                 )
+                content = text if len(text) <= 1000 else f"{text[:950]} ... (more)"
                 if tts:
                     await ctx.edit_original_message(
                         content=f"{EMOJI_INFORMATION} {ctx.author.mention}, converting to media ....!"
@@ -803,7 +800,7 @@ class AiThing(commands.Cog):
                     process_video = subprocess.Popen(command, shell=True)
                     process_video.wait(timeout=30000)  # 30s waiting
                     file = disnake.File(
-                        path + saved_name + ".mp4", filename=saved_name + ".mp4"
+                        path + saved_name + ".mp4", filename=f"{saved_name}.mp4"
                     )
                     duration = int(time.time() - start_time)
                     file_size = os.stat(path + saved_name + ".mp4")  # byte
@@ -829,12 +826,12 @@ class AiThing(commands.Cog):
                         )
                     await self.insert_ai_tts(
                         str(ctx.author.id),
-                        "{}#{}".format(ctx.author.name, ctx.author.discriminator),
+                        f"{ctx.author.name}#{ctx.author.discriminator}",
                         guild_id,
                         text,
                         len(text),
                         int(time.time()),
-                        saved_name + ".wav",
+                        f"{saved_name}.wav",
                         duration,
                     )
                     await log_to_channel(
@@ -856,15 +853,14 @@ class AiThing(commands.Cog):
     async def ai_thing_edge_tts_autocomp(
         self, inter: disnake.CommandInteraction, string: str
     ):
-        string = string.lower()
         if self.bot.other_data.get("ai_edge_tts_models") is None:
             return [disnake.OptionChoice(name="Failed to load...", value=0)]
-        else:
-            return [
-                disnake.OptionChoice(name=k, value=k)
-                for k in self.bot.other_data["ai_edge_tts_models"]
-                if string.lower() in k.lower()
-            ][0:15]
+        string = string.lower()
+        return [
+            disnake.OptionChoice(name=k, value=k)
+            for k in self.bot.other_data["ai_edge_tts_models"]
+            if string.lower() in k.lower()
+        ][:15]
 
     @commands.Cog.listener()
     async def on_ready(self):
