@@ -614,7 +614,7 @@ async def get_summary_detail(slug: str, request: Request):
     get_coins_pairs = await cexswap_get_list_enable_pair_list()
     if "-" in pool_name:
         pool_name = sorted(pool_name.split("-"))
-        pool_name = "{}/{}".format(pool_name[0], pool_name[1])
+        pool_name = f"{pool_name[0]}/{pool_name[1]}"
     if pool_name in get_coins_pairs["coins"]:
         # single coin
         coin_name = pool_name
@@ -626,58 +626,56 @@ async def get_summary_detail(slug: str, request: Request):
                 "error": "could not find such coin or not enable!",
                 "time": int(time.time()),
             }
-        else:
-            find_other_lp = await cexswap_get_pools(coin_name)
-            total_liq = Decimal(0)
-            items = []
-            if len(find_other_lp) > 0:
-                items = [i["pairs"] for i in find_other_lp]
-                # get L in LP
-                for i in find_other_lp:
-                    if coin_name == i["ticker_1_name"]:
-                        total_liq += i["amount_ticker_1"]
-                    elif coin_name == i["ticker_2_name"]:
-                        total_liq += i["amount_ticker_2"]
+        find_other_lp = await cexswap_get_pools(coin_name)
+        total_liq = Decimal(0)
+        items = []
+        if len(find_other_lp) > 0:
+            items = [i["pairs"] for i in find_other_lp]
+            # get L in LP
+            for i in find_other_lp:
+                if coin_name == i["ticker_1_name"]:
+                    total_liq += i["amount_ticker_1"]
+                elif coin_name == i["ticker_2_name"]:
+                    total_liq += i["amount_ticker_2"]
 
-            get_coin_vol = {}
-            get_coin_vol["volume_1d"] = await get_cexswap_get_coin_sell_logs(
+        get_coin_vol = {
+            "volume_1d": await get_cexswap_get_coin_sell_logs(
                 coin_name=coin_name,
                 user_id=None,
                 from_time=int(time.time()) - 1 * 24 * 3600,
             )
-            get_coin_vol["volume_7d"] = await get_cexswap_get_coin_sell_logs(
-                coin_name=coin_name,
-                user_id=None,
-                from_time=int(time.time()) - 7 * 24 * 3600,
-            )
-            get_coin_vol["volume_30d"] = await get_cexswap_get_coin_sell_logs(
-                coin_name=coin_name,
-                user_id=None,
-                from_time=int(time.time()) - 30 * 24 * 3600,
-            )
-            volume = {}
-            if len(get_coin_vol) > 0:
-                for k, v in get_coin_vol.items():
-                    if len(v) > 0:
-                        sum_amount = Decimal(0)
-                        for i in v:
-                            if i["got_ticker"] == coin_name:
-                                sum_amount += i["got"]
-                        if sum_amount > 0:
-                            volume[k] = truncate(sum_amount, 8)
-            return {
-                "success": True,
-                "result": {
-                    "pairs": items,
-                    "total_liquidity": truncate(total_liq, 8),
-                    "volume_1d": volume["volume_1d"] if "volume_1d" in volume else None,
-                    "volume_7d": volume["volume_7d"] if "volume_7d" in volume else None,
-                    "volume_30d": volume["volume_30d"]
-                    if "volume_30d" in volume
-                    else None,
-                },
-                "time": int(time.time()),
-            }
+        }
+        get_coin_vol["volume_7d"] = await get_cexswap_get_coin_sell_logs(
+            coin_name=coin_name,
+            user_id=None,
+            from_time=int(time.time()) - 7 * 24 * 3600,
+        )
+        get_coin_vol["volume_30d"] = await get_cexswap_get_coin_sell_logs(
+            coin_name=coin_name,
+            user_id=None,
+            from_time=int(time.time()) - 30 * 24 * 3600,
+        )
+        volume = {}
+        if get_coin_vol:
+            for k, v in get_coin_vol.items():
+                if len(v) > 0:
+                    sum_amount = Decimal(0)
+                    for i in v:
+                        if i["got_ticker"] == coin_name:
+                            sum_amount += i["got"]
+                    if sum_amount > 0:
+                        volume[k] = truncate(sum_amount, 8)
+        return {
+            "success": True,
+            "result": {
+                "pairs": items,
+                "total_liquidity": truncate(total_liq, 8),
+                "volume_1d": volume.get("volume_1d", None),
+                "volume_7d": volume.get("volume_7d", None),
+                "volume_30d": volume.get("volume_30d", None),
+            },
+            "time": int(time.time()),
+        }
     elif pool_name in get_coins_pairs["pairs"]:
         # available pairs
         # check cache ...
@@ -701,76 +699,75 @@ async def get_summary_detail(slug: str, request: Request):
 
         tickers = pool_name.split("/")
         liq_pair = await cexswap_get_pool_details(tickers[0], tickers[1], None)
-        if liq_pair is not None:
-            cexswap_min_1 = getattr(
-                getattr(app.coin_list, liq_pair["pool"]["ticker_1_name"]), "cexswap_min"
-            )
-            cexswap_min_2 = getattr(
-                getattr(app.coin_list, liq_pair["pool"]["ticker_2_name"]), "cexswap_min"
-            )
-
-            # generally 10%
-            percent_sell = getattr(
-                getattr(app.coin_list, liq_pair["pool"]["ticker_1_name"]),
-                "cexswap_max_swap_percent",
-            )
-            max_swap_sell_cap_1 = percent_sell * float(
-                liq_pair["pool"]["amount_ticker_1"]
-            )
-
-            percent_sell = getattr(
-                getattr(app.coin_list, liq_pair["pool"]["ticker_2_name"]),
-                "cexswap_max_swap_percent",
-            )
-            max_swap_sell_cap_2 = percent_sell * float(
-                liq_pair["pool"]["amount_ticker_2"]
-            )
-
-            return {
-                "success": True,
-                "result": {
-                    "total_liquidity": {
-                        liq_pair["pool"]["ticker_1_name"]: truncate(
-                            liq_pair["pool"]["amount_ticker_1"], 8
-                        ),
-                        liq_pair["pool"]["ticker_2_name"]: truncate(
-                            liq_pair["pool"]["amount_ticker_2"], 8
-                        ),
-                    },
-                    "rate": {
-                        liq_pair["pool"]["ticker_1_name"]: truncate(
-                            liq_pair["pool"]["amount_ticker_2"]
-                            / liq_pair["pool"]["amount_ticker_1"],
-                            10,
-                        ),
-                        liq_pair["pool"]["ticker_2_name"]: truncate(
-                            liq_pair["pool"]["amount_ticker_1"]
-                            / liq_pair["pool"]["amount_ticker_2"],
-                            10,
-                        ),
-                    },
-                    "minimum": {
-                        liq_pair["pool"]["ticker_1_name"]: truncate(cexswap_min_1, 8),
-                        liq_pair["pool"]["ticker_2_name"]: truncate(cexswap_min_2, 8),
-                    },
-                    "maxium": {
-                        liq_pair["pool"]["ticker_1_name"]: truncate(
-                            max_swap_sell_cap_1, 8
-                        ),
-                        liq_pair["pool"]["ticker_2_name"]: truncate(
-                            max_swap_sell_cap_2, 8
-                        ),
-                    },
-                },
-                "time": int(time.time()),
-            }
-        else:
+        if liq_pair is None:
             return {
                 "success": False,
                 "result": None,
                 "error": "there is no pool for that yet!",
                 "time": int(time.time()),
             }
+        cexswap_min_1 = getattr(
+            getattr(app.coin_list, liq_pair["pool"]["ticker_1_name"]), "cexswap_min"
+        )
+        cexswap_min_2 = getattr(
+            getattr(app.coin_list, liq_pair["pool"]["ticker_2_name"]), "cexswap_min"
+        )
+
+        # generally 10%
+        percent_sell = getattr(
+            getattr(app.coin_list, liq_pair["pool"]["ticker_1_name"]),
+            "cexswap_max_swap_percent",
+        )
+        max_swap_sell_cap_1 = percent_sell * float(
+            liq_pair["pool"]["amount_ticker_1"]
+        )
+
+        percent_sell = getattr(
+            getattr(app.coin_list, liq_pair["pool"]["ticker_2_name"]),
+            "cexswap_max_swap_percent",
+        )
+        max_swap_sell_cap_2 = percent_sell * float(
+            liq_pair["pool"]["amount_ticker_2"]
+        )
+
+        return {
+            "success": True,
+            "result": {
+                "total_liquidity": {
+                    liq_pair["pool"]["ticker_1_name"]: truncate(
+                        liq_pair["pool"]["amount_ticker_1"], 8
+                    ),
+                    liq_pair["pool"]["ticker_2_name"]: truncate(
+                        liq_pair["pool"]["amount_ticker_2"], 8
+                    ),
+                },
+                "rate": {
+                    liq_pair["pool"]["ticker_1_name"]: truncate(
+                        liq_pair["pool"]["amount_ticker_2"]
+                        / liq_pair["pool"]["amount_ticker_1"],
+                        10,
+                    ),
+                    liq_pair["pool"]["ticker_2_name"]: truncate(
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"],
+                        10,
+                    ),
+                },
+                "minimum": {
+                    liq_pair["pool"]["ticker_1_name"]: truncate(cexswap_min_1, 8),
+                    liq_pair["pool"]["ticker_2_name"]: truncate(cexswap_min_2, 8),
+                },
+                "maxium": {
+                    liq_pair["pool"]["ticker_1_name"]: truncate(
+                        max_swap_sell_cap_1, 8
+                    ),
+                    liq_pair["pool"]["ticker_2_name"]: truncate(
+                        max_swap_sell_cap_2, 8
+                    ),
+                },
+            },
+            "time": int(time.time()),
+        }
     else:
         return {
             "success": False,
@@ -809,7 +806,7 @@ async def get_summary(request: Request):
     list_volume_1d = {}
     if len(get_coin_vol) > 0:
         for v in get_coin_vol:
-            list_volume_1d["{}/{}".format(v["sold_ticker"], v["got_ticker"])] = {
+            list_volume_1d[f'{v["sold_ticker"]}/{v["got_ticker"]}'] = {
                 v["sold_ticker"]: truncate(v["sold"], 8),
                 v["got_ticker"]: truncate(v["got"], 8),
             }
@@ -820,7 +817,7 @@ async def get_summary(request: Request):
     list_volume_7d = {}
     if len(get_coin_vol) > 0:
         for v in get_coin_vol:
-            list_volume_7d["{}/{}".format(v["sold_ticker"], v["got_ticker"])] = {
+            list_volume_7d[f'{v["sold_ticker"]}/{v["got_ticker"]}'] = {
                 v["sold_ticker"]: truncate(v["sold"], 8),
                 v["got_ticker"]: truncate(v["got"], 8),
             }
@@ -828,7 +825,7 @@ async def get_summary(request: Request):
     list_markets = {}
     if len(get_pools) > 0:
         for i in get_pools:
-            "{}/{}".format(i["amount_ticker_1"], i["amount_ticker_2"])
+            f'{i["amount_ticker_1"]}/{i["amount_ticker_2"]}'
             list_markets[i["pairs"]] = {
                 "rate": {
                     i["ticker_1_name"]: truncate(
@@ -859,9 +856,7 @@ async def get_summary(request: Request):
         except Exception:
             traceback.print_exc(file=sys.stdout)
         print(
-            "{} /summary using new data ...".format(
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            )
+            f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} /summary using new data ...'
         )
         return {"success": True, "result": data, "time": int(time.time())}
 
@@ -885,29 +880,28 @@ async def get_withdraw_list(request: Request):
         data = get_cache_kv(app, config["kv_db"]["prefix_cexswap"], key="withdraw_list")
         if data is not None:
             return {"success": True, "result": data, "time": int(time.time())}
-        else:
-            all_coin_withdraw = await get_all_coin_names("cexswap_withdraw", 1, 100)
-            app.coin_list = await get_coin_setting()
-            list_coins = {}
-            if len(all_coin_withdraw) > 0:
-                for i in all_coin_withdraw:
-                    min_tx = getattr(getattr(app.coin_list, i), "real_min_tx")
-                    max_tx = getattr(getattr(app.coin_list, i), "real_max_tx")
-                    list_coins[i] = {
-                        "api_withdraw": 1,
-                        "min_amount": truncate(min_tx, 8),
-                        "max_amount": truncate(max_tx, 8),
-                    }
-                try:
-                    set_cache_kv(
-                        app,
-                        config["kv_db"]["prefix_cexswap"],
-                        key="withdraw_list",
-                        value=list_coins,
-                    )
-                except Exception:
-                    traceback.print_exc(file=sys.stdout)
-            return {"success": True, "result": list_coins, "time": int(time.time())}
+        all_coin_withdraw = await get_all_coin_names("cexswap_withdraw", 1, 100)
+        app.coin_list = await get_coin_setting()
+        list_coins = {}
+        if len(all_coin_withdraw) > 0:
+            for i in all_coin_withdraw:
+                min_tx = getattr(getattr(app.coin_list, i), "real_min_tx")
+                max_tx = getattr(getattr(app.coin_list, i), "real_max_tx")
+                list_coins[i] = {
+                    "api_withdraw": 1,
+                    "min_amount": truncate(min_tx, 8),
+                    "max_amount": truncate(max_tx, 8),
+                }
+            try:
+                set_cache_kv(
+                    app,
+                    config["kv_db"]["prefix_cexswap"],
+                    key="withdraw_list",
+                    value=list_coins,
+                )
+            except Exception:
+                traceback.print_exc(file=sys.stdout)
+        return {"success": True, "result": list_coins, "time": int(time.time())}
     except Exception:
         traceback.print_exc(file=sys.stdout)
 
