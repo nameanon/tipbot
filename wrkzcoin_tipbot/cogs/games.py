@@ -512,56 +512,42 @@ class BlackJackButtons(disnake.ui.View):
         new_card = self.deck.pop()
         rank, suit = new_card
         await interaction.response.send_message(
-            "{} **BLACKJACK** You drew a {} of {}".format(
-                interaction.author.mention, rank, suit
-            )
+            f"{interaction.author.mention} **BLACKJACK** You drew a {rank} of {suit}"
         )
         self.playerHand.append(new_card)
 
         dealer_get_display = blackjack_displayHands(
             self.playerHand, self.dealerHand, False
         )
-        msg = "{} **BLACKJACK**\n```DEALER: {}\n{}\nPLAYER:  {}\n{}```".format(
-            interaction.author.mention,
-            dealer_get_display["dealer_header"],
-            dealer_get_display["dealer"],
-            dealer_get_display["player_header"],
-            dealer_get_display["player"],
-        )
+        msg = f'{interaction.author.mention} **BLACKJACK**\n```DEALER: {dealer_get_display["dealer_header"]}\n{dealer_get_display["dealer"]}\nPLAYER:  {dealer_get_display["player_header"]}\n{dealer_get_display["player"]}```'
 
         if blackjack_getCardValue(self.playerHand) >= 21:
             # The player has busted:
             self.player_over = True
             self.game_over = True
             button.disabled = True
-        else:
-            if blackjack_getCardValue(self.dealerHand) >= 17:
-                self.game_over = True
-            else:
-                if blackjack_getCardValue(self.dealerHand) < 17:
+        elif blackjack_getCardValue(self.dealerHand) >= 17:
+            self.game_over = True
+        elif blackjack_getCardValue(self.dealerHand) < 17:
                     # The dealer hits:
-                    try:
-                        dealer_msg = await interaction.channel.send(
-                            "{} **BLACKJACK**\n```Dealer hits...```".format(
-                                interaction.author.mention
-                            )
-                        )
-                    except Exception:
-                        traceback.print_exc(file=sys.stdout)
-                    new_card = self.deck.pop()
-                    rank, suit = new_card
-                    self.dealerHand.append(new_card)
-                    await asyncio.sleep(1)
-                    await dealer_msg.edit(
-                        content="{} **BLACKJACK** Dealer drew a {} of {}".format(
-                            interaction.author.mention, rank, suit
-                        )
-                    )
+            try:
+                dealer_msg = await interaction.channel.send(
+                    f"{interaction.author.mention} **BLACKJACK**\n```Dealer hits...```"
+                )
+            except Exception:
+                traceback.print_exc(file=sys.stdout)
+            new_card = self.deck.pop()
+            rank, suit = new_card
+            self.dealerHand.append(new_card)
+            await asyncio.sleep(1)
+            await dealer_msg.edit(
+                content=f"{interaction.author.mention} **BLACKJACK** Dealer drew a {rank} of {suit}"
+            )
 
-                    if blackjack_getCardValue(self.dealerHand) > 21:
-                        self.game_over = True  # The dealer has busted.
-                    else:
-                        await asyncio.sleep(1)
+            if blackjack_getCardValue(self.dealerHand) > 21:
+                self.game_over = True  # The dealer has busted.
+            else:
+                await asyncio.sleep(1)
 
         playerValue = blackjack_getCardValue(self.playerHand)
         dealerValue = blackjack_getCardValue(self.dealerHand)
@@ -579,56 +565,37 @@ class BlackJackButtons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = (
-                    f"You do not get any reward because it is a free game! "
-                    "Waiting to refresh your paid plays (24h max)."
-                )
+                result = 'You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max).'
 
             dealer_get_display = blackjack_displayHands(
                 self.playerHand, self.dealerHand, True
             )
-            msg = "{} **BLACKJACK**\n```DEALER: {}\n{}\nPLAYER:  {}\n{}```".format(
-                interaction.author.mention,
-                dealer_get_display["dealer_header"],
-                dealer_get_display["dealer"],
-                dealer_get_display["player_header"],
-                dealer_get_display["player"],
-            )
+            msg = f'{interaction.author.mention} **BLACKJACK**\n```DEALER: {dealer_get_display["dealer_header"]}\n{dealer_get_display["dealer"]}\nPLAYER:  {dealer_get_display["player_header"]}\n{dealer_get_display["player"]}```'
             await self.message.edit(content=msg, view=None)
             if dealerValue > 21:
                 won = True
                 await interaction.channel.send(
-                    "{} **BLACKJACK**\n```Dealer busts! You win! {}```".format(
-                        interaction.author.mention, result
-                    )
+                    f"{interaction.author.mention} **BLACKJACK**\n```Dealer busts! You win! {result}```"
                 )
             elif playerValue > 21 or playerValue < dealerValue:
                 await interaction.channel.send(
-                    "{} **BLACKJACK**\n```You lost!```".format(
-                        interaction.author.mention
-                    )
+                    f"{interaction.author.mention} **BLACKJACK**\n```You lost!```"
                 )
             elif playerValue > dealerValue:
                 won = True
                 await interaction.channel.send(
-                    "{} **BLACKJACK**\n```You won! {}```".format(
-                        interaction.author.mention, result
-                    )
+                    f"{interaction.author.mention} **BLACKJACK**\n```You won! {result}```"
                 )
             elif playerValue == dealerValue:
                 await interaction.channel.send(
-                    "{} **BLACKJACK**\n```It's a tie!```".format(
-                        interaction.author.mention
-                    )
+                    f"{interaction.author.mention} **BLACKJACK**\n```It's a tie!```"
                 )
 
             # Start reward
             if self.free_game is False:
                 try:
                     await self.db.sql_game_add(
-                        "BLACKJACK: PLAYER={}, DEALER={}".format(
-                            playerValue, dealerValue
-                        ),
+                        f"BLACKJACK: PLAYER={playerValue}, DEALER={dealerValue}",
                         str(interaction.author.id),
                         coin_name,
                         "WIN" if won else "LOSE",
@@ -674,9 +641,7 @@ class BlackJackButtons(disnake.ui.View):
             else:
                 try:
                     await self.db.sql_game_free_add(
-                        "BLACKJACK: PLAYER={}, DEALER={}".format(
-                            playerValue, dealerValue
-                        ),
+                        f"BLACKJACK: PLAYER={playerValue}, DEALER={dealerValue}",
                         str(interaction.author.id),
                         "WIN" if won else "LOSE",
                         str(interaction.guild.id),
@@ -687,18 +652,12 @@ class BlackJackButtons(disnake.ui.View):
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                     await logchanbot(traceback.format_exc())
-            # End reward
+                # End reward
         else:
             dealer_get_display = blackjack_displayHands(
                 self.playerHand, self.dealerHand, False
             )
-            msg = "{} **BLACKJACK**\n```DEALER: {}\n{}\nPLAYER:  {}\n{}```".format(
-                interaction.author.mention,
-                dealer_get_display["dealer_header"],
-                dealer_get_display["dealer"],
-                dealer_get_display["player_header"],
-                dealer_get_display["player"],
-            )
+            msg = f'{interaction.author.mention} **BLACKJACK**\n```DEALER: {dealer_get_display["dealer_header"]}\n{dealer_get_display["dealer"]}\nPLAYER:  {dealer_get_display["player_header"]}\n{dealer_get_display["player"]}```'
             await self.message.edit(content=msg, view=self)
 
 
