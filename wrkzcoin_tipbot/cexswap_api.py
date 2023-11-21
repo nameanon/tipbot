@@ -355,7 +355,7 @@ async def estimate_amount_token_sell(
             }
         amount = float(amount)
 
-            # Check if amount is more than liquidity
+        # Check if amount is more than liquidity
         if truncate(amount, 8) > truncate(float(max_swap_sell_cap), 8):
             msg = (
                 f"The given amount {sell_amount_old}"
@@ -395,8 +395,7 @@ async def estimate_amount_token_sell(
             - config["cexswap_slipage"]["reserve"]
         )
         amount_get = amount * float(
-            liq_pair["pool"]["amount_ticker_2"]
-            / liq_pair["pool"]["amount_ticker_1"]
+            liq_pair["pool"]["amount_ticker_2"] / liq_pair["pool"]["amount_ticker_1"]
         )
 
         amount_qty_1 = liq_pair["pool"]["amount_ticker_2"]
@@ -462,9 +461,7 @@ async def estimate_amount_token_sell(
         else:
             # OK, show sell estimation
             got_fee_dev = amount_get * config["cexswap"]["dev_fee"] / 100
-            got_fee_liquidators = (
-                amount_get * config["cexswap"]["liquidator_fee"] / 100
-            )
+            got_fee_liquidators = amount_get * config["cexswap"]["liquidator_fee"] / 100
             got_fee_dev += amount_get * config["cexswap"]["guild_fee"] / 100
             ref_log = "".join(random.choice(ascii_uppercase) for _ in range(16))
             if len(liq_pair["pool_share"]) > 0:

@@ -1534,10 +1534,7 @@ async def cexswap_sold(
                     user_id,
                     got_ticker,
                     SERVER_BOT,
-                    amount_get
-                    - got_fee_dev
-                    - got_fee_liquidators
-                    - got_fee_guild,
+                    amount_get - got_fee_dev - got_fee_liquidators - got_fee_guild,
                     int(time.time()),
                 ]
 
