@@ -52,8 +52,7 @@ class Quickdrop_Verify(disnake.ui.Modal):
         try:
             if int(answer) != self.answer:
                 await interaction.edit_original_message(f"{interaction.author.mention}, incorrect answer!")
-                return
-            elif int(answer) == self.answer:
+            else:
                 get_message = await store.get_quickdrop_id(self.msg_id)
                 if get_message['collected_by_userid'] is not None:
                     await interaction.edit_original_message(f"{interaction.author.mention}, too late! Already collected!")
@@ -62,15 +61,10 @@ class Quickdrop_Verify(disnake.ui.Modal):
                 # notify quickdrop owner
                 quickdrop_owner = self.bot.get_user(int(self.from_user_id))
                 try:
-                    quickdrop_link = "https://discord.com/channels/{}/{}/{}".format(
-                        interaction.guild.id, interaction.channel.id, interaction.message.id
-                    )
                     if quickdrop_owner is not None:
+                        quickdrop_link = f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/{interaction.message.id}"
                         await quickdrop_owner.send(
-                            "{}#{} / {} ☑️ completed verififcation with your /quickdrop {}".format(
-                                interaction.author.name, interaction.author.discriminator,
-                                interaction.author.mention, quickdrop_link
-                            )
+                            f"{interaction.author.name}#{interaction.author.discriminator} / {interaction.author.mention} ☑️ completed verififcation with your /quickdrop {quickdrop_link}"
                         )
                 except (disnake.Forbidden, disnake.errors.Forbidden) as e:
                     pass
@@ -80,9 +74,11 @@ class Quickdrop_Verify(disnake.ui.Modal):
                 # Cache it first
                 # Update quickdrop table
                 quick = await store.update_quickdrop_id(
-                    self.msg_id, "COMPLETED", 
-                    str(interaction.author.id), "{}#{}".format(interaction.author.name, interaction.author.discriminator),
-                    int(time.time())
+                    self.msg_id,
+                    "COMPLETED",
+                    str(interaction.author.id),
+                    f"{interaction.author.name}#{interaction.author.discriminator}",
+                    int(time.time()),
                 )
                 if quick:
                     tip = await store.sql_user_balance_mv_single(
@@ -107,9 +103,12 @@ class Quickdrop_Verify(disnake.ui.Modal):
                         try:
                             owner_displayname = get_message['from_ownername']
                             embed = disnake.Embed(
-                                title=f"📦📦📦 Quick Drop Collected! 📦📦📦",
+                                title="📦📦📦 Quick Drop Collected! 📦📦📦",
                                 description="First come, first serve!",
-                                timestamp=datetime.datetime.fromtimestamp(get_message['expiring_time']))
+                                timestamp=datetime.datetime.fromtimestamp(
+                                    get_message['expiring_time']
+                                ),
+                            )
                             embed.set_footer(
                                 text=f"Dropped by {owner_displayname} | Used with /quickdrop | Ended"
                             )
@@ -119,25 +118,23 @@ class Quickdrop_Verify(disnake.ui.Modal):
                                 inline=False
                             )
                             embed.add_field(
-                                name='Collected by', 
-                                value="{}#{}".format(interaction.author.name, interaction.author.discriminator),
-                                inline=False
+                                name='Collected by',
+                                value=f"{interaction.author.name}#{interaction.author.discriminator}",
+                                inline=False,
                             )
                             embed.add_field(
-                                name='Amount', 
-                                value="🎉🎉 {} {} 🎉🎉".format(
-                                    num_format_coin(get_message['real_amount'], get_message['token_name'], get_message['token_decimal'], False),
-                                    get_message['token_name']),
-                                inline=False
+                                name='Amount',
+                                value=f"🎉🎉 {num_format_coin(get_message['real_amount'], get_message['token_name'], get_message['token_decimal'], False)} {get_message['token_name']} 🎉🎉",
+                                inline=False,
                             )
                             channel = self.bot.get_channel(int(get_message['channel_id']))
                             _msg: disnake.Message = await channel.fetch_message(int(get_message['message_id']))
                             await _msg.edit(content=None, embed=embed, view=None)
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
-                msg = "You sucessfully collected quicktip id: {}".format(get_message['message_id'])
+                msg = f"You sucessfully collected quicktip id: {get_message['message_id']}"
                 await interaction.edit_original_message(content=msg)
-                return
+            return
         except ValueError:
             await interaction.edit_original_message(f"{interaction.author.mention}, incorrect answer!")
         except Exception:
@@ -197,7 +194,7 @@ class Events(commands.Cog):
                     await conn.commit()
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
 
     async def get_tipping_count(self):
         try:
@@ -208,11 +205,10 @@ class Events(commands.Cog):
                     (SELECT COUNT(*) FROM user_balance_mv_data) AS nos_user
                     """
                     await cur.execute(sql, ())
-                    result = await cur.fetchone()
-                    return result
+                    return await cur.fetchone()
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return None
     # End Update stats
 
@@ -230,16 +226,24 @@ class Events(commands.Cog):
                     `from_and_responder_uniq`, `result`, `inserted_time`) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    await cur.execute(sql, (
-                        message_id, guild_id, from_userid, responder_id, responder_name,
-                        "{}-{}-{}".format(message_id, from_userid, responder_id), result,
-                        int(time.time()))
+                    await cur.execute(
+                        sql,
+                        (
+                            message_id,
+                            guild_id,
+                            from_userid,
+                            responder_id,
+                            responder_name,
+                            f"{message_id}-{from_userid}-{responder_id}",
+                            result,
+                            int(time.time()),
+                        ),
                     )
                     await conn.commit()
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return False
 
     async def check_if_mathtip_responder_in(
@@ -258,7 +262,7 @@ class Events(commands.Cog):
                     if result and len(result) > 0: return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return False
 
     async def get_discord_mathtip_by_msgid(self, msg_id: str):
@@ -273,7 +277,7 @@ class Events(commands.Cog):
                     if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return None
 
     async def get_discord_triviatip_by_msgid(self, message_id: str):
@@ -290,7 +294,7 @@ class Events(commands.Cog):
                     if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return None
 
     async def insert_trivia_responder(
@@ -306,14 +310,25 @@ class Events(commands.Cog):
                     `responder_name`, `from_and_responder_uniq`, `result`, `inserted_time`) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    await cur.execute(sql, (
-                    message_id, guild_id, question_id, from_userid, responder_id, responder_name,
-                    "{}-{}-{}".format(message_id, from_userid, responder_id), result, int(time.time())))
+                    await cur.execute(
+                        sql,
+                        (
+                            message_id,
+                            guild_id,
+                            question_id,
+                            from_userid,
+                            responder_id,
+                            responder_name,
+                            f"{message_id}-{from_userid}-{responder_id}",
+                            result,
+                            int(time.time()),
+                        ),
+                    )
                     await conn.commit()
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return False
 
     async def check_if_trivia_responder_in(
@@ -332,7 +347,7 @@ class Events(commands.Cog):
                     if result and len(result) > 0: return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return False
     # End Trivia / Math
 
@@ -350,7 +365,7 @@ class Events(commands.Cog):
                     if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return None
 
     async def delete_discord_bot_message(self, message_id: str, owner_id: str):
@@ -366,7 +381,7 @@ class Events(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("events " +str(traceback.format_exc()))
+            await logchanbot(f"events {str(traceback.format_exc())}")
         return None
 
     async def insert_discord_message(self, list_message):

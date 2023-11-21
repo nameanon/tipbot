@@ -57,7 +57,7 @@ class BotBalance(commands.Cog):
                 coin_emoji = ""
                 if ctx.guild.get_member(int(self.bot.user.id)).guild_permissions.external_emojis is True:
                     coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
-                    coin_emoji = coin_emoji + " " if coin_emoji else ""
+                    coin_emoji = f"{coin_emoji} " if coin_emoji else ""
             except Exception:
                 traceback.print_exc(file=sys.stdout)
 
@@ -95,8 +95,9 @@ class BotBalance(commands.Cog):
                 )
                 total_balance = userdata_balance['adjust']
                 equivalent_usd = ""
-                price_with = getattr(getattr(self.bot.coin_list, coin_name), "price_with")
-                if price_with:
+                if price_with := getattr(
+                    getattr(self.bot.coin_list, coin_name), "price_with"
+                ):
                     per_unit = await self.utils.get_coin_price(coin_name, price_with)
                     if per_unit and per_unit['price'] and per_unit['price'] > 0:
                         per_unit = per_unit['price']
@@ -106,15 +107,16 @@ class BotBalance(commands.Cog):
                         elif total_in_usd >= 0.0001:
                             equivalent_usd = " ~ {:,.4f}$".format(total_in_usd)
                 embed.add_field(
-                    name="{}Token/Coin {}{}".format(coin_emoji, token_display, equivalent_usd),
-                    value="```Available: {} {}```".format(
-                        num_format_coin(total_balance), token_display),
-                    inline=False
+                    name=f"{coin_emoji}Token/Coin {token_display}{equivalent_usd}",
+                    value=f"```Available: {num_format_coin(total_balance)} {token_display}```",
+                    inline=False,
                 )
             except Exception:
                 traceback.print_exc(file=sys.stdout)
             embed.set_thumbnail(url=self.bot.user.display_avatar)
-            embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+            embed.set_footer(
+                text=f"Requested by: {ctx.author.name}#{ctx.author.discriminator}"
+            )
             await ctx.edit_original_message(content=None, embed=embed)
             # Add update for future call
             try:

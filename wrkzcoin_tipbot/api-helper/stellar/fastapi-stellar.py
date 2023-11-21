@@ -92,14 +92,13 @@ async def send_token(
         asset_sending = Asset(asset_ticker, asset_issuer)
     kp = Keypair.from_secret(withdraw_keypair)
     async with ServerAsync(
-        horizon_url=url, client=AiohttpClient()
-    ) as server:
+            horizon_url=url, client=AiohttpClient()
+        ) as server:
         try:
             src_account = await server.load_account(kp.public_key)
-            print("{} {} trying to send from {} to {}, amount={}".format(
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), coin_name, src_account, to_address, amount
-
-            ))
+            print(
+                f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {coin_name} trying to send from {src_account} to {to_address}, amount={amount}'
+            )
             if memo is not None:
                 transaction = (
                     TransactionBuilder(
@@ -125,10 +124,9 @@ async def send_token(
                 )
             transaction.sign(kp)
             response = await server.submit_transaction(transaction)
-            print("{} {} successfully sent from {} to {}, amount={}. {}".format(
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), coin_name, src_account, to_address, amount,
-                response['hash']
-            ))
+            print(
+                f"""{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} {coin_name} successfully sent from {src_account} to {to_address}, amount={amount}. {response['hash']}"""
+            )
             return {"hash": response['hash'], "fee": float(response['fee_charged']) / 10000000}
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -217,8 +215,8 @@ async def send_transaction(
             }
         else:
             return {
-                "error": "Failed to send tx to {}".format(item.to_address),
-                "timestamp": int(time.time())
+                "error": f"Failed to send tx to {item.to_address}",
+                "timestamp": int(time.time()),
             }
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -253,10 +251,9 @@ async def create_address():
     public_key = kp.public_key
     secret_seed = kp.secret
 
-    print("{} create a new address: {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        public_key
-    ))
+    print(
+        f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} create a new address: {public_key}'
+    )
     return {
         "success": True,
         "address": public_key,
@@ -354,16 +351,15 @@ async def parse_transaction(
                         asset_issuer = None
                         if asset_type == "native":
                             coin_name = "XLM"
-                        else:
-                            if hasattr(Payment.asset, "code") and hasattr(Payment.asset, "issuer"):
-                                asset_issuer = Payment.asset.issuer
-                                for each_coin in item.coin_name_list:
-                                    if item.coin_list.get(each_coin):
-                                       asset_code = item.coin_list[each_coin]['header']
-                                    if asset_code == item.coin_list[each_coin]['header'] \
-                                        and asset_issuer == item.coin_list[each_coin]['contract']:
-                                        coin_name = item.coin_list[each_coin]['coin_name']
-                                        break
+                        elif hasattr(Payment.asset, "code") and hasattr(Payment.asset, "issuer"):
+                            asset_issuer = Payment.asset.issuer
+                            for each_coin in item.coin_name_list:
+                                if item.coin_list.get(each_coin):
+                                   asset_code = item.coin_list[each_coin]['header']
+                                if asset_code == item.coin_list[each_coin]['header'] \
+                                    and asset_issuer == item.coin_list[each_coin]['contract']:
+                                    coin_name = item.coin_list[each_coin]['coin_name']
+                                    break
                         if item.coin_list.get(coin_name) is None:
                             continue
                         amount = float(Payment.amount)
@@ -373,10 +369,11 @@ async def parse_transaction(
                         # Check all atrribute
                         all_xlm_coins = []
                         if item.coin_name_list and len(item.coin_name_list) > 0:
-                            for each_coin in item.coin_name_list:
-                                ticker = item.coin_list[each_coin]['header']
-                                if item.coin_list[each_coin]['enable'] == 1:
-                                    all_xlm_coins.append(ticker)
+                            all_xlm_coins.extend(
+                                item.coin_list[each_coin]['header']
+                                for each_coin in item.coin_name_list
+                                if item.coin_list[each_coin]['enable'] == 1
+                            )
                         if asset_code not in all_xlm_coins:
                             continue
                     except:
@@ -399,11 +396,9 @@ async def parse_transaction(
     }
 
 if __name__ == "__main__":
-    print("{} running with IP: {} and port {}".format(
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        config['api_helper']['bind_ip'],
-        bind_port
-    ))
+    print(
+        f"""{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} running with IP: {config['api_helper']['bind_ip']} and port {bind_port}"""
+    )
     uvicorn.run(
         app,
         host=config['api_helper']['bind_ip'],

@@ -79,8 +79,7 @@ class DBStore():
                     sql = """ SELECT * FROM coin_settings 
                     WHERE `enable_trade`=%s AND `enable`=%s """
                     await cur.execute(sql, (1, 1))
-                    result = await cur.fetchall()
-                    return result
+                    return await cur.fetchall()
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
@@ -116,15 +115,12 @@ class DBStore():
                         WHERE `status`=%s AND `coin_sell`=%s 
                         ORDER BY sell_div_get """ + option_order + """ LIMIT """ + str(limit)
                         await cur.execute(sql, (status, coin1.upper()))
-                        result = await cur.fetchall()
-                        return result
                     else:
                         sql = """ SELECT * FROM open_order 
                         WHERE `status`=%s AND `coin_sell`=%s AND `coin_get`=%s 
                         ORDER BY sell_div_get """ + option_order + """ LIMIT """ + str(limit)
                         await cur.execute(sql, (status, coin1.upper(), coin2.upper()))
-                        result = await cur.fetchall()
-                        return result
+                    return await cur.fetchall()
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
@@ -141,8 +137,7 @@ class DBStore():
                     WHERE `status`=%s AND (`coin_sell`=%s OR `coin_get`=%s)
                     """
                     await cur.execute(sql, (status, coin_name, coin_name))
-                    result = await cur.fetchall()
-                    return result
+                    return await cur.fetchall()
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
@@ -158,13 +153,11 @@ class DBStore():
                     if status == "ANY":
                         sql = """ SELECT * FROM `open_order` WHERE `order_id` = %s LIMIT 1 """
                         await cur.execute(sql, order_num)
-                        result = await cur.fetchone()
                     else:
                         sql = """ SELECT * FROM `open_order` WHERE `order_id` = %s 
                                   AND `status`=%s LIMIT 1 """
                         await cur.execute(sql, (order_num, status))
-                        result = await cur.fetchone()
-                    return result
+                    return await cur.fetchone()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -215,78 +208,77 @@ async def show_all_ordered_books(market_pair: str):
             "error": "Invalid market pair!",
             "time": int(time.time())
         }
-    else:
-        sell_coin = market_pair[0]
-        buy_coin = market_pair[1]
-        get_market_buy_list = await app.db.sql_get_open_order_by_alluser_by_coins(
-            sell_coin, buy_coin, "OPEN", "ASC", 1000
-        )
-        get_market_sell_list = await app.db.sql_get_open_order_by_alluser_by_coins(
-            buy_coin, sell_coin, "OPEN", "DESC", 1000
-        )
-        buy_refs = []
-        sell_refs = []
-        if get_market_buy_list and len(get_market_buy_list) > 0:
-            for each_buy in get_market_buy_list:
-                rate = "{:.8f}".format(each_buy['amount_sell'] / each_buy['amount_get'])
-                amount = "{:.8f}".format(each_buy['amount_sell'])
-                buy_refs.append(
-                    {
-                        str(each_buy["order_id"]): {
-                            "sell": {
-                                "coin_sell": each_buy['coin_sell'],
-                                "amount_sell": app.db.num_format_coin(each_buy['amount_sell_after_fee']),
-                                "fee_sell": app.db.num_format_coin(each_buy['amount_sell'] - each_buy['amount_sell_after_fee']),
-                                "total": app.db.num_format_coin(each_buy['amount_sell'])
-                            },
-                            "for": {
-                                "coin_get": each_buy['coin_get'],
-                                "amount_get": app.db.num_format_coin(each_buy['amount_get_after_fee']),
-                                "fee_get": app.db.num_format_coin(each_buy['amount_get'] - each_buy['amount_get_after_fee']),
-                                "total": app.db.num_format_coin(each_buy['amount_get'])
-                            }
-                        }
-                })
-        if get_market_sell_list and len(get_market_sell_list) > 0:
-            for each_sell in get_market_sell_list:
-                rate = "{:.8f}".format(each_sell['amount_sell'] / each_sell['amount_get'])
-                amount = "{:.8f}".format(each_sell['amount_get'])
-                sell_refs.append(
-                    {
-                        str(each_sell["order_id"]): {
-                            "sell": {
-                                "coin_sell": each_sell['coin_sell'],
-                                "amount_sell": app.db.num_format_coin(each_sell['amount_sell_after_fee']),
-                                "fee_sell": app.db.num_format_coin(each_sell['amount_sell'] - each_sell['amount_sell_after_fee']),
-                                "total": app.db.num_format_coin(each_sell['amount_sell'])
-                            },
-                            "for": {
-                                "coin_get": each_sell['coin_get'],
-                                "amount_get": app.db.num_format_coin(each_sell['amount_get_after_fee']),
-                                "fee_get": app.db.num_format_coin(each_sell['amount_get'] - each_sell['amount_get_after_fee']),
-                                "total": app.db.num_format_coin(each_sell['amount_get'])
-                            }
+    sell_coin = market_pair[0]
+    buy_coin = market_pair[1]
+    get_market_buy_list = await app.db.sql_get_open_order_by_alluser_by_coins(
+        sell_coin, buy_coin, "OPEN", "ASC", 1000
+    )
+    get_market_sell_list = await app.db.sql_get_open_order_by_alluser_by_coins(
+        buy_coin, sell_coin, "OPEN", "DESC", 1000
+    )
+    buy_refs = []
+    sell_refs = []
+    if get_market_buy_list and len(get_market_buy_list) > 0:
+        for each_buy in get_market_buy_list:
+            rate = "{:.8f}".format(each_buy['amount_sell'] / each_buy['amount_get'])
+            amount = "{:.8f}".format(each_buy['amount_sell'])
+            buy_refs.append(
+                {
+                    str(each_buy["order_id"]): {
+                        "sell": {
+                            "coin_sell": each_buy['coin_sell'],
+                            "amount_sell": app.db.num_format_coin(each_buy['amount_sell_after_fee']),
+                            "fee_sell": app.db.num_format_coin(each_buy['amount_sell'] - each_buy['amount_sell_after_fee']),
+                            "total": app.db.num_format_coin(each_buy['amount_sell'])
+                        },
+                        "for": {
+                            "coin_get": each_buy['coin_get'],
+                            "amount_get": app.db.num_format_coin(each_buy['amount_get_after_fee']),
+                            "fee_get": app.db.num_format_coin(each_buy['amount_get'] - each_buy['amount_get_after_fee']),
+                            "total": app.db.num_format_coin(each_buy['amount_get'])
                         }
                     }
-                )
+            })
+    if get_market_sell_list and len(get_market_sell_list) > 0:
+        for each_sell in get_market_sell_list:
+            rate = "{:.8f}".format(each_sell['amount_sell'] / each_sell['amount_get'])
+            amount = "{:.8f}".format(each_sell['amount_get'])
+            sell_refs.append(
+                {
+                    str(each_sell["order_id"]): {
+                        "sell": {
+                            "coin_sell": each_sell['coin_sell'],
+                            "amount_sell": app.db.num_format_coin(each_sell['amount_sell_after_fee']),
+                            "fee_sell": app.db.num_format_coin(each_sell['amount_sell'] - each_sell['amount_sell_after_fee']),
+                            "total": app.db.num_format_coin(each_sell['amount_sell'])
+                        },
+                        "for": {
+                            "coin_get": each_sell['coin_get'],
+                            "amount_get": app.db.num_format_coin(each_sell['amount_get_after_fee']),
+                            "fee_get": app.db.num_format_coin(each_sell['amount_get'] - each_sell['amount_get_after_fee']),
+                            "total": app.db.num_format_coin(each_sell['amount_get'])
+                        }
+                    }
+                }
+            )
+    result = {
+        "success": False,
+        "order_book": f"{sell_coin}-{buy_coin}",
+        "time": int(time.time()),
+    }
+    if buy_refs or sell_refs:
         result = {
-            "success": False,
-            "order_book": "{}-{}".format(sell_coin, buy_coin),
-            "time": int(time.time())
+            "success": True,
+            "order_book": f"{sell_coin}-{buy_coin}",
+            "buys": buy_refs,
+            "sells": sell_refs,
+            "time": int(time.time()),
         }
-        if len(buy_refs) > 0 or len(sell_refs) > 0:
-            result = {
-                "success": True,
-                "order_book": "{}-{}".format(sell_coin, buy_coin),
-                "buys": buy_refs,
-                "sells": sell_refs,
-                "time": int(time.time())
-            }
-        return result
+    return result
 
 @app.get("/order/{ref_number}")
 async def show_order_by_referenced_number(ref_number: str):
-    if ref_number.isnumeric() is False:
+    if not ref_number.isnumeric():
         return {
             "error": "referenced number should be numeric only!",
             "time": int(time.time())
@@ -295,21 +287,31 @@ async def show_order_by_referenced_number(ref_number: str):
     if get_order_num:
         return {
             "success": True,
-            "ref_number": "#{}".format(get_order_num['order_id']),
+            "ref_number": f"#{get_order_num['order_id']}",
             "sell": {
                 "coin_sell": get_order_num['coin_sell'],
-                "amount_sell": app.db.num_format_coin(get_order_num['amount_sell_after_fee']),
-                "fee_sell": app.db.num_format_coin(get_order_num['amount_sell'] - get_order_num['amount_sell_after_fee']),
-                "total": app.db.num_format_coin(get_order_num['amount_sell'])
+                "amount_sell": app.db.num_format_coin(
+                    get_order_num['amount_sell_after_fee']
+                ),
+                "fee_sell": app.db.num_format_coin(
+                    get_order_num['amount_sell']
+                    - get_order_num['amount_sell_after_fee']
+                ),
+                "total": app.db.num_format_coin(get_order_num['amount_sell']),
             },
             "for": {
                 "coin_get": get_order_num['coin_get'],
-                "amount_get": app.db.num_format_coin(get_order_num['amount_get_after_fee']),
-                "fee_get": app.db.num_format_coin(get_order_num['amount_get'] - get_order_num['amount_get_after_fee']),
-                "total": app.db.num_format_coin(get_order_num['amount_get'])
+                "amount_get": app.db.num_format_coin(
+                    get_order_num['amount_get_after_fee']
+                ),
+                "fee_get": app.db.num_format_coin(
+                    get_order_num['amount_get']
+                    - get_order_num['amount_get_after_fee']
+                ),
+                "total": app.db.num_format_coin(get_order_num['amount_get']),
             },
             "status": get_order_num['status'],
-            "time": int(time.time())
+            "time": int(time.time()),
         }
     else:
         return {
@@ -330,7 +332,7 @@ async def list_all_available_markets():
             for each_item in each_market_coin:
                 sell_coin = each_item['coin_sell']
                 buy_coin = each_item['coin_get']
-                pair_items = "{}-{}".format(sell_coin, buy_coin)
+                pair_items = f"{sell_coin}-{buy_coin}"
                 if pair_items not in pairs:
                     pairs.append(pair_items)
                     get_market_buy_list = await app.db.sql_get_open_order_by_alluser_by_coins(
@@ -384,7 +386,7 @@ async def list_all_available_markets():
                                     }
                                 }
                             )
-                    if len(buy_list) > 0 or len(sell_list) > 0:
+                    if buy_list or sell_list:
                         market_list[pair_items] = {
                             "buy": buy_list,
                             "sell": sell_list
@@ -405,7 +407,8 @@ async def show_trading_markets():
         each_market_coin = await app.db.sql_get_markets_by_coin(each_coin, 'OPEN')
         if each_market_coin and len(each_market_coin) > 0:
             market_list += [
-                '{}-{}'.format(each_item['coin_sell'], each_item['coin_get']) for each_item in each_market_coin
+                f"{each_item['coin_sell']}-{each_item['coin_get']}"
+                for each_item in each_market_coin
             ]
     return {
         "success": True,
@@ -422,83 +425,80 @@ async def check_information_by_ticker(coin_name: str):
 
     if coin_name not in enabled_coin:
         return {
-            "error": "Coin {} is not available!".format(coin_name.upper()),
-            "time": int(time.time())
+            "error": f"Coin {coin_name.upper()} is not available!",
+            "time": int(time.time()),
         }
-    else:
-        get_trade = await app.db.sql_get_coin_trade_stat(coin_name)
-        markets = await app.db.sql_get_markets_by_coin(coin_name, 'OPEN')
-        market_list = []
-        if markets and len(markets) > 0:
-            market_list = [
-                '{}-{}'.format(each_item['coin_sell'], each_item['coin_get']) for each_item in markets
-            ]
-        return {
-            "success": True,
-            "volume_24h": app.db.num_format_coin(get_trade['trade_24h']),
-            "volume_7d": app.db.num_format_coin(get_trade['trade_7d']),
-            "volume_30d": app.db.num_format_coin(get_trade['trade_30d']),
-            "markets": sorted(set(market_list)),
-            "time": int(time.time())
-        }
+    get_trade = await app.db.sql_get_coin_trade_stat(coin_name)
+    markets = await app.db.sql_get_markets_by_coin(coin_name, 'OPEN')
+    market_list = (
+        [
+            f"{each_item['coin_sell']}-{each_item['coin_get']}"
+            for each_item in markets
+        ]
+        if markets and len(markets) > 0
+        else []
+    )
+    return {
+        "success": True,
+        "volume_24h": app.db.num_format_coin(get_trade['trade_24h']),
+        "volume_7d": app.db.num_format_coin(get_trade['trade_7d']),
+        "volume_30d": app.db.num_format_coin(get_trade['trade_30d']),
+        "markets": sorted(set(market_list)),
+        "time": int(time.time())
+    }
 
 @app.get("/coininfo")
 async def list_all_coin_information():
     get_all_coins = await app.db.get_all_coin()
-    if len(get_all_coins) > 0:
-        all_coins = []
-        for c in get_all_coins:
-            type_coin = c['type']
-            height = "N/A"
-            tip = "✅" if c['enable_tip'] == 1 else "❌"
-            deposit = "✅" if c['enable_deposit'] == 1 else "❌"
-            withdraw = "✅" if c['enable_withdraw'] == 1 else "❌"
-            twitter = "✅" if c['enable_twitter'] == 1 else "❌"
-            telegram = "✅" if c['enable_telegram'] == 1 else "❌"
-            cexswap = "✅" if c['cexswap_enable'] == 1 else "❌"
-
-            explorer_link = c['explorer_link']
-            if explorer_link and explorer_link.startswith("http"):
-                explorer_link = "<a href=\"{}\" target=\"_blank\">Link</a>".format(explorer_link)
-            withdraw_info = "Min. {} / Max. {} {}".format(
-                app.db.num_format_coin(c['real_min_tx']), app.db.num_format_coin(c['real_max_tx']), c['coin_name']
-            )
-            tip_info = "Min. {} / Max. {} {}".format(
-                app.db.num_format_coin(c['real_min_tip']), app.db.num_format_coin(c['real_max_tip']), c['coin_name']
-            )
-            net_name = c['net_name']
-            coin_name = c['coin_name']
-            try:
-                if type_coin in ["ERC-20", "TRC-20"]:
-                    height = app.db.get_cache_kv(
-                        "block",
-                        f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{net_name}"
-                    )
-                elif type_coin in ["XLM", "NEO", "VITE"]:
-                    height = app.db.get_cache_kv(
-                        "block",
-                        f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{type_coin}"
-                    )
-                else:
-                    height = app.db.get_cache_kv(
-                        "block",
-                        f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{coin_name}"
-                    )
-            except Exception:
-                traceback.print_exc(file=sys.stdout)
-            all_coins.append(
-                [c['coin_name'], height, c['deposit_confirm_depth'], tip, deposit, withdraw, twitter, telegram,
-                    cexswap, tip_info, withdraw_info, explorer_link]
-            )
-        return {
-            "data": all_coins,
-            "time": int(time.time())
-        }
-    else:
+    if len(get_all_coins) <= 0:
         return {
             "error": "No data!",
             "time": int(time.time())
         }
+    all_coins = []
+    for c in get_all_coins:
+        type_coin = c['type']
+        height = "N/A"
+        tip = "✅" if c['enable_tip'] == 1 else "❌"
+        deposit = "✅" if c['enable_deposit'] == 1 else "❌"
+        withdraw = "✅" if c['enable_withdraw'] == 1 else "❌"
+        twitter = "✅" if c['enable_twitter'] == 1 else "❌"
+        telegram = "✅" if c['enable_telegram'] == 1 else "❌"
+        cexswap = "✅" if c['cexswap_enable'] == 1 else "❌"
+
+        explorer_link = c['explorer_link']
+        if explorer_link and explorer_link.startswith("http"):
+            explorer_link = f'<a href=\"{explorer_link}\" target=\"_blank\">Link</a>'
+        withdraw_info = f"Min. {app.db.num_format_coin(c['real_min_tx'])} / Max. {app.db.num_format_coin(c['real_max_tx'])} {c['coin_name']}"
+        tip_info = f"Min. {app.db.num_format_coin(c['real_min_tip'])} / Max. {app.db.num_format_coin(c['real_max_tip'])} {c['coin_name']}"
+        net_name = c['net_name']
+        coin_name = c['coin_name']
+        try:
+            if type_coin in ["ERC-20", "TRC-20"]:
+                height = app.db.get_cache_kv(
+                    "block",
+                    f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{net_name}"
+                )
+            elif type_coin in ["XLM", "NEO", "VITE"]:
+                height = app.db.get_cache_kv(
+                    "block",
+                    f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{type_coin}"
+                )
+            else:
+                height = app.db.get_cache_kv(
+                    "block",
+                    f"{config['kv_db']['prefix'] + config['kv_db']['daemon_height']}{coin_name}"
+                )
+        except Exception:
+            traceback.print_exc(file=sys.stdout)
+        all_coins.append(
+            [c['coin_name'], height, c['deposit_confirm_depth'], tip, deposit, withdraw, twitter, telegram,
+                cexswap, tip_info, withdraw_info, explorer_link]
+        )
+    return {
+        "data": all_coins,
+        "time": int(time.time())
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=2022)

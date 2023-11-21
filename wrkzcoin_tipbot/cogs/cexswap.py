@@ -129,9 +129,11 @@ async def cexswap_get_list_enable_pair_list():
                 result = await cur.fetchall()
                 if result:
                     list_coins = sorted([i['coin_name'] for i in result])
-                    for pair in itertools.combinations(list_coins, 2):
-                        list_pairs.append("{}/{}".format(pair[0], pair[1]))
-                    if len(list_pairs) > 0:
+                    list_pairs.extend(
+                        f"{pair[0]}/{pair[1]}"
+                        for pair in itertools.combinations(list_coins, 2)
+                    )
+                    if list_pairs:
                         return {"coins": list_coins, "pairs": list_pairs}
     except Exception:
         traceback.print_exc(file=sys.stdout)
@@ -264,16 +266,14 @@ async def cexswap_get_pool_details(ticker_1: str, ticker_2: str, user_id: str=No
                             WHERE `pool_id`=%s """
                             await cur.execute(sql, (result['pool_id']))
                             detail_res = await cur.fetchall()
-                            if detail_res is not None:
-                                pool_detail['pool_share'] = detail_res
                         else:
                             sql = """ SELECT * 
                             FROM `cexswap_pools_share` 
                             WHERE `pool_id`=%s AND `user_id`=%s """
                             await cur.execute(sql, (result['pool_id'], user_id))
                             detail_res = await cur.fetchone()
-                            if detail_res is not None:
-                                pool_detail['pool_share'] = detail_res
+                        if detail_res is not None:
+                            pool_detail['pool_share'] = detail_res
                         return pool_detail
     except Exception:
         traceback.print_exc(file=sys.stdout)
@@ -327,7 +327,7 @@ async def get_cexswap_get_sell_logs(
                         pool_sql = """
                         AND a.`pool_id`=%s
                         """
-                
+
                 if user_id is not None:
                     sql = """
                     SELECT SUM(a.`total_sold_amount`) AS sold, SUM(a.`total_sold_amount_usd`) AS sold_usd,
@@ -341,15 +341,6 @@ async def get_cexswap_get_sell_logs(
                     WHERE a.`sell_user_id`=%s AND a.`user_server`=%s """ + extra_sql + """ """ + pool_sql + """
                     """
                     data_rows = [user_id, user_server]
-                    if len(extra_sql) > 0:
-                        data_rows += [from_time]
-                    if len(pool_sql) > 0:
-                        data_rows += [pool_id]
-
-                    await cur.execute(sql, tuple(data_rows))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
                 else:
                     sql = """
                     SELECT SUM(a.`total_sold_amount`) AS sold, SUM(a.`total_sold_amount_usd`) AS sold_usd,
@@ -363,14 +354,15 @@ async def get_cexswap_get_sell_logs(
                     GROUP BY a.`sold_ticker`, a.`got_ticker`
                     """
                     data_rows = []
-                    if len(extra_sql) > 0:
-                        data_rows += [from_time]
-                    if len(pool_sql) > 0:
-                        data_rows += [pool_id]
-                    await cur.execute(sql, tuple(data_rows))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
+                if extra_sql != "":
+                    data_rows += [from_time]
+                if pool_sql != "":
+                    data_rows += [pool_id]
+
+                await cur.execute(sql, tuple(data_rows))
+                result = await cur.fetchall()
+                if result:
+                    return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return []
@@ -446,7 +438,7 @@ async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: i
                         pool_sql = """
                         AND a.`pool_id`=%s
                         """
-                
+
                 if user_id is not None:
                     sql = """
                     SELECT b.`pairs`, a.`pool_id`, a.`got_ticker`, a.`distributed_user_id`, a.`distributed_user_server`, 
@@ -458,20 +450,11 @@ async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: i
                     WHERE a.`distributed_user_id`=%s """ + extra_sql + """ """ + pool_sql + """
                     GROUP BY a.`got_ticker`
                     """
-                    if group_pool is True:
+                    if group_pool:
                         sql += """
                         , a.`pool_id`
                         """
                     data_rows = [user_id]
-                    if len(extra_sql) > 0:
-                        data_rows += [from_time]
-                    if len(pool_sql) > 0:
-                        data_rows += [pool_id]
-
-                    await cur.execute(sql, tuple(data_rows))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
                 else:
                     sql = """
                     SELECT `got_ticker`, `distributed_user_id`, `distributed_user_server`, 
@@ -482,14 +465,15 @@ async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: i
                     GROUP BY `got_ticker`
                     """
                     data_rows = []
-                    if len(extra_sql) > 0:
-                        data_rows += [from_time]
-                    if len(pool_sql) > 0:
-                        data_rows += [pool_id]
-                    await cur.execute(sql, tuple(data_rows))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
+                if extra_sql != "":
+                    data_rows += [from_time]
+                if pool_sql != "":
+                    data_rows += [pool_id]
+
+                await cur.execute(sql, tuple(data_rows))
+                result = await cur.fetchall()
+                if result:
+                    return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return []
@@ -508,9 +492,6 @@ async def cexswap_earning_guild(guild_id: str=None):
                     GROUP BY `token_name`
                     """
                     await cur.execute(sql, ("SYSTEM", guild_id, "CEXSWAPLP"))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
                 else:
                     sql = """
                     SELECT *, SUM(`real_amount`) AS collected_amount, SUM(`real_amount_usd`) AS collected_amount_usd,
@@ -520,9 +501,9 @@ async def cexswap_earning_guild(guild_id: str=None):
                     GROUP BY `token_name`
                     """
                     await cur.execute(sql, ("CEXSWAPLP"))
-                    result = await cur.fetchall()
-                    if result:
-                        return result
+                result = await cur.fetchall()
+                if result:
+                    return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return []
@@ -619,13 +600,14 @@ async def cexswap_admin_remove_pool(
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                sql = """
+                data_rows = [pool_id]
+
+                sql = (
+                    """
                 DELETE FROM `cexswap_pools` 
                 WHERE `pool_id`=%s LIMIT 1;
                 """
-                data_rows = [pool_id]
-
-                sql += """
+                    + """
                 INSERT INTO `cexswap_add_remove_logs`
                 (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
@@ -634,6 +616,7 @@ async def cexswap_admin_remove_pool(
                 (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
                 """
+                )
                 data_rows += [pool_id, user_id, user_server, "removepool", int(time.time()), amount_1, ticker_1]
                 data_rows += [pool_id, user_id, user_server, "removepool", int(time.time()), amount_2, ticker_2]
 
@@ -648,7 +631,9 @@ async def cexswap_admin_remove_pool(
                     UPDATE `user_balance_mv_data`
                     SET `balance`=`balance`+%s, `update_date`=%s
                     WHERE `user_id`=%s AND `token_name`=%s AND `user_server`=%s LIMIT 1;
-                    """ * int(len(liq_users)/5) # because the list is exploded and 5 elements to insert
+                    """ * (
+                        len(liq_users) // 5
+                    )
                     sql += add_sql
                     data_rows += liq_users
 
@@ -667,7 +652,7 @@ async def cexswap_remove_pool_share(
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                if delete_pool is True:
+                if delete_pool:
                     extra = """
                     DELETE FROM `cexswap_pools` 
                     WHERE `pool_id`=%s LIMIT 1;
@@ -679,7 +664,7 @@ async def cexswap_remove_pool_share(
                             `amount_ticker_2`=`amount_ticker_2`-%s
                         WHERE `pool_id`=%s AND `ticker_1_name`=%s AND `ticker_2_name`=%s;
                     """
-                if complete is True:
+                if complete:
                     sql = extra + """
                     DELETE FROM `cexswap_pools_share`
                     WHERE `pool_id`=%s AND `ticker_1_name`=%s AND `ticker_2_name`=%s 
@@ -714,13 +699,6 @@ async def cexswap_remove_pool_share(
                         pool_id, user_id, user_server, "remove", int(time.time()), amount_1, ticker_1,
                         pool_id, user_id, user_server, "remove", int(time.time()), amount_2, ticker_2,
                     ]
-                    if delete_pool is True:
-                        data_rows = [pool_id] + data_rows
-                    else:
-                        data_rows = [amount_1, amount_2, pool_id, ticker_1, ticker_2] + data_rows
-                    await cur.execute(sql, tuple(data_rows))
-                    await conn.commit()
-                    return True
                 else:
                     sql = extra + """
                     UPDATE `cexswap_pools_share`
@@ -757,13 +735,13 @@ async def cexswap_remove_pool_share(
                         pool_id, user_id, user_server, "remove", int(time.time()), amount_1, ticker_1,
                         pool_id, user_id, user_server, "remove", int(time.time()), amount_2, ticker_2
                     ]
-                    if delete_pool is True:
-                        data_rows = [pool_id] + data_rows
-                    else:
-                        data_rows = [amount_1, amount_2, pool_id, ticker_1, ticker_2] + data_rows
-                    await cur.execute(sql, tuple(data_rows))
-                    await conn.commit()
-                    return True
+                if delete_pool:
+                    data_rows = [pool_id] + data_rows
+                else:
+                    data_rows = [amount_1, amount_2, pool_id, ticker_1, ticker_2] + data_rows
+                await cur.execute(sql, tuple(data_rows))
+                await conn.commit()
+                return True
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return False
@@ -778,8 +756,6 @@ async def cexswap_route_trade(
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                from_coin_pairs = []
-                to_coin_pairs = []
                 sql = """
                 SELECT * FROM `a_cexswap_pools`
                 WHERE (`ticker_1_name`=%s AND `ticker_2_name`<>%s)
@@ -791,9 +767,7 @@ async def cexswap_route_trade(
                 ))
                 result = await cur.fetchall()
 
-                if result:
-                    from_coin_pairs = result
-
+                from_coin_pairs = result if result else []
                 # TO
                 sql = """
                 SELECT * FROM `a_cexswap_pools`
@@ -803,22 +777,22 @@ async def cexswap_route_trade(
                 await cur.execute(sql, (to_coin, from_coin, to_coin, from_coin))
                 result = await cur.fetchall()
 
-                if result:
-                    to_coin_pairs = result
+                to_coin_pairs = result if result else []
                 if len(from_coin_pairs) == 0 or len(to_coin_pairs) == 0:
                     return possible_trade
-                else:
                     # check if a coin in from_coin_pairs exist in to_coin_pairs
-                    for each in from_coin_pairs:
-                        middle_coin = each['ticker_2_name']
-                        if from_coin == each['ticker_2_name']:
-                            middle_coin = each['ticker_1_name']
+                for each in from_coin_pairs:
+                    middle_coin = each['ticker_2_name']
+                    if from_coin == middle_coin:
+                        middle_coin = each['ticker_1_name']
 
-                        for target in to_coin_pairs:
-                            if target['ticker_1_name'] == middle_coin or target['ticker_2_name'] == middle_coin :
-                                possible_trade.append(middle_coin)
-
-                    return list(set(possible_trade))
+                    possible_trade.extend(
+                        middle_coin
+                        for target in to_coin_pairs
+                        if target['ticker_1_name'] == middle_coin
+                        or target['ticker_2_name'] == middle_coin
+                    )
+                return list(set(possible_trade))
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return possible_trade
@@ -834,8 +808,6 @@ async def cexswap_find_possible_trade(
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                from_coin_pairs = []
-                to_coin_pairs = []
                 sql = """
                 SELECT * FROM `a_cexswap_pools`
                 WHERE (`ticker_1_name`=%s AND `amount_ticker_1`>%s AND `ticker_2_name`<>%s)
@@ -846,9 +818,7 @@ async def cexswap_find_possible_trade(
                     from_coin, from_amount, to_coin, from_coin, from_amount, to_coin
                 ))
                 result = await cur.fetchall()
-                if result:
-                    from_coin_pairs = result
-
+                from_coin_pairs = result if result else []
                 # TO
                 sql = """
                 SELECT * FROM `a_cexswap_pools`
@@ -857,11 +827,8 @@ async def cexswap_find_possible_trade(
                 """
                 await cur.execute(sql, (to_coin, from_coin, to_coin, from_coin))
                 result = await cur.fetchall()
-                if result:
-                    to_coin_pairs = result
-                if len(from_coin_pairs) == 0 or len(to_coin_pairs) ==0:
-                    return possible_profits
-                else:
+                to_coin_pairs = result if result else []
+                if len(from_coin_pairs) != 0 and len(to_coin_pairs) != 0:
                     # check if a coin in from_coin_pairs exist in to_coin_pairs
                     for each in from_coin_pairs:
                         coin = each['ticker_1_name']
@@ -874,27 +841,20 @@ async def cexswap_find_possible_trade(
                         for target in to_coin_pairs:
                             target_coin = target['ticker_1_name']
                             middle_coin_check = target['ticker_2_name']
-                            midle_rate = target['amount_ticker_2'] / target['amount_ticker_1']
                             if target_coin != to_coin:
                                 target_coin = target['ticker_2_name']
                                 middle_coin_check = target['ticker_1_name']
-                                middle_coin_rate = target['amount_ticker_1'] / target['amount_ticker_2']
-                                if middle_coin != middle_coin_check:
-                                    continue
-                                else:
+                                if middle_coin == middle_coin_check:
+                                    midle_rate = target['amount_ticker_2'] / target['amount_ticker_1']
+                                    middle_coin_rate = target['amount_ticker_1'] / target['amount_ticker_2']
                                     got_amount = middle_amount / middle_coin_rate * Decimal(0.99)
-                                    msg = "{}/{} = {} {} => {}/{} got: {} {}".format(
-                                        from_coin, middle_coin, middle_amount, middle_coin,
-                                        middle_coin, to_coin, got_amount, to_coin)
+                                    msg = f"{from_coin}/{middle_coin} = {middle_amount} {middle_coin} => {middle_coin}/{to_coin} got: {got_amount} {to_coin}"
                                     if old_amount_get < got_amount:
                                         # print("PROFIT=>{}".format(msg))
-                                        possible_profits.append("  ⚆ {}=>{}, {}=>{}".format(
-                                            from_coin, middle_coin, middle_coin, to_coin
-                                        ))
-                                    else:
-                                        # print("NO PROFIT=>{}".format(msg))
-                                        pass
-                    return possible_profits
+                                        possible_profits.append(
+                                            f"  ⚆ {from_coin}=>{middle_coin}, {middle_coin}=>{to_coin}"
+                                        )
+                return possible_profits
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return possible_profits
@@ -918,9 +878,21 @@ async def cexswap_estimate(
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
                 data_rows = [
-                    pool_id, pairs, ref_log, sell_ticker, float(amount_sell),
-                    float(amount_get), float(got_fee_dev), float(got_fee_liquidators), float(got_fee_guild),
-                    got_ticker, price_impact_percent, int(time.time()), user_id, user_server, use_api
+                    pool_id,
+                    pairs,
+                    ref_log,
+                    sell_ticker,
+                    amount_sell,
+                    amount_get,
+                    got_fee_dev,
+                    got_fee_liquidators,
+                    got_fee_guild,
+                    got_ticker,
+                    price_impact_percent,
+                    int(time.time()),
+                    user_id,
+                    user_server,
+                    use_api,
                 ]
                 await cur.execute(sql, tuple(data_rows))
                 await conn.commit()

@@ -30,7 +30,7 @@ class EconomyButton(disnake.ui.View):
     def __init__(self, item_list, user_id: str, action: str, timeout: float):
         super().__init__(timeout=timeout)
         for name in item_list:
-            custom_id = "economy_{}_".format(user_id) + action + "_"  + name
+            custom_id = f"economy_{user_id}_{action}_{name}"
             self.add_item(MyEcoBtn(name, ButtonStyle.green, custom_id))
 
     async def on_timeout(self):
@@ -70,9 +70,7 @@ class database_economy():
                         WHERE `user_id` = %s LIMIT 1 """
                         await cur.execute(sql, (user_id,))
                         result = await cur.fetchone()
-                        return result
-                    else:
-                        return result
+                    return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -88,15 +86,13 @@ class database_economy():
                         WHERE `user_id` = %s ORDER BY `id` DESC """
                         await cur.execute(sql, user_id)
                         result = await cur.fetchall()
-                        if result:
-                            return result
                     else:
                         sql = """ SELECT * FROM discord_economy_activities 
                         WHERE `user_id` = %s ORDER BY `id` DESC LIMIT 1 """
                         await cur.execute(sql, user_id)
                         result = await cur.fetchone()
-                        if result:
-                            return result
+                    if result:
+                        return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -128,14 +124,12 @@ class database_economy():
                         sql = """ SELECT * FROM `discord_economy_work_reward` 
                         WHERE `status`=%s ORDER BY `work_id` ASC """
                         await cur.execute(sql, (1))
-                        result = await cur.fetchall()
-                        if result: return result
                     else:
                         sql = """ SELECT * FROM `discord_economy_work_reward` 
                         WHERE `guild_id` = %s AND `status`=%s ORDER BY `work_id` ASC """
                         await cur.execute(sql, (guild_id, 1))
-                        result = await cur.fetchall()
-                        if result: return result
+                    result = await cur.fetchall()
+                    if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -214,14 +208,12 @@ class database_economy():
                         sql = """ SELECT * FROM `discord_economy_food` 
                         ORDER BY `food_id` ASC """
                         await cur.execute(sql)
-                        result = await cur.fetchall()
-                        if result: return result
                     else:
                         sql = """ SELECT * FROM `discord_economy_food` 
                         WHERE `guild_id` = %s ORDER BY `food_id` ASC """
                         await cur.execute(sql, (guild_id,))
-                        result = await cur.fetchall()
-                        if result: return result
+                    result = await cur.fetchall()
+                    if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -377,9 +369,7 @@ class database_economy():
         self, item_id: int, user_id: str, guild_id: str, item_health: float, 
         item_energy: float, item_gem: int, can_use: bool=True
     ):
-        usable = "NO"
-        if can_use:
-            usable = "YES"
+        usable = "YES" if can_use else "NO"
         try:
             await store.openConnection()
             async with store.pool.acquire() as conn:
@@ -434,14 +424,13 @@ class database_economy():
                                   AND A.user_id=%s AND A.used=%s AND A.can_use=%s GROUP BY A.item_id """
                         await cur.execute(sql, (user_id, 'NO', 'YES'))
                         result = await cur.fetchall()
-                        if result: return result
                     else:
                         sql = """ SELECT A.item_id, B.item_name, B.item_emoji, A.user_id, A.item_health, A.item_energy, A.item_gem, COUNT(*) AS numbers 
                                   FROM discord_economy_secret_findings A JOIN discord_economy_secret_items B ON B.id = A.item_id 
                                   AND A.user_id=%s AND A.used=%s AND A.can_use=%s AND B.item_name=%s GROUP BY A.item_id """
                         await cur.execute(sql, (user_id, 'NO', 'YES', count_what))
                         result = await cur.fetchone()
-                        if result: return result
+                    if result: return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -553,8 +542,11 @@ class database_economy():
                         WHERE `user_id`=%s
                         """
                         await cur.execute(sql, (item_nos, credit, user_id,))
-                    elif what.upper() == "CHICKENFARM" or what.upper() == "CHICKEN_FARM" or \
-                        what.upper() == "CHICKEN FARM":
+                    elif what.upper() in {
+                        "CHICKENFARM",
+                        "CHICKEN_FARM",
+                        "CHICKEN FARM",
+                    }:
                         sql = """ UPDATE `discord_economy_userinfo` 
                         SET `numb_chicken_farm`=`numb_chicken_farm`+%s, `credit`=`credit`+%s 
                         WHERE `user_id`=%s
@@ -674,14 +666,21 @@ class database_economy():
                     `fish_strength`, `fish_weight`, 
                     `exp_gained`, `energy_loss`, `caught`, `date`, `sellable`) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) """
-                    fishing_arr = []
-                    for each_fish in list_fish:
-                        fishing_arr.append((
-                            each_fish['id'], each_fish['user_id'], each_fish['guild_id'],
-                            each_fish['fish_strength'], each_fish['fish_weight'],
-                            each_fish['exp_gained'], each_fish['energy_loss'],
-                            each_fish['caught'], int(time.time()), 'YES'
-                        ))
+                    fishing_arr = [
+                        (
+                            each_fish['id'],
+                            each_fish['user_id'],
+                            each_fish['guild_id'],
+                            each_fish['fish_strength'],
+                            each_fish['fish_weight'],
+                            each_fish['exp_gained'],
+                            each_fish['energy_loss'],
+                            each_fish['caught'],
+                            int(time.time()),
+                            'YES',
+                        )
+                        for each_fish in list_fish
+                    ]
                     await cur.executemany(sql, fishing_arr)
 
                     ## add experience and engery loss
@@ -696,9 +695,7 @@ class database_economy():
                     SET `found_times`=`found_times`+1 
                     WHERE `id`=%s LIMIT 1
                     """
-                    fishing_id_arr = []
-                    for each_fish in list_fish:
-                        fishing_id_arr.append((each_fish['id']))
+                    fishing_id_arr = [each_fish['id'] for each_fish in list_fish]
                     await cur.executemany(sql, fishing_id_arr)
                     await conn.commit()
                     return True
@@ -1019,9 +1016,10 @@ class database_economy():
                     SET `harvest_date`=%s, `harvested`=%s 
                     WHERE `user_id`=%s AND `id`=%s AND `harvested`=%s
                     """
-                    list_update = []
-                    for each_item in plantlist:
-                        list_update.append((int(time.time()), 'YES', user_id, each_item, 'NO'))
+                    list_update = [
+                        (int(time.time()), 'YES', user_id, each_item, 'NO')
+                        for each_item in plantlist
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True
@@ -1089,12 +1087,17 @@ class database_economy():
                     sql = """ UPDATE discord_economy_dairy_cattle_ownership 
                     SET `last_collect_date`=%s, `possible_collect_date`=%s, `total_produced_qty`=`total_produced_qty`+%s 
                     WHERE `user_id`=%s AND `id`=%s """
-                    list_update = []
-                    for each_item in cowlist:
-                        list_update.append((
-                            int(time.time()), int(time.time())+self.bot.config['economy']['dairy_collecting_time'],
-                            self.bot.config['economy']['raw_milk_per_cow'], user_id, each_item
-                        ))
+                    list_update = [
+                        (
+                            int(time.time()),
+                            int(time.time())
+                            + self.bot.config['economy']['dairy_collecting_time'],
+                            self.bot.config['economy']['raw_milk_per_cow'],
+                            user_id,
+                            each_item,
+                        )
+                        for each_item in cowlist
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True
@@ -1134,9 +1137,10 @@ class database_economy():
                     SET `sold`=%s, `sold_date`=%s 
                     WHERE `user_id`=%s AND `id`=%s AND `sold`=%s
                     """
-                    list_update = []
-                    for each_item in ids:
-                        list_update.append(('YES', int(time.time()), user_id, each_item, 'NO'))
+                    list_update = [
+                        ('YES', int(time.time()), user_id, each_item, 'NO')
+                        for each_item in ids
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True
@@ -1185,13 +1189,16 @@ class database_economy():
                     `total_produced_qty`=`total_produced_qty`+%s 
                     WHERE `user_id`=%s AND `id`=%s
                     """
-                    list_update = []
-                    for each_item in salt_farm_list:
-                        list_update.append((
-                            int(time.time()), int(time.time())+self.eco_salt_collecting_time,
-                            self.eco_salt_qty_per_field, user_id, each_item
-                            )
+                    list_update = [
+                        (
+                            int(time.time()),
+                            int(time.time()) + self.eco_salt_collecting_time,
+                            self.eco_salt_qty_per_field,
+                            user_id,
+                            each_item,
                         )
+                        for each_item in salt_farm_list
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True
@@ -1229,9 +1236,10 @@ class database_economy():
                     sql = """ UPDATE discord_economy_salt_collected 
                     SET `sold`=%s, `sold_date`=%s 
                     WHERE `user_id`=%s AND `id`=%s AND `sold`=%s """
-                    list_update = []
-                    for each_item in ids:
-                        list_update.append(( 'YES', int(time.time()), user_id, each_item, 'NO' ))
+                    list_update = [
+                        ('YES', int(time.time()), user_id, each_item, 'NO')
+                        for each_item in ids
+                    ]
                     await cur.executemany( sql, list_update )
                     await conn.commit()
                     return True
@@ -1276,12 +1284,17 @@ class database_economy():
                     SET `last_collect_date`=%s, `possible_collect_date`=%s, 
                     `total_produced_qty`=`total_produced_qty`+%s 
                     WHERE `user_id`=%s AND `id`=%s """
-                    list_update = []
-                    for each_item in chickenlist:
-                        list_update.append((
-                            int(time.time()), int(time.time())+self.bot.config['economy']['egg_collecting_time'], 
-                            self.bot.config['economy']['egg_per_chicken'], user_id, each_item
-                        ))
+                    list_update = [
+                        (
+                            int(time.time()),
+                            int(time.time())
+                            + self.bot.config['economy']['egg_collecting_time'],
+                            self.bot.config['economy']['egg_per_chicken'],
+                            user_id,
+                            each_item,
+                        )
+                        for each_item in chickenlist
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True
@@ -1318,9 +1331,10 @@ class database_economy():
                     sql = """ UPDATE discord_economy_egg_collected 
                     SET `sold`=%s, `sold_date`=%s 
                     WHERE `user_id`=%s AND `id`=%s AND `sold`=%s """
-                    list_update = []
-                    for each_item in ids:
-                        list_update.append(('YES', int(time.time()), user_id, each_item, 'NO'))
+                    list_update = [
+                        ('YES', int(time.time()), user_id, each_item, 'NO')
+                        for each_item in ids
+                    ]
                     await cur.executemany(sql, list_update)
                     await conn.commit()
                     return True

@@ -42,7 +42,7 @@ class CoinGecko(commands.Cog):
                         return [each['id'].lower() for each in result]
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("coingecko " + str(traceback.format_exc()))
+            await logchanbot(f"coingecko {str(traceback.format_exc())}")
         return []
 
     async def coingecko_to_bot_price(self):
@@ -62,7 +62,7 @@ class CoinGecko(commands.Cog):
                         return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("coingecko " + str(traceback.format_exc()))
+            await logchanbot(f"coingecko {str(traceback.format_exc())}")
         return False
 
     @tasks.loop(seconds=1800.0)
@@ -92,13 +92,13 @@ class CoinGecko(commands.Cog):
                                 continue
                             try:
                                 if len(each_item['id']) > 0 and len(each_item['symbol']) > 0 and len(each_item['name']) > 0 \
-                                    and each_item['id'].lower().strip() not in id_list_inserting:
+                                        and each_item['id'].lower().strip() not in id_list_inserting:
                                     insert_list.append((each_item['id'].lower().strip(), each_item['symbol'], each_item['name']))
                                     id_list_inserting.append(each_item['id'].lower().strip())
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
-                                print("coingecko error id: {}".format(str(each_item)))
-                        if len(insert_list) > 0:
+                                print(f"coingecko error id: {str(each_item)}")
+                        if insert_list:
                             try:
                                 await store.openConnection()
                                 async with store.pool.acquire() as conn:
@@ -141,7 +141,7 @@ class CoinGecko(commands.Cog):
                 for each_list in coin_chunk_list:
                     # Process
                     key_list = ",".join(each_list)
-                    url = "https://api.coingecko.com/api/v3/simple/price?ids="+key_list+"&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true"
+                    url = f"https://api.coingecko.com/api/v3/simple/price?ids={key_list}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true"
                     try:
                         async with aiohttp.ClientSession() as cs:
                             async with cs.get(url, timeout=30) as r:
@@ -185,9 +185,11 @@ class CoinGecko(commands.Cog):
                                     for k, v in price_dict.items():
                                         try:
                                             await self.utils.async_set_cache_kv(
-                                                self.bot.config['kv_db']['prefix_gecko'],
-                                                "PRICE:" + k.upper(),
-                                                v
+                                                self.bot.config['kv_db'][
+                                                    'prefix_gecko'
+                                                ],
+                                                f"PRICE:{k.upper()}",
+                                                v,
                                             )
                                         except Exception:
                                             traceback.print_exc(file=sys.stdout)
@@ -197,7 +199,9 @@ class CoinGecko(commands.Cog):
                         #traceback.print_exc(file=sys.stdout)
                         await asyncio.sleep(30.0)
                     await asyncio.sleep(5.0)
-                print("Coingecko completed: {}, time taken {}s".format(len(existing_coinlist), int(time.time()) - start_time))
+                print(
+                    f"Coingecko completed: {len(existing_coinlist)}, time taken {int(time.time()) - start_time}s"
+                )
                 await self.coingecko_to_bot_price()
         except Exception:
             traceback.print_exc(file=sys.stdout)

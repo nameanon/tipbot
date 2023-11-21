@@ -22,8 +22,7 @@ bot_id = '1343104498722467845'  # to avoid fetch own message
 def logchanbot(content: str):
     try:
         webhook = DiscordWebhook(
-            url=config['discord']['twitter_webhook'],
-            content=content[0:1000]
+            url=config['discord']['twitter_webhook'], content=content[:1000]
         )
         webhook.execute()
     except Exception as e:
@@ -88,8 +87,11 @@ async def fetch_bot_dm():
                         get_dm = sorted(get_dm, key=lambda d: d['id'])
                         fetched_at = int(time.time())
                         for each_msg in get_dm:
-                            if len(existing_msg_ids) == 0 or (
-                                    len(existing_msg_ids) > 0 and each_msg['id'] not in existing_msg_ids):
+                            if (
+                                not existing_msg_ids
+                                or existing_msg_ids
+                                and each_msg['id'] not in existing_msg_ids
+                            ):
                                 # Skip its own message
                                 if each_msg['message_create']['sender_id'] != bot_id:
                                     data_rows.append((json.dumps(each_msg),
@@ -99,7 +101,7 @@ async def fetch_bot_dm():
                                                       each_msg['message_create']['target']['recipient_id'],
                                                       int(int(each_msg['created_timestamp']) / 1000), fetched_at))
                         # insert to DB
-                        if len(data_rows) > 0:
+                        if data_rows:
                             sql = """ INSERT INTO `twitter_fetch_bot_messages` (`message_json_dump`, `message_data_dump`, `text`, `message_id`, `sender_id`, `recipient_id`, `created_timestamp`, `inserted_date`)
                                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s) """
                             await cur.executemany(sql, data_rows)
@@ -108,7 +110,7 @@ async def fetch_bot_dm():
                                 msg = "[TWITTER] get_direct_messages - Inserted {} new records...".format(cur.rowcount)
                                 logchanbot(msg)
                                 print(msg)
-                    if len(data_rows) == 0:
+                    if not data_rows:
                         i += 1
                         if i > 0 and i % 50 == 0:
                             msg = "[TWITTER] - get_direct_messages no new records. Sleep {}s".format(sleep_no_records)

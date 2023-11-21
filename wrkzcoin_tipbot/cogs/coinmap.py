@@ -24,7 +24,7 @@ from cogs.utils import Utils
 
 def get_coin360(display_id: str, static_coin360_path, selenium_setting, coin360):
     return_to = None
-    file_name = "coin360_image_{}.png".format(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))  #
+    file_name = f'coin360_image_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}.png'
     file_path = static_coin360_path + file_name
     if os.path.exists(file_path):
         return file_name

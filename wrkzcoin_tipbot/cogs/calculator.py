@@ -32,11 +32,11 @@ class Calculator(commands.Cog):
             test_string = eval_string
             for each in additional_support:
                 test_string = test_string.replace(each, "")
-            if all([c.isdigit() or c in supported_function for c in test_string]):
+            if all(c.isdigit() or c in supported_function for c in test_string):
                 try:
                     result = numexpr.evaluate(eval_string).item()
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, "\
-                        f"result of `{eval_string_original}`:```{result}```"
+                            f"result of `{eval_string_original}`:```{result}```"
                     await ctx.response.send_message(msg)
                 except Exception:
                     msg = f"{EMOJI_ERROR} {ctx.author.mention}, I can not find the result for `{eval_string_original}`."

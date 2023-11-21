@@ -57,16 +57,13 @@ class CoinSetting(commands.Cog):
             await store.openConnection()
             async with store.pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    coin_list_name = []
                     sql = """ SELECT `coin_name` 
                     FROM `coin_settings` 
                     WHERE `enable`=1 """
                     await cur.execute(sql, ())
                     result = await cur.fetchall()
                     if result and len(result) > 0:
-                        for each in result:
-                            coin_list_name.append(each['coin_name'])
-                        return coin_list_name
+                        return [each['coin_name'] for each in result]
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
@@ -120,9 +117,10 @@ class CoinSetting(commands.Cog):
                     await cur.execute(sql, ())
                     result = await cur.fetchall()
                     if result and len(result) > 0:
-                        alias_names = {}
-                        for each_item in result:
-                            alias_names[each_item['alt_name'].upper()] = each_item['coin_name']
+                        alias_names = {
+                            each_item['alt_name'].upper(): each_item['coin_name']
+                            for each_item in result
+                        }
                         self.bot.coin_alias_names = alias_names
                         return True
         except Exception:
@@ -161,9 +159,11 @@ class CoinSetting(commands.Cog):
                     if result:
                         list_coins = sorted([i['coin_name'] for i in result])
                         self.bot.cexswap_coins = list_coins
-                        for pair in itertools.combinations(list_coins, 2):
-                            list_pairs.append("{}/{}".format(pair[0], pair[1]))
-                        if len(list_pairs) > 0:
+                        list_pairs.extend(
+                            f"{pair[0]}/{pair[1]}"
+                            for pair in itertools.combinations(list_coins, 2)
+                        )
+                        if list_pairs:
                             self.bot.cexswap_pairs = list_pairs
                             return True
         except Exception:

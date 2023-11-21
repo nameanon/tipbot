@@ -75,9 +75,7 @@ async def logchanbot(content: str):
 
 async def handle_best_node(network: str):
     global pool_netmon
-    table = ""
-    if network.upper() == "TRX":
-        table = "chain_trx"
+    table = "chain_trx" if network.upper() == "TRX" else ""
     try:
         await openConnection_node_monitor()
         async with pool_netmon.acquire() as conn:
@@ -117,7 +115,6 @@ async def sql_addinfo_by_server(
                     `status`=VALUES(`status`)
                     """
                     await cur.execute(sql, (server_id, servername[:28], prefix, default_coin, "REJOINED",))
-                    await conn.commit()
                 else:
                     sql = """ INSERT INTO `discord_server` (`serverid`, `servername`, `prefix`, `default_coin`)
                     VALUES (%s, %s, %s, %s) ON DUPLICATE KEY  
@@ -127,7 +124,7 @@ async def sql_addinfo_by_server(
                     `default_coin`=VALUES(`default_coin`)
                     """
                     await cur.execute(sql, (server_id, servername[:28], prefix, default_coin))
-                    await conn.commit()
+                await conn.commit()
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
 
@@ -167,22 +164,17 @@ async def sql_get_messages(
                     WHERE `serverid` = %s AND `channel_id` = %s AND `message_time`>%s
                     """
                     await cur.execute(sql, (server_id, channel_id, lapDuration,))
-                    result = await cur.fetchall()
-                    if result:
-                        for item in result:
-                            if int(item['user_id']) not in list_talker:
-                                list_talker.append(int(item['user_id']))
                 else:
                     sql = """ SELECT `user_id` FROM discord_messages 
                     WHERE `serverid` = %s AND `channel_id` = %s 
                     GROUP BY `user_id` ORDER BY max(`message_time`) DESC LIMIT %s
                     """
                     await cur.execute(sql, (server_id, channel_id, num_user,))
-                    result = await cur.fetchall()
-                    if result:
-                        for item in result:
-                            if int(item['user_id']) not in list_talker:
-                                list_talker.append(int(item['user_id']))
+                result = await cur.fetchall()
+                if result:
+                    for item in result:
+                        if int(item['user_id']) not in list_talker:
+                            list_talker.append(int(item['user_id']))
                 return list_talker
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
@@ -199,9 +191,12 @@ async def sql_changeinfo_by_server(
             await openConnection()
             async with pool.acquire() as conn:
                 async with conn.cursor() as cur:
-                    sql = """ UPDATE `discord_server` SET `""" + what.lower() + """` = %s 
+                    sql = (
+                        f""" UPDATE `discord_server` SET `{what.lower()}"""
+                        + """` = %s 
                     WHERE `serverid` = %s
                     """
+                    )
                     await cur.execute(sql, (value, server_id,))
                     await conn.commit()
                     return True
@@ -218,18 +213,24 @@ async def sql_user_balance_single(
     # address: TRTL/BCN/XMR = paymentId
     token_name = coin.upper()
     user_server = user_server.upper()
-    if top_block is None:
-        # If we can not get top block, confirm after 20mn. This is second not number of block
-        nos_block = 20 * 60
-    else:
-        nos_block = top_block - confirmed_depth
+    nos_block = 20 * 60 if top_block is None else top_block - confirmed_depth
     confirmed_inserted = 30  # 30s for nano
     try:
         await openConnection()
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
-                # moving tip + / -
-                sql = """
+                query_param = [user_id, token_name, user_server,
+                               user_id, token_name, "ONGOING",
+                               user_id, token_name, "ONGOING",
+                               user_id, token_name, "ONGOING",
+                               token_name, user_id, "OPEN",
+                               token_name, user_id, user_server, "REGISTERED",
+                               user_id, token_name, "ONGOING",
+                               user_id, token_name, "ONGOING",
+                               user_id, token_name, "ONGOING",
+                               user_id, token_name, "ONGOING"]
+                sql = (
+                    """
                         SELECT 
                         (SELECT IFNULL((SELECT (`balance`-`withdrew`+`deposited`)  
                         FROM `user_balance_mv_data` 
@@ -271,30 +272,18 @@ async def sql_user_balance_single(
                         FROM `discord_talkdrop_tmp` 
                         WHERE `from_userid`=%s AND `token_name`=%s AND `status`=%s), 0))
                       """
-                query_param = [user_id, token_name, user_server,
-                               user_id, token_name, "ONGOING",
-                               user_id, token_name, "ONGOING",
-                               user_id, token_name, "ONGOING",
-                               token_name, user_id, "OPEN",
-                               token_name, user_id, user_server, "REGISTERED",
-                               user_id, token_name, "ONGOING",
-                               user_id, token_name, "ONGOING",
-                               user_id, token_name, "ONGOING",
-                               user_id, token_name, "ONGOING"]
-                sql += """ AS mv_balance"""
+                    + """ AS mv_balance"""
+                )
                 await cur.execute(sql, tuple(query_param))
                 result = await cur.fetchone()
-                if result:
-                    mv_balance = result['mv_balance']
-                else:
-                    mv_balance = 0
+                mv_balance = result['mv_balance'] if result else 0
             balance = {}
             try:
                 balance['adjust'] = 0
                 balance['mv_balance'] = float("%.6f" % mv_balance) if mv_balance else 0
                 balance['adjust'] = float("%.6f" % balance['mv_balance'])
             except Exception:
-                print("store issue user_balance coin name: {}".format(token_name))
+                print(f"store issue user_balance coin name: {token_name}")
                 traceback.print_exc(file=sys.stdout)
             # Negative check
             try:
@@ -307,7 +296,7 @@ async def sql_user_balance_single(
             return balance
     except Exception:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store user_balance " +str(traceback.format_exc()))
+        await logchanbot(f"store user_balance {str(traceback.format_exc())}")
 
 # owner message to delete (which bot respond)
 async def add_discord_bot_message(message_id: str, guild_id: str, owner_id: str):
@@ -340,7 +329,7 @@ async def get_discord_mathtip_by_msgid(msg_id: str):
                     return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return None
 
 async def get_discord_triviatip_by_msgid(msg_id: str):
@@ -359,7 +348,7 @@ async def get_discord_triviatip_by_msgid(msg_id: str):
                     return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return None
 # End owner message
 
@@ -367,8 +356,7 @@ async def get_discord_triviatip_by_msgid(msg_id: str):
 async def get_coin_settings(coin_type: str = None):
     global pool
     try:
-        sql_coin_type = ""
-        if coin_type: sql_coin_type = """ AND `type`='""" + coin_type.upper() + """'"""
+        sql_coin_type = f""" AND `type`='{coin_type.upper()}'""" if coin_type else ""
         await openConnection()
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -380,7 +368,7 @@ async def get_coin_settings(coin_type: str = None):
                     return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_nano_get_user_wallets(coin: str):
@@ -393,11 +381,10 @@ async def sql_nano_get_user_wallets(coin: str):
                 sql = """ SELECT * FROM nano_user 
                 WHERE `coin_name`=%s """
                 await cur.execute(sql, coin_name)
-                result = await cur.fetchall()
-                return result
+                return await cur.fetchall()
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_get_userwallet_by_paymentid(paymentid: str, coin: str, coin_family: str):
@@ -407,7 +394,7 @@ async def sql_get_userwallet_by_paymentid(paymentid: str, coin: str, coin_family
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 result = None
-                if coin_family in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
+                if coin_family in {"TRTL-API", "TRTL-SERVICE", "BCN", "XMR"}:
                     sql = """ SELECT * FROM `cn_user_paymentid` 
                     WHERE `paymentid`=%s AND `coin_name`=%s LIMIT 1
                     """
@@ -474,7 +461,7 @@ async def sql_get_userwallet_by_paymentid(paymentid: str, coin: str, coin_family
                 return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return None
 
 # ERC, TRC scan
@@ -488,21 +475,17 @@ async def get_txscan_stored_list_erc(net_name: str):
                     sql = """ SELECT * FROM `trc20_contract_scan` 
                     WHERE `net_name`=%s ORDER BY `blockNumber` DESC LIMIT 500
                     """
-                    await cur.execute(sql, (net_name))
-                    result = await cur.fetchall()
-                    if result and len(result) > 0: return {
-                        'txHash_unique': [item['contract_blockNumber_Tx_from_to_uniq'] for item in result]}
                 else:
                     sql = """ SELECT * FROM `erc20_contract_scan`
                     WHERE `net_name`=%s ORDER BY `blockNumber` DESC LIMIT 500
                     """
-                    await cur.execute(sql, (net_name))
-                    result = await cur.fetchall()
-                    if result and len(result) > 0: return {
-                        'txHash_unique': [item['contract_blockNumber_Tx_from_to_uniq'] for item in result]}
+                await cur.execute(sql, (net_name))
+                result = await cur.fetchall()
+                if result and len(result) > 0: return {
+                    'txHash_unique': [item['contract_blockNumber_Tx_from_to_uniq'] for item in result]}
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return {'txHash_unique': []}
 
 async def get_latest_stored_scanning_height_erc(net_name: str, contract: str = None):
@@ -516,17 +499,14 @@ async def get_latest_stored_scanning_height_erc(net_name: str, contract: str = N
                     FROM `trc20_contract_scan` WHERE `net_name`=%s AND `contract`=%s
                     """
                     await cur.execute(sql, (net_name, contract))
-                    result = await cur.fetchone()
-                    if result and result['TopBlock']:
-                        return int(result['TopBlock'])
                 else:
                     sql = """ SELECT MAX(`blockNumber`) as TopBlock 
                     FROM `erc20_contract_scan` WHERE `net_name`=%s
                     """
                     await cur.execute(sql, (net_name))
-                    result = await cur.fetchone()
-                    if result and result['TopBlock']:
-                        return int(result['TopBlock'])
+                result = await cur.fetchone()
+                if result and result['TopBlock']:
+                    return int(result['TopBlock'])
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return 1
@@ -548,7 +528,6 @@ async def get_monit_contract_tx_insert_erc(list_data):
                 return cur.rowcount
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        pass
     return 0
 
 async def get_monit_contract_tx_insert_trc(list_data):
@@ -568,7 +547,6 @@ async def get_monit_contract_tx_insert_trc(list_data):
                 return cur.rowcount
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        pass
     return 0
 
 async def get_monit_scanning_net_name_update_height(
@@ -587,22 +565,20 @@ async def get_monit_scanning_net_name_update_height(
                       AND `coin_name`=%s 
                     LIMIT 1 """
                     await cur.execute(sql, (new_height, net_name, new_height, coin_name))
-                    await conn.commit()
-                    return new_height
                 else:
                     sql = """ UPDATE `coin_ethscan_setting` SET `scanned_from_height`=%s 
                     WHERE `net_name`=%s AND `scanned_from_height`<%s  
                     LIMIT 1 """
                     await cur.execute(sql, (new_height, net_name, new_height))
-                    await conn.commit()
-                    return new_height
+                await conn.commit()
+                return new_height
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return None
 
 async def trx_get_block_number(url: str, timeout: int = 64):
     height = 0
-    url = url + "wallet/getnowblock"
+    url += "wallet/getnowblock"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -618,12 +594,12 @@ async def trx_get_block_number(url: str, timeout: int = 64):
                     if decoded_data and 'block_header' in decoded_data:
                         height = decoded_data['block_header']['raw_data']['number']
     except asyncio.TimeoutError:
-        print('TRX: get block number {}s for TOKEN {}'.format(timeout, "TRX"))
+        print(f'TRX: get block number {timeout}s for TOKEN TRX')
     except aiohttp.client_exceptions.ServerDisconnectedError:
-        print('TRX: server disconnected url: {} for TOKEN {}'.format(url, "TRX"))
+        print(f'TRX: server disconnected url: {url} for TOKEN TRX')
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return height
 
 async def trx_get_block_info(url: str, height: int, timeout: int = 32):
@@ -638,11 +614,11 @@ async def trx_get_block_info(url: str, height: int, timeout: int = 32):
         if get_block:
             return get_block['block_header']['raw_data']
     except httpx.RemoteProtocolError:
-        print("httpx.RemoteProtocolError: url {} for TRX".format(url))
+        print(f"httpx.RemoteProtocolError: url {url} for TRX")
     except httpx.ReadTimeout:
-        print("httpx.ReadTimeout: url {} for TRX".format(url))
+        print(f"httpx.ReadTimeout: url {url} for TRX")
     except httpx.ConnectTimeout:
-        print("httpx.ConnectTimeout: url {} for TRX".format(url))
+        print(f"httpx.ConnectTimeout: url {url} for TRX")
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return False
@@ -664,7 +640,7 @@ async def erc_get_block_number(url: str, timeout: int = 64):
                     if decoded_data and 'result' in decoded_data:
                         return int(decoded_data['result'], 16)
     except asyncio.TimeoutError:
-        print('TIMEOUT: {} get block number {}s'.format(url, timeout))
+        print(f'TIMEOUT: {url} get block number {timeout}s')
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -672,7 +648,11 @@ async def erc_get_block_number(url: str, timeout: int = 64):
 
 async def erc_get_block_info(url: str, height: int, timeout: int = 32):
     try:
-        data = '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["' + str(hex(height)) + '", false],"id":1}'
+        data = (
+            '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["'
+            + hex(height)
+            + '", false],"id":1}'
+        )
         try:
             async with aiohttp.ClientSession(connector=TCPConnector(ssl=False)) as session:
                 async with session.post(
@@ -688,7 +668,7 @@ async def erc_get_block_info(url: str, height: int, timeout: int = 32):
                         if decoded_data and 'result' in decoded_data:
                             return decoded_data['result']
         except asyncio.TimeoutError:
-            print('TIMEOUT: erc_get_block_info for {}s'.format(timeout))
+            print(f'TIMEOUT: erc_get_block_info for {timeout}s')
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
     except ValueError:
@@ -721,7 +701,7 @@ async def sql_get_all_erc_user(type_coin_user: str, called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_get_all_tezos_user(type_coin_user: str, called_Update: int = 0):
@@ -752,7 +732,7 @@ async def sql_get_all_tezos_user(type_coin_user: str, called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_recent_tezos_move_deposit(called_Update: int = 300):
@@ -770,7 +750,7 @@ async def sql_recent_tezos_move_deposit(called_Update: int = 300):
                     return [each['balance_wallet_address'] for each in result]
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_get_all_zil_user(type_coin_user: str, called_Update: int = 0):
@@ -801,7 +781,7 @@ async def sql_get_all_zil_user(type_coin_user: str, called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_recent_zil_move_deposit(called_Update: int = 300):
@@ -819,7 +799,7 @@ async def sql_recent_zil_move_deposit(called_Update: int = 300):
                     return [each['balance_wallet_address'] for each in result]
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_get_all_vet_user(called_Update: int = 0):
@@ -848,7 +828,7 @@ async def sql_get_all_vet_user(called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_recent_vet_move_deposit(
@@ -868,7 +848,7 @@ async def sql_recent_vet_move_deposit(
                     return [each['balance_wallet_address'] for each in result]
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_get_all_near_user(type_coin_user: str, called_Update: int = 0):
@@ -898,7 +878,7 @@ async def sql_get_all_near_user(type_coin_user: str, called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_recent_near_move_deposit(called_Update: int = 300):
@@ -916,7 +896,7 @@ async def sql_recent_near_move_deposit(called_Update: int = 300):
                     return [each['balance_wallet_address'] for each in result]
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def recent_balance_call_neo_user(called_Update: int = 0):
@@ -945,7 +925,7 @@ async def recent_balance_call_neo_user(called_Update: int = 0):
                         return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def neo_get_existing_tx():
@@ -961,7 +941,7 @@ async def neo_get_existing_tx():
                     return [each['txhash'] for each in result]
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 # TODO: this is for ERC-20 only
@@ -988,7 +968,7 @@ async def http_wallet_getbalance(
                         except Exception as e:
                             traceback.print_exc(file=sys.stdout)
         except asyncio.TimeoutError:
-            print('TIMEOUT: get balance {} for {}s'.format(url, time_out))
+            print(f'TIMEOUT: get balance {url} for {time_out}s')
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
     else:
@@ -998,30 +978,31 @@ async def http_wallet_getbalance(
             "params": [
                 {
                     "to": contract,
-                    "data": "0x70a08231000000000000000000000000" + address[2:]
-                }, "latest"
+                    "data": f"0x70a08231000000000000000000000000{address[2:]}",
+                },
+                "latest",
             ],
-            "id": 1
+            "id": 1,
         }
         try:
             async with aiohttp.ClientSession(connector=TCPConnector(ssl=False)) as session:
                 async with session.post(
-                    url, headers={'Content-Type': 'application/json'},
-                    json=data,
-                    timeout=time_out
-                ) as response:
+                                    url, headers={'Content-Type': 'application/json'},
+                                    json=data,
+                                    timeout=time_out
+                                ) as response:
                     if response.status == 200:
                         data = await response.read()
                         data = data.decode('utf-8')
                         decoded_data = json.loads(data)
                         if decoded_data and 'result' in decoded_data:
-                            if decoded_data['result'] == "0x":
-                                return 0
-                            return int(decoded_data['result'], 16)
+                            return 0 if decoded_data['result'] == "0x" else int(decoded_data['result'], 16)
         except aiohttp.client_exceptions.ServerDisconnectedError:
-            print("http_wallet_getbalance disconnected from url: {} for contract {}".format(url, contract))
+            print(
+                f"http_wallet_getbalance disconnected from url: {url} for contract {contract}"
+            )
         except asyncio.TimeoutError:
-            print('TIMEOUT: get balance {} for {}s'.format(url, time_out))
+            print(f'TIMEOUT: get balance {url} for {time_out}s')
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
     return None
@@ -1047,7 +1028,7 @@ async def check_approved_erc20(
                     return True
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return False
 
 async def insert_approved_erc20(
@@ -1070,7 +1051,7 @@ async def insert_approved_erc20(
                 return cur.rowcount
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return 0
 
 async def sql_move_deposit_for_spendable(
@@ -1098,7 +1079,7 @@ async def sql_move_deposit_for_spendable(
                 return True
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return False
 
 async def sql_get_pending_move_deposit_erc20(net_name: str):
@@ -1115,7 +1096,7 @@ async def sql_get_pending_move_deposit_erc20(net_name: str):
                 if result: return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return None
 
 async def sql_get_tx_info_erc20(url: str, tx: str, timeout: int = 64):
@@ -1135,7 +1116,7 @@ async def sql_get_tx_info_erc20(url: str, tx: str, timeout: int = 64):
                     if decoded_data and 'result' in decoded_data:
                         return decoded_data['result']
     except asyncio.TimeoutError:
-        print('TIMEOUT: {} get block number {}s'.format(url, timeout))
+        print(f'TIMEOUT: {url} get block number {timeout}s')
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
     return None
@@ -1157,22 +1138,20 @@ async def sql_check_pending_move_deposit_erc20(
             # Check tx from RPC
             check_tx = await sql_get_tx_info_erc20(url, each_tx['txn'], block_timeout)
             if check_tx is not None:
-                tx_block_number = int(check_tx['blockNumber'], 16)
                 status = "CONFIRMED"
                 if 'status' in check_tx and int(check_tx['status'], 16) == 0:
                     status = "FAILED"
+                tx_block_number = int(check_tx['blockNumber'], 16)
                 if top_block - deposit_confirm_depth > tx_block_number:
                     await sql_update_confirming_move_tx_erc20(
                         each_tx['txn'], tx_block_number, top_block - tx_block_number, status
                     )
-            elif check_tx is None:
-                # None found
-                if int(time.time()) - 4 * 3600 > each_tx['time_insert']:
-                    status = "FAILED"
-                    tx_block_number = 0
-                    await sql_update_confirming_move_tx_erc20(
-                        each_tx['txn'], tx_block_number, top_block - tx_block_number, status
-                    )
+            elif int(time.time()) - 4 * 3600 > each_tx['time_insert']:
+                status = "FAILED"
+                tx_block_number = 0
+                await sql_update_confirming_move_tx_erc20(
+                    each_tx['txn'], tx_block_number, top_block - tx_block_number, status
+                )
 
 async def sql_update_confirming_move_tx_erc20(
     tx: str, blockNumber: int, confirmed_depth: int, status
@@ -1191,7 +1170,7 @@ async def sql_update_confirming_move_tx_erc20(
                 return True
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return None
 
 async def get_monit_scanning_contract_balance_address_erc20(
@@ -1210,7 +1189,7 @@ async def get_monit_scanning_contract_balance_address_erc20(
                 if result and len(result) > 0: return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_update_erc_user_update_call_many_erc20(list_data):
@@ -1228,7 +1207,7 @@ async def sql_update_erc_user_update_call_many_erc20(list_data):
                 return cur.rowcount
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return 0
 
 async def sql_get_pending_notification_users_erc20(user_server: str = 'DISCORD'):
@@ -1247,7 +1226,7 @@ async def sql_get_pending_notification_users_erc20(user_server: str = 'DISCORD')
                 if result: return result
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return []
 
 async def sql_updating_pending_move_deposit_erc20(
@@ -1273,7 +1252,7 @@ async def sql_updating_pending_move_deposit_erc20(
                 return cur.rowcount
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
-        await logchanbot("store " +str(traceback.format_exc()))
+        await logchanbot(f"store {str(traceback.format_exc())}")
     return 0
 
 async def trx_check_minimum_deposit(

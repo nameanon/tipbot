@@ -25,7 +25,7 @@ class Error(commands.Cog):
         if isinstance(error, commands.MissingPermissions):
             await logchanbot(
                 f"{ctx.author.mention} / {ctx.author.name}#{ctx.author.discriminator} "\
-                f"tried {ctx.data.name} but lack of permission [MissingPermissions]."
+                    f"tried {ctx.data.name} but lack of permission [MissingPermissions]."
             )
             return await ctx.response.send_message(
                 f"{ctx.author.mention} Does not have the perms to use this: `{ctx.data.name}` command."
@@ -33,7 +33,8 @@ class Error(commands.Cog):
 
         if isinstance(error, commands.MissingRole):
             return await ctx.response.send_message(
-                f"{ctx.author.mention}: " + str(error), view=RowButtonRowCloseAnyMessage()
+                f"{ctx.author.mention}: {str(error)}",
+                view=RowButtonRowCloseAnyMessage(),
             )
 
         if isinstance(error, commands.NoPrivateMessage):
@@ -41,7 +42,7 @@ class Error(commands.Cog):
                 f"{ctx.author.mention} / {ctx.author.name}#{ctx.author.discriminator} tried {ctx.data.name} in DM.")
             return await ctx.response.send_message(f"{ctx.author.mention} This command cannot be used in a DM.")
 
-        if isinstance(error, commands.CheckFailure) or isinstance(error, commands.CheckAnyFailure):
+        if isinstance(error, (commands.CheckFailure, commands.CheckAnyFailure)):
             await logchanbot(
                 f"{ctx.author.mention} / {ctx.author.name}#{ctx.author.discriminator} tried {ctx.data.name} but lack of permission [CheckAnyFailure].")
             await ctx.response.send_message(
@@ -65,7 +66,7 @@ class Error(commands.Cog):
             embed.add_field(name="Missing argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
             if ctx.command.aliases:
-                aliases = "`" + "".join("!" + c + ", " for c in ctx.command.aliases) + "`"
+                aliases = "`" + "".join(f"!{c}, " for c in ctx.command.aliases) + "`"
                 embed.add_field(name="Command Aliases", value=f"{aliases}", inline=False)
             return await ctx.response.send_message(embed=embed, view=RowButtonRowCloseAnyMessage())
 
@@ -75,7 +76,7 @@ class Error(commands.Cog):
             embed.add_field(name="Bad Argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
             if ctx.command.aliases:
-                aliases = "`" + "".join("!" + c for c in ctx.command.aliases) + "`"
+                aliases = "`" + "".join(f"!{c}" for c in ctx.command.aliases) + "`"
                 embed.add_field(name="Command Aliases", value=f"{aliases}", inline=False)
             return await ctx.response.send_message(embed=embed, view=RowButtonRowCloseAnyMessage())
 
@@ -83,8 +84,11 @@ class Error(commands.Cog):
             embed = disnake.Embed(title="Error!", description="Cog not found!", color=disnake.Color.red())
             embed.add_field(name="Bad Argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
-            embed.add_field(name='Loaded Cogs:', value="".join("`" + c + "`\n" for c in sorted(self.client.cogs)),
-                            inline=False)
+            embed.add_field(
+                name='Loaded Cogs:',
+                value="".join(f"`{c}" + "`\n" for c in sorted(self.client.cogs)),
+                inline=False,
+            )
             return await ctx.response.send_message(embed=embed, view=RowButtonRowCloseAnyMessage())
 
         if isinstance(error, commands.CommandError):
@@ -92,7 +96,7 @@ class Error(commands.Cog):
                 f"Unhandled error while executing command `{ctx.data.name}`: {str(error)}",
                 view=RowButtonRowCloseAnyMessage())
 
-        logging.error("Ignoring exception in command {}:".format(ctx.data.name))
+        logging.error(f"Ignoring exception in command {ctx.data.name}:")
         logging.error("\n" + "".join(traceback.format_exception(type(error), error, error.__traceback__)))
 
     @commands.Cog.listener()
@@ -115,7 +119,10 @@ class Error(commands.Cog):
             )
 
         if isinstance(error, commands.MissingRole):
-            return await ctx.reply(f"{ctx.author.mention}: " + str(error), view=RowButtonRowCloseAnyMessage())
+            return await ctx.reply(
+                f"{ctx.author.mention}: {str(error)}",
+                view=RowButtonRowCloseAnyMessage(),
+            )
 
         if isinstance(error, commands.NoPrivateMessage):
             return await ctx.reply(
@@ -123,7 +130,7 @@ class Error(commands.Cog):
                 view=RowButtonRowCloseAnyMessage()
             )
 
-        if isinstance(error, commands.CheckFailure) or isinstance(error, commands.CheckAnyFailure):
+        if isinstance(error, (commands.CheckFailure, commands.CheckAnyFailure)):
             await ctx.reply(
                 f"{ctx.author.mention} You do not have permission to use this command (`{ctx.prefix}{ctx.command.name}`).")  # \nCheck(s) failed: {failed}")
             return
@@ -144,7 +151,7 @@ class Error(commands.Cog):
             embed.add_field(name="Missing argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
             if ctx.command.aliases:
-                aliases = "`" + "".join("!" + c + ", " for c in ctx.command.aliases) + "`"
+                aliases = "`" + "".join(f"!{c}, " for c in ctx.command.aliases) + "`"
                 embed.add_field(name="Command Aliases", value=f"{aliases}", inline=False)
             return await ctx.reply(embed=embed, view=RowButtonRowCloseAnyMessage())
 
@@ -154,7 +161,7 @@ class Error(commands.Cog):
             embed.add_field(name="Bad Argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
             if ctx.command.aliases:
-                aliases = "`" + "".join("!" + c for c in ctx.command.aliases) + "`"
+                aliases = "`" + "".join(f"!{c}" for c in ctx.command.aliases) + "`"
                 embed.add_field(name="Command Aliases", value=f"{aliases}", inline=False)
             return await ctx.reply(embed=embed, view=RowButtonRowCloseAnyMessage())
 
@@ -162,8 +169,11 @@ class Error(commands.Cog):
             embed = disnake.Embed(title="Error!", description="Cog not found!", color=disnake.Color.red())
             embed.add_field(name="Bad Argument", value=f"`{error.args[0]}`", inline=False)
             embed.add_field(name="Command Usage", value=f"`{ctx.command.usage}`", inline=False)
-            embed.add_field(name='Loaded Cogs:', value="".join("`" + c + "`\n" for c in sorted(self.client.cogs)),
-                            inline=False)
+            embed.add_field(
+                name='Loaded Cogs:',
+                value="".join(f"`{c}" + "`\n" for c in sorted(self.client.cogs)),
+                inline=False,
+            )
             return await ctx.reply(embed=embed, view=RowButtonRowCloseAnyMessage())
 
         if isinstance(error, commands.CommandError):
