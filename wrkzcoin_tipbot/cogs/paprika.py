@@ -1,81 +1,93 @@
-import sys
-import traceback
-
-import json
-import aiohttp, asyncio
-import disnake
-from disnake.ext import commands, tasks
-import time
+import asyncio
 import datetime
-from datetime import timezone
 import functools
+import json
+import os
+import os.path
 import random
+import sys
+import time
+import traceback
+from io import BytesIO
+
+import aiohttp
+import disnake
+import store
+from Bot import EMOJI_HOURGLASS_NOT_DONE, SERVER_BOT, logchanbot
+from cachetools import TTLCache
+from cogs.utils import Utils
+from disnake.app_commands import Option, OptionChoice
+from disnake.enums import OptionType
+from disnake.ext import commands, tasks
+from PIL import Image
+from pyvirtualdisplay import Display
 
 # The selenium module
 from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from PIL import Image
-from io import BytesIO
-import os.path
-from pyvirtualdisplay import Display
-import os
-from cachetools import TTLCache
-
-from disnake.enums import OptionType
-from disnake.app_commands import Option, OptionChoice
-
-from Bot import EMOJI_CHART_DOWN, EMOJI_ERROR, EMOJI_RED_NO, EMOJI_FLOPPY, logchanbot, EMOJI_HOURGLASS_NOT_DONE, SERVER_BOT
-
-import store
-from cogs.utils import Utils
-
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 # https://api.coinpaprika.com/#tag/Tags/paths/~1tags~1{tag_id}/get
 
+
 def get_trade_view_by_id(
-    display_id: str, selenium_setting, web_url: str, id_coin: str, saved_path: str, option: str = None
+    display_id: str,
+    selenium_setting,
+    web_url: str,
+    id_coin: str,
+    saved_path: str,
+    option: str = None,
 ):
     timeout = 20
     return_to = None
     file_name = "tradeview_{}_image_{}_{}.png".format(
-        id_coin, datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"), option.lower() if option else ""
+        id_coin,
+        datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"),
+        option.lower() if option else "",
     )  #
     file_path = saved_path + file_name
     if os.path.exists(file_path):
         return file_name
     try:
-        os.environ['DISPLAY'] = display_id
+        os.environ["DISPLAY"] = display_id
         display = Display(visible=0, size=(1920, 1080))
         display.start()
         # Wait for 20s
 
         options = Options()
-        options.add_argument('--no-sandbox')  # Bypass OS security model
-        options.add_argument('--disable-gpu')  # applicable to windows os only
-        options.add_argument('start-maximized')  #
-        options.add_argument('disable-infobars')
+        options.add_argument("--no-sandbox")  # Bypass OS security model
+        options.add_argument("--disable-gpu")  # applicable to windows os only
+        options.add_argument("start-maximized")  #
+        options.add_argument("disable-infobars")
         options.add_argument("--disable-extensions")
-        userAgent = selenium_setting['user_agent']
-        options.add_argument(f'user-agent={userAgent}')
+        userAgent = selenium_setting["user_agent"]
+        options.add_argument(f"user-agent={userAgent}")
         options.add_argument("--user-data-dir=chrome-data")
         options.headless = True
 
         driver = webdriver.Chrome(options=options)
         driver.set_window_position(0, 0)
-        driver.set_window_size(selenium_setting['win_w'], selenium_setting['win_h'])
+        driver.set_window_size(selenium_setting["win_w"], selenium_setting["win_h"])
 
         print("/paprika get_trade_view_by_id: {}".format(web_url))
         driver.get(web_url)
 
-        WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.ID, "tv_chart_container")))
         WebDriverWait(driver, timeout).until(
-            EC.frame_to_be_available_and_switch_to_it((By.CSS_SELECTOR, "iframe[id^='tradingview']")))
-        WebDriverWait(driver, timeout).until(EC.visibility_of_element_located((By.CLASS_NAME, "chart-markup-table")))
+            EC.presence_of_element_located((By.ID, "tv_chart_container"))
+        )
         WebDriverWait(driver, timeout).until(
-            EC.visibility_of_element_located((By.CLASS_NAME, "chart-container-border")))
+            EC.frame_to_be_available_and_switch_to_it(
+                (By.CSS_SELECTOR, "iframe[id^='tradingview']")
+            )
+        )
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.CLASS_NAME, "chart-markup-table"))
+        )
+        WebDriverWait(driver, timeout).until(
+            EC.visibility_of_element_located((By.CLASS_NAME, "chart-container-border"))
+        )
 
         if option is None:
             time.sleep(5.0)
@@ -93,13 +105,15 @@ def get_trade_view_by_id(
             ## elements = driver.find_elements_by_xpath("//div[@data-name=date-ranges-tabs]")
             ## elements = driver.find_elements_by_xpath("//div[contains(@class, 'sliderRow')]")
             # element = driver.find_element_by_xpath("//*[starts-with(@class, 'sliderRow-') and contains(@data-name, 'date-ranges-tabs')]")
-            element_date = driver.find_element_by_xpath("//*[starts-with(@class, 'dateRangeExpanded-')]")
-            names = element_date.find_elements(By.XPATH, "//*[starts-with(@class, 'item-')]")
-            found = False
+            element_date = driver.find_element_by_xpath(
+                "//*[starts-with(@class, 'dateRangeExpanded-')]"
+            )
+            names = element_date.find_elements(
+                By.XPATH, "//*[starts-with(@class, 'item-')]"
+            )
             for each_i in names:
                 if each_i.text == option.lower():
                     each_i.click()
-                    found = True
                     break
             time.sleep(5.0)
             driver.switch_to.default_content()
@@ -109,10 +123,10 @@ def get_trade_view_by_id(
         png = driver.get_screenshot_as_png()  # saves screenshot of entire page
 
         im = Image.open(BytesIO(png))  # uses PIL library to open image in memory
-        left = location['x']
-        top = location['y']
-        right = location['x'] + size['width']
-        bottom = location['y'] + size['height']
+        left = location["x"]
+        top = location["y"]
+        right = location["x"] + size["width"]
+        bottom = location["y"] + size["height"]
 
         im = im.crop((left, top, right, bottom))  # defines crop points
         im.save(file_path)  # saves new cropped image
@@ -127,7 +141,6 @@ def get_trade_view_by_id(
 
 
 class Paprika(commands.Cog):
-
     def __init__(self, bot):
         self.bot = bot
         self.botLogChan = self.bot.get_channel(self.bot.LOG_CHAN)
@@ -137,10 +150,10 @@ class Paprika(commands.Cog):
 
         # enable trade-view
         # Example: https://coinpaprika.com/trading-view/wrkz-wrkzcoin
-        self.tradeview = False # Disable TradeView
+        self.tradeview = False  # Disable TradeView
         self.tradeview_url = "https://coinpaprika.com/trading-view/"
-        self.tradeview_path = self.bot.config['paprika']['tradeview_path']
-        self.tradeview_static_png = self.bot.config['paprika']['tradeview_webpath']
+        self.tradeview_path = self.bot.config["paprika"]["tradeview_path"]
+        self.tradeview_static_png = self.bot.config["paprika"]["tradeview_webpath"]
         self.display_list = [f":{str(i)}" for i in range(100, 200)]
 
     async def bot_log(self):
@@ -153,7 +166,9 @@ class Paprika(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "fetch_paprika_pricelist"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15: # not running if less than 15s
+        if (
+            check_last_running and int(time.time()) - check_last_running["run_at"] < 15
+        ):  # not running if less than 15s
             return
         await asyncio.sleep(time_lap)
         url = "https://api.coinpaprika.com/v1/tickers"
@@ -162,55 +177,83 @@ class Paprika(commands.Cog):
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(url, timeout=30) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     decoded_data = json.loads(res_data)
                     update_time = int(time.time())
-                    update_date = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+                    update_date = datetime.datetime.utcnow().replace(
+                        tzinfo=datetime.timezone.utc
+                    )
                     if len(decoded_data) > 0:
                         update_list = []
                         price_dict = {}
                         for each_coin in decoded_data:
                             try:
-                                quote_usd = each_coin['quotes']['USD']
+                                quote_usd = each_coin["quotes"]["USD"]
                                 ath_date = None
 
-                                if quote_usd['ath_date'] and "." in quote_usd['ath_date']:
+                                if (
+                                    quote_usd["ath_date"]
+                                    and "." in quote_usd["ath_date"]
+                                ):
                                     ath_date = datetime.datetime.strptime(
-                                        quote_usd['ath_date'], '%Y-%m-%dT%H:%M:%S.%fZ'
+                                        quote_usd["ath_date"], "%Y-%m-%dT%H:%M:%S.%fZ"
                                     )
-                                elif quote_usd['ath_date'] and "." not in quote_usd['ath_date']:
-                                    ath_date = datetime.datetime.strptime(quote_usd['ath_date'], '%Y-%m-%dT%H:%M:%SZ')
+                                elif (
+                                    quote_usd["ath_date"]
+                                    and "." not in quote_usd["ath_date"]
+                                ):
+                                    ath_date = datetime.datetime.strptime(
+                                        quote_usd["ath_date"], "%Y-%m-%dT%H:%M:%SZ"
+                                    )
 
-                                if "." in each_coin['last_updated']:
+                                if "." in each_coin["last_updated"]:
                                     last_updated = datetime.datetime.strptime(
-                                        each_coin['last_updated'], '%Y-%m-%dT%H:%M:%S.%fZ'
+                                        each_coin["last_updated"],
+                                        "%Y-%m-%dT%H:%M:%S.%fZ",
                                     )
                                 else:
                                     last_updated = datetime.datetime.strptime(
-                                        each_coin['last_updated'], '%Y-%m-%dT%H:%M:%SZ'
+                                        each_coin["last_updated"], "%Y-%m-%dT%H:%M:%SZ"
                                     )
-                                update_list.append((
-                                    each_coin['id'], each_coin['symbol'], each_coin['name'],
-                                    each_coin['rank'], each_coin['circulating_supply'],
-                                    each_coin['total_supply'], each_coin['max_supply'],
-                                    quote_usd['price'], update_time, last_updated, quote_usd['price'],
-                                    quote_usd['volume_24h'], quote_usd['volume_24h_change_24h'],
-                                    quote_usd['market_cap'], quote_usd['market_cap_change_24h'],
-                                    quote_usd['percent_change_15m'], quote_usd['percent_change_30m'],
-                                    quote_usd['percent_change_1h'], quote_usd['percent_change_6h'],
-                                    quote_usd['percent_change_12h'], quote_usd['percent_change_24h'],
-                                    quote_usd['percent_change_7d'], quote_usd['percent_change_30d'],
-                                    quote_usd['percent_change_1y'], quote_usd['ath_price'], ath_date,
-                                    quote_usd['percent_from_price_ath']
-                                ))
-                                price_dict[each_coin['id']] = {
-                                    "id":  each_coin['id'],
-                                    "symbol": each_coin['symbol'],
-                                    "price": quote_usd['price'],
+                                update_list.append(
+                                    (
+                                        each_coin["id"],
+                                        each_coin["symbol"],
+                                        each_coin["name"],
+                                        each_coin["rank"],
+                                        each_coin["circulating_supply"],
+                                        each_coin["total_supply"],
+                                        each_coin["max_supply"],
+                                        quote_usd["price"],
+                                        update_time,
+                                        last_updated,
+                                        quote_usd["price"],
+                                        quote_usd["volume_24h"],
+                                        quote_usd["volume_24h_change_24h"],
+                                        quote_usd["market_cap"],
+                                        quote_usd["market_cap_change_24h"],
+                                        quote_usd["percent_change_15m"],
+                                        quote_usd["percent_change_30m"],
+                                        quote_usd["percent_change_1h"],
+                                        quote_usd["percent_change_6h"],
+                                        quote_usd["percent_change_12h"],
+                                        quote_usd["percent_change_24h"],
+                                        quote_usd["percent_change_7d"],
+                                        quote_usd["percent_change_30d"],
+                                        quote_usd["percent_change_1y"],
+                                        quote_usd["ath_price"],
+                                        ath_date,
+                                        quote_usd["percent_from_price_ath"],
+                                    )
+                                )
+                                price_dict[each_coin["id"]] = {
+                                    "id": each_coin["id"],
+                                    "symbol": each_coin["symbol"],
+                                    "price": quote_usd["price"],
                                     "time": int(last_updated.timestamp()),
                                     "fetched_time": int(time.time()),
-                                    "vol_24h": quote_usd['volume_24h'],
-                                    "mcap": quote_usd['market_cap']
+                                    "vol_24h": quote_usd["volume_24h"],
+                                    "mcap": quote_usd["market_cap"],
                                 }
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
@@ -266,34 +309,31 @@ class Paprika(commands.Cog):
                             for k, v in price_dict.items():
                                 try:
                                     await self.utils.async_set_cache_kv(
-                                        self.bot.config['kv_db']['prefix_paprika'],
+                                        self.bot.config["kv_db"]["prefix_paprika"],
                                         "PRICE:" + k.upper(),
-                                        v
+                                        v,
                                     )
                                 except Exception:
                                     traceback.print_exc(file=sys.stdout)
         except asyncio.TimeoutError:
-            print('TIMEOUT: Fetching from coingecko price')
+            print("TIMEOUT: Fetching from coingecko price")
         except Exception:
             traceback.print_exc(file=sys.stdout)
         # Update @bot_task_logs
         await self.utils.bot_task_logs_add(task_name, int(time.time()))
         await asyncio.sleep(time_lap)
 
-    async def fetch_coin_paprika(
-        self,
-        coin_name: str
-    ):
+    async def fetch_coin_paprika(self, coin_name: str):
         if coin_name in self.bot.token_hints:
-            id = self.bot.token_hints[coin_name]['ticker_name']
+            id = self.bot.token_hints[coin_name]["ticker_name"]
         elif coin_name in self.bot.token_hint_names:
-            id = self.bot.token_hint_names[coin_name]['ticker_name']
+            id = self.bot.token_hint_names[coin_name]["ticker_name"]
         else:
-            coin_list_key = self.bot.config['kv_db']['prefix_paprika'] + "COINSLIST"
+            coin_list_key = self.bot.config["kv_db"]["prefix_paprika"] + "COINSLIST"
             if coin_list_key in self.paprika_coinlist_cache:
                 j = self.paprika_coinlist_cache[coin_list_key]
             else:
-                link = 'https://api.coinpaprika.com/v1/coins'
+                link = "https://api.coinpaprika.com/v1/coins"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(link) as resp:
                         if resp.status == 200:
@@ -304,102 +344,123 @@ class Paprika(commands.Cog):
                                 traceback.format_exc()
             if coin_name.isdigit():
                 for i in j:
-                    if int(coin_name) == int(i['rank']):
-                        id = i['id']
+                    if int(coin_name) == int(i["rank"]):
+                        id = i["id"]
             else:
                 for i in j:
-                    if coin_name.lower() == i['name'].lower() or coin_name.lower() == i['symbol'].lower():
-                        id = i['id']  # i['name']
+                    if (
+                        coin_name.lower() == i["name"].lower()
+                        or coin_name.lower() == i["symbol"].lower()
+                    ):
+                        id = i["id"]  # i['name']
         # if cache
         cache_pap_coin = await self.utils.async_get_cache_kv("paprika", id)
-        if cache_pap_coin is not None and cache_pap_coin['fetched_time'] + self.bot.config['kv_db']['paprika_ttl_coin_id'] > int(time.time()):
-            print(f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S} get paprika used cache for coin id [{id}]...")
+        if cache_pap_coin is not None and cache_pap_coin[
+            "fetched_time"
+        ] + self.bot.config["kv_db"]["paprika_ttl_coin_id"] > int(time.time()):
+            print(
+                f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S} get paprika used cache for coin id [{id}]..."
+            )
             return cache_pap_coin
         try:
             async with aiohttp.ClientSession() as session:
-                url = 'https://api.coinpaprika.com/v1/tickers/{}'.format(id)
+                url = "https://api.coinpaprika.com/v1/tickers/{}".format(id)
                 print(f"/paprika fetching: {url}")
                 async with session.get(url) as resp:
                     if resp.status == 200:
                         j = await resp.json()
-                        if 'error' in j and j['error'] == 'id not found':
+                        if "error" in j and j["error"] == "id not found":
                             return None
-                        elif float(j['quotes']['USD']['price']) > 0.0:
+                        elif float(j["quotes"]["USD"]["price"]) > 0.0:
                             try:
                                 # set name
                                 await self.utils.async_set_cache_kv(
                                     "paprika",
-                                    j['name'].upper(),
+                                    j["name"].upper(),
                                     {
-                                        "name": j['name'],
-                                        "symbol": j['symbol'],
-                                        "price": float(j['quotes']['USD']['price']),
+                                        "name": j["name"],
+                                        "symbol": j["symbol"],
+                                        "price": float(j["quotes"]["USD"]["price"]),
                                         "json_data": j,
-                                        "last_updated": j['last_updated'],
-                                        "timestamp": datetime.datetime.strptime(j['last_updated'], '%Y-%m-%dT%H:%M:%SZ'),
-                                        "fetched_time": int(time.time())
-                                    }
+                                        "last_updated": j["last_updated"],
+                                        "timestamp": datetime.datetime.strptime(
+                                            j["last_updated"], "%Y-%m-%dT%H:%M:%SZ"
+                                        ),
+                                        "fetched_time": int(time.time()),
+                                    },
                                 )
                                 # set symbol
                                 await self.utils.async_set_cache_kv(
                                     "paprika",
-                                    j['symbol'].upper(),
+                                    j["symbol"].upper(),
                                     {
-                                        "name": j['name'],
-                                        "symbol": j['symbol'],
-                                        "price": float(j['quotes']['USD']['price']),
+                                        "name": j["name"],
+                                        "symbol": j["symbol"],
+                                        "price": float(j["quotes"]["USD"]["price"]),
                                         "json_data": j,
-                                        "last_updated": j['last_updated'],
-                                        "timestamp": datetime.datetime.strptime(j['last_updated'], '%Y-%m-%dT%H:%M:%SZ'),
-                                        "fetched_time": int(time.time())
-                                    }
+                                        "last_updated": j["last_updated"],
+                                        "timestamp": datetime.datetime.strptime(
+                                            j["last_updated"], "%Y-%m-%dT%H:%M:%SZ"
+                                        ),
+                                        "fetched_time": int(time.time()),
+                                    },
                                 )
                                 # set id
                                 await self.utils.async_set_cache_kv(
                                     "paprika",
                                     id,
                                     {
-                                        "name": j['name'],
-                                        "symbol": j['symbol'],
-                                        "price": float(j['quotes']['USD']['price']),
+                                        "name": j["name"],
+                                        "symbol": j["symbol"],
+                                        "price": float(j["quotes"]["USD"]["price"]),
                                         "json_data": j,
-                                        "last_updated": j['last_updated'],
-                                        "timestamp": datetime.datetime.strptime(j['last_updated'], '%Y-%m-%dT%H:%M:%SZ'),
-                                        "fetched_time": int(time.time())
-                                    }
+                                        "last_updated": j["last_updated"],
+                                        "timestamp": datetime.datetime.strptime(
+                                            j["last_updated"], "%Y-%m-%dT%H:%M:%SZ"
+                                        ),
+                                        "fetched_time": int(time.time()),
+                                    },
                                 )
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
-                            return  {
-                                "name": j['name'],
-                                "symbol": j['symbol'],
-                                "price": float(j['quotes']['USD']['price']),
+                            return {
+                                "name": j["name"],
+                                "symbol": j["symbol"],
+                                "price": float(j["quotes"]["USD"]["price"]),
                                 "json_data": j,
-                                "last_updated": j['last_updated'],
-                                "timestamp": datetime.datetime.strptime(j['last_updated'], '%Y-%m-%dT%H:%M:%SZ'),
-                                "fetched_time": int(time.time())
+                                "last_updated": j["last_updated"],
+                                "timestamp": datetime.datetime.strptime(
+                                    j["last_updated"], "%Y-%m-%dT%H:%M:%SZ"
+                                ),
+                                "fetched_time": int(time.time()),
                             }
         except Exception:
             traceback.format_exc()
         return None
 
-    async def paprika_coin(
-        self,
-        ctx,
-        coin: str,
-        option: str
-    ):
-        await ctx.response.send_message(f"{EMOJI_HOURGLASS_NOT_DONE} {ctx.author.mention}, checking coinpaprika..")
+    async def paprika_coin(self, ctx, coin: str, option: str):
+        await ctx.response.send_message(
+            f"{EMOJI_HOURGLASS_NOT_DONE} {ctx.author.mention}, checking coinpaprika.."
+        )
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, f"/paprika {coin}", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    f"/paprika {coin}",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
         coin_name = coin.upper()
 
-        key = self.bot.config['kv_db']['prefix_paprika'] + coin.upper()
+        key = self.bot.config["kv_db"]["prefix_paprika"] + coin.upper()
         # Get from kv
         try:
             if key in self.paprika_coin_cache:
@@ -410,54 +471,78 @@ class Paprika(commands.Cog):
                 if self.tradeview is True:
                     try:
                         if coin_name in self.bot.token_hints:
-                            id = self.bot.token_hints[coin_name]['ticker_name']
+                            id = self.bot.token_hints[coin_name]["ticker_name"]
                         elif coin_name in self.bot.token_hint_names:
-                            id = self.bot.token_hint_names[coin_name]['ticker_name']
+                            id = self.bot.token_hint_names[coin_name]["ticker_name"]
                         else:
-                            coin_list_key = self.bot.config['kv_db']['prefix_paprika'] + "COINSLIST"
-                            if  coin_list_key in self.paprika_coinlist_cache:
+                            coin_list_key = (
+                                self.bot.config["kv_db"]["prefix_paprika"] + "COINSLIST"
+                            )
+                            if coin_list_key in self.paprika_coinlist_cache:
                                 j = self.paprika_coinlist_cache[coin_list_key]
                             else:
-                                link = 'https://api.coinpaprika.com/v1/coins'
+                                link = "https://api.coinpaprika.com/v1/coins"
                                 async with aiohttp.ClientSession() as session:
                                     async with session.get(link) as resp:
                                         if resp.status == 200:
                                             j = await resp.json()
                                             try:
-                                                self.paprika_coinlist_cache[coin_list_key] = j
+                                                self.paprika_coinlist_cache[
+                                                    coin_list_key
+                                                ] = j
                                             except Exception:
                                                 traceback.format_exc()
                             if coin_name.isdigit():
                                 for i in j:
-                                    if int(coin_name) == int(i['rank']):
-                                        id = i['id']
+                                    if int(coin_name) == int(i["rank"]):
+                                        id = i["id"]
                             else:
                                 for i in j:
-                                    if coin_name.lower() == i['name'].lower() or coin_name.lower() == i['symbol'].lower():
-                                        id = i['id']  # i['name']
+                                    if (
+                                        coin_name.lower() == i["name"].lower()
+                                        or coin_name.lower() == i["symbol"].lower()
+                                    ):
+                                        id = i["id"]  # i['name']
                         if len(self.display_list) > 2:
                             display_id = random.choice(self.display_list)
                             self.display_list.remove(display_id)
                             fetch_tradeview = functools.partial(
-                                get_trade_view_by_id, display_id, self.bot.config['selenium_setting'], 
-                                self.tradeview_url + id, id, self.tradeview_path, option
+                                get_trade_view_by_id,
+                                display_id,
+                                self.bot.config["selenium_setting"],
+                                self.tradeview_url + id,
+                                id,
+                                self.tradeview_path,
+                                option,
                             )
                             self.display_list.append(display_id)
-                            tv_image = await self.bot.loop.run_in_executor(None, fetch_tradeview)
+                            tv_image = await self.bot.loop.run_in_executor(
+                                None, fetch_tradeview
+                            )
                             if tv_image:
-                                e = disnake.Embed(timestamp=datetime.datetime.now(), description=response_text)
+                                e = disnake.Embed(
+                                    timestamp=datetime.datetime.now(),
+                                    description=response_text,
+                                )
                                 if option:
-                                    e.add_field(name="Range", value=option.lower(), inline=False)
-                                e.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar)
+                                    e.add_field(
+                                        name="Range", value=option.lower(), inline=False
+                                    )
+                                e.set_author(
+                                    name=ctx.author.name,
+                                    icon_url=ctx.author.display_avatar,
+                                )
                                 e.set_image(url=self.tradeview_static_png + tv_image)
-                                e.set_footer(text=f"Requested by {ctx.author.name}#{ctx.author.discriminator}")
+                                e.set_footer(
+                                    text=f"Requested by {ctx.author.name}#{ctx.author.discriminator}"
+                                )
                                 await ctx.edit_original_message(content=None, embed=e)
                     except Exception:
                         traceback.format_exc()
                 return
         except Exception:
             traceback.format_exc()
-            await logchanbot("paprika " +str(traceback.format_exc()))
+            await logchanbot("paprika " + str(traceback.format_exc()))
             msg = f"{ctx.author.mention}, internal error from cache."
             await ctx.edit_original_message(content=msg)
             return
@@ -466,24 +551,35 @@ class Paprika(commands.Cog):
         j = await self.fetch_coin_paprika(coin_name)
         if j is not None:
             try:
-                j = j['json_data']
-                if float(j['quotes']['USD']['price']) > 100:
-                    trading_at = "${:.2f}".format(float(j['quotes']['USD']['price']))
-                elif float(j['quotes']['USD']['price']) > 1:
-                    trading_at = "${:.3f}".format(float(j['quotes']['USD']['price']))
-                elif float(j['quotes']['USD']['price']) > 0.01:
-                    trading_at = "${:.4f}".format(float(j['quotes']['USD']['price']))
+                j = j["json_data"]
+                if float(j["quotes"]["USD"]["price"]) > 100:
+                    trading_at = "${:.2f}".format(float(j["quotes"]["USD"]["price"]))
+                elif float(j["quotes"]["USD"]["price"]) > 1:
+                    trading_at = "${:.3f}".format(float(j["quotes"]["USD"]["price"]))
+                elif float(j["quotes"]["USD"]["price"]) > 0.01:
+                    trading_at = "${:.4f}".format(float(j["quotes"]["USD"]["price"]))
                 else:
-                    trading_at = "${:.8f}".format(float(j['quotes']['USD']['price']))
-                response_text = "{} ({}) is #{} by marketcap (${:,.2f}), trading at {} with a 24h vol of ${:,.2f}. "\
+                    trading_at = "${:.8f}".format(float(j["quotes"]["USD"]["price"]))
+                response_text = (
+                    "{} ({}) is #{} by marketcap (${:,.2f}), trading at {} with a 24h vol of ${:,.2f}. "
                     "It's changed {}% over 24h, {}% over 7d, {}% over 30d, and {}% over 1y with an ath of ${} on {}.".format(
-                        j['name'], j['symbol'], j['rank'], float(j['quotes']['USD']['market_cap']), trading_at,
-                        float(j['quotes']['USD']['volume_24h']), j['quotes']['USD']['percent_change_24h'],
-                        j['quotes']['USD']['percent_change_7d'], j['quotes']['USD']['percent_change_30d'],
-                        j['quotes']['USD']['percent_change_1y'], j['quotes']['USD']['ath_price'],
-                        j['quotes']['USD']['ath_date']
+                        j["name"],
+                        j["symbol"],
+                        j["rank"],
+                        float(j["quotes"]["USD"]["market_cap"]),
+                        trading_at,
+                        float(j["quotes"]["USD"]["volume_24h"]),
+                        j["quotes"]["USD"]["percent_change_24h"],
+                        j["quotes"]["USD"]["percent_change_7d"],
+                        j["quotes"]["USD"]["percent_change_30d"],
+                        j["quotes"]["USD"]["percent_change_1y"],
+                        j["quotes"]["USD"]["ath_price"],
+                        j["quotes"]["USD"]["ath_date"],
                     )
-                await ctx.edit_original_message(content=f"{ctx.author.mention}, {response_text}")
+                )
+                await ctx.edit_original_message(
+                    content=f"{ctx.author.mention}, {response_text}"
+                )
             except Exception:
                 traceback.format_exc()
                 return
@@ -491,49 +587,71 @@ class Paprika(commands.Cog):
             if self.tradeview is True:
                 try:
                     if coin_name in self.bot.token_hints:
-                        id = self.bot.token_hints[coin_name]['ticker_name']
+                        id = self.bot.token_hints[coin_name]["ticker_name"]
                     elif coin_name in self.bot.token_hint_names:
-                        id = self.bot.token_hint_names[coin_name]['ticker_name']
+                        id = self.bot.token_hint_names[coin_name]["ticker_name"]
                     else:
-                        coin_list_key = self.bot.config['kv_db']['prefix_paprika'] + "COINSLIST"
+                        coin_list_key = (
+                            self.bot.config["kv_db"]["prefix_paprika"] + "COINSLIST"
+                        )
                         if coin_list_key in self.paprika_coinlist_cache:
                             j = self.paprika_coinlist_cache[coin_list_key]
                         else:
-                            link = 'https://api.coinpaprika.com/v1/coins'
+                            link = "https://api.coinpaprika.com/v1/coins"
                             print(f"/paprika fetching: {link}")
                             async with aiohttp.ClientSession() as session:
                                 async with session.get(link) as resp:
                                     if resp.status == 200:
                                         j = await resp.json()
                                         try:
-                                            self.paprika_coinlist_cache[coin_list_key] = j
+                                            self.paprika_coinlist_cache[
+                                                coin_list_key
+                                            ] = j
                                         except Exception:
                                             traceback.format_exc()
                         if coin_name.isdigit():
                             for i in j:
-                                if int(coin_name) == int(i['rank']):
-                                    id = i['id']
+                                if int(coin_name) == int(i["rank"]):
+                                    id = i["id"]
                         else:
                             for i in j:
-                                if coin_name.lower() == i['name'].lower() or coin_name.lower() == i[
-                                    'symbol'].lower():
-                                    id = i['id']  # i['name']
+                                if (
+                                    coin_name.lower() == i["name"].lower()
+                                    or coin_name.lower() == i["symbol"].lower()
+                                ):
+                                    id = i["id"]  # i['name']
                     if len(self.display_list) > 2:
                         display_id = random.choice(self.display_list)
                         self.display_list.remove(display_id)
                         fetch_tradeview = functools.partial(
-                            get_trade_view_by_id, display_id, self.bot.config['selenium_setting'],
-                            self.tradeview_url + id, id, self.tradeview_path, option
+                            get_trade_view_by_id,
+                            display_id,
+                            self.bot.config["selenium_setting"],
+                            self.tradeview_url + id,
+                            id,
+                            self.tradeview_path,
+                            option,
                         )
                         self.display_list.append(display_id)
-                        tv_image = await self.bot.loop.run_in_executor(None, fetch_tradeview)
+                        tv_image = await self.bot.loop.run_in_executor(
+                            None, fetch_tradeview
+                        )
                         if tv_image:
-                            e = disnake.Embed(timestamp=datetime.datetime.now(), description=response_text)
+                            e = disnake.Embed(
+                                timestamp=datetime.datetime.now(),
+                                description=response_text,
+                            )
                             if option:
-                                e.add_field(name="Range", value=option.lower(), inline=False)
-                            e.set_author(name=ctx.author.name, icon_url=ctx.author.display_avatar)
+                                e.add_field(
+                                    name="Range", value=option.lower(), inline=False
+                                )
+                            e.set_author(
+                                name=ctx.author.name, icon_url=ctx.author.display_avatar
+                            )
                             e.set_image(url=self.tradeview_static_png + tv_image)
-                            e.set_footer(text=f"Requested by {ctx.author.name}#{ctx.author.discriminator}")
+                            e.set_footer(
+                                text=f"Requested by {ctx.author.name}#{ctx.author.discriminator}"
+                            )
                             await ctx.edit_original_message(content=None, embed=e)
                 except Exception:
                     traceback.format_exc()
@@ -546,33 +664,34 @@ class Paprika(commands.Cog):
         usage="paprika [coin]",
         options=[
             Option("coin", "Enter coin ticker/name", OptionType.string, required=True),
-            Option('range_choice', 'range duration', OptionType.string, required=False, choices=[
-                OptionChoice("1d", "1d"),
-                OptionChoice("7d", "7d"),
-                OptionChoice("1m", "1m"),
-                OptionChoice("1q", "1q"),
-                OptionChoice("1y", "1y"),
-                OptionChoice("5y", "5y")
-            ])
+            Option(
+                "range_choice",
+                "range duration",
+                OptionType.string,
+                required=False,
+                choices=[
+                    OptionChoice("1d", "1d"),
+                    OptionChoice("7d", "7d"),
+                    OptionChoice("1m", "1m"),
+                    OptionChoice("1q", "1q"),
+                    OptionChoice("1y", "1y"),
+                    OptionChoice("5y", "5y"),
+                ],
+            ),
         ],
-        description="Check coin at Paprika."
+        description="Check coin at Paprika.",
     )
-    async def paprika(
-        self,
-        ctx,
-        coin: str,
-        range_choice: str = None
-    ):
-        get_pap = await self.paprika_coin(ctx, coin, range_choice)
+    async def paprika(self, ctx, coin: str, range_choice: str = None):
+        await self.paprika_coin(ctx, coin, range_choice)
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if self.bot.config['discord']['enable_bg_tasks'] == 1:
+        if self.bot.config["discord"]["enable_bg_tasks"] == 1:
             if not self.fetch_paprika_pricelist.is_running():
                 self.fetch_paprika_pricelist.start()
 
     async def cog_load(self):
-        if self.bot.config['discord']['enable_bg_tasks'] == 1:
+        if self.bot.config["discord"]["enable_bg_tasks"] == 1:
             if not self.fetch_paprika_pricelist.is_running():
                 self.fetch_paprika_pricelist.start()
 

@@ -8,34 +8,36 @@ Tags: large, maze"""
 import random
 
 # Set up the constants:
-WALL = '#'
-EMPTY = ' '
-START = '@'
-EXIT = 'E'
+WALL = "#"
+EMPTY = " "
+START = "@"
+EXIT = "E"
 # BLOCK = chr(9617)  # Character 9617 is '░'
 BLOCK = chr(9608)  # Character 9617 is '█'
 
-NORTH = 'north'
-SOUTH = 'south'
-EAST = 'east'
-WEST = 'west'
+NORTH = "north"
+SOUTH = "south"
+EAST = "east"
+WEST = "west"
 
 
-def displayMaze(maze, WIDTH: int, HEIGHT: int, playerx: int, playery: int, exitx: int, exity: int):
-    PLAYER = '@'
-    m = ''
+def displayMaze(
+    maze, WIDTH: int, HEIGHT: int, playerx: int, playery: int, exitx: int, exity: int
+):
+    PLAYER = "@"
+    m = ""
     # Display the maze:
     for y in range(HEIGHT):
         for x in range(WIDTH):
             if (x, y) == (playerx, playery):
                 m += PLAYER
             elif (x, y) == (exitx, exity):
-                m += 'X'
+                m += "X"
             elif maze[(x, y)] == WALL:
                 m += BLOCK
             else:
                 m += maze[(x, y)]
-        m += '\n'
+        m += "\n"
     return m
 
 
@@ -94,4 +96,3 @@ def createMazeDump(WIDTH: int, HEIGHT: int, SEED: int):
     maze[(1, 1)] = START
     maze[(WIDTH - 2, HEIGHT - 2)] = EXIT
     return maze
-

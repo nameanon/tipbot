@@ -1,33 +1,40 @@
-import sys, traceback
-from aiohttp import web
-import uuid
-from hashlib import sha256
-import json
 import asyncio
-from cachetools import TTLCache
+import itertools
+import json
+import random
+import sys
+import time
+import traceback
+import uuid
+from datetime import datetime
+from decimal import Decimal
+from hashlib import sha256
+from string import ascii_uppercase
+from typing import Optional
 
 import disnake
-from disnake.ext import commands, tasks
-from typing import Optional
-from disnake import TextInputStyle
-from disnake.enums import ButtonStyle
-from decimal import Decimal
-from datetime import datetime
-import time
-import itertools
-from string import ascii_uppercase
-import random
-from disnake.enums import OptionType
-from disnake.app_commands import Option, OptionChoice
-
 import store
-from Bot import get_token_list, logchanbot, EMOJI_ZIPPED_MOUTH, EMOJI_ERROR, EMOJI_RED_NO, \
-    EMOJI_ARROW_RIGHTHOOK, SERVER_BOT, RowButtonCloseMessage, RowButtonRowCloseAnyMessage, human_format, \
-    text_to_num, truncate, seconds_str, EMOJI_HOURGLASS_NOT_DONE, EMOJI_INFORMATION, log_to_channel, \
-    encrypt_string, decrypt_string
-
+from aiohttp import web
+from Bot import (
+    EMOJI_ERROR,
+    EMOJI_INFORMATION,
+    EMOJI_RED_NO,
+    SERVER_BOT,
+    decrypt_string,
+    encrypt_string,
+    human_format,
+    log_to_channel,
+    text_to_num,
+    truncate,
+)
+from cachetools import TTLCache
+from cogs.utils import Utils, chunks, num_format_coin
 from cogs.wallet import WalletAPI
-from cogs.utils import Utils, num_format_coin, chunks
+from disnake import TextInputStyle
+from disnake.app_commands import Option, OptionChoice
+from disnake.enums import ButtonStyle, OptionType
+from disnake.ext import commands, tasks
+
 
 async def call_cexswap_api(user_id: str, user_server: str, method: str, full_payload):
     try:
@@ -41,12 +48,24 @@ async def call_cexswap_api(user_id: str, user_server: str, method: str, full_pay
                 INSERT INTO `cexswap_api_call` (`user_id`, `user_server`, `method`, `full_json`, `date`)
                 VALUES (%s, %s, %s, %s, %s);
                 """
-                await cur.execute(sql, (user_id, user_server, user_id, user_server, method, full_payload, int(time.time())))
+                await cur.execute(
+                    sql,
+                    (
+                        user_id,
+                        user_server,
+                        user_id,
+                        user_server,
+                        method,
+                        full_payload,
+                        int(time.time()),
+                    ),
+                )
                 await conn.commit()
                 return True
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return False
+
 
 async def bot_user_add(user_id: str, user_server: str, api_key: str, hash_key: str):
     try:
@@ -67,6 +86,7 @@ async def bot_user_add(user_id: str, user_server: str, api_key: str, hash_key: s
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 async def find_user_by_id(user_id: str, user_server: str):
     try:
         await store.openConnection()
@@ -83,6 +103,7 @@ async def find_user_by_id(user_id: str, user_server: str):
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 async def find_user_by_apikey(apikey: str):
     try:
         await store.openConnection()
@@ -98,6 +119,7 @@ async def find_user_by_apikey(apikey: str):
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
+
 
 async def cexswap_get_coin_setting(ticker: str):
     try:
@@ -116,6 +138,7 @@ async def cexswap_get_coin_setting(ticker: str):
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 async def cexswap_get_list_enable_pair_list():
     list_pairs = []
     try:
@@ -125,10 +148,12 @@ async def cexswap_get_list_enable_pair_list():
                 sql = """ SELECT * 
                 FROM `coin_settings` 
                 WHERE `enable`=1 AND `cexswap_enable`=1 """
-                await cur.execute(sql,)
+                await cur.execute(
+                    sql,
+                )
                 result = await cur.fetchall()
                 if result:
-                    list_coins = sorted([i['coin_name'] for i in result])
+                    list_coins = sorted([i["coin_name"] for i in result])
                     list_pairs.extend(
                         f"{pair[0]}/{pair[1]}"
                         for pair in itertools.combinations(list_coins, 2)
@@ -139,7 +164,8 @@ async def cexswap_get_list_enable_pair_list():
         traceback.print_exc(file=sys.stdout)
     return None
 
-async def cexswap_get_pools(ticker: str=None):
+
+async def cexswap_get_pools(ticker: str = None):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -152,7 +178,7 @@ async def cexswap_get_pools(ticker: str=None):
                     sql += """
                         WHERE `ticker_1_name`=%s OR `ticker_2_name`=%s
                     """
-                    data_rows += [ticker]*2
+                    data_rows += [ticker] * 2
                 await cur.execute(sql, tuple(data_rows))
                 result = await cur.fetchall()
                 if result:
@@ -161,7 +187,8 @@ async def cexswap_get_pools(ticker: str=None):
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def cexswap_get_all_poolshares(user_id: str=None, ticker: str=None):
+
+async def cexswap_get_all_poolshares(user_id: str = None, ticker: str = None):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -184,7 +211,7 @@ async def cexswap_get_all_poolshares(user_id: str=None, ticker: str=None):
                         sql += """
                             WHERE `ticker_1_name`=%s OR `ticker_2_name`=%s
                         """
-                    data_rows += [ticker]*2
+                    data_rows += [ticker] * 2
                 await cur.execute(sql, tuple(data_rows))
                 result = await cur.fetchall()
                 if result:
@@ -192,6 +219,7 @@ async def cexswap_get_all_poolshares(user_id: str=None, ticker: str=None):
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return []
+
 
 async def cexswap_get_all_lp_pools():
     try:
@@ -204,7 +232,9 @@ async def cexswap_get_all_lp_pools():
                 FROM `a_cexswap_pools`
                 GROUP BY `pairs`;
                 """
-                await cur.execute(sql,)
+                await cur.execute(
+                    sql,
+                )
                 result = await cur.fetchall()
                 if result:
                     return result
@@ -212,7 +242,10 @@ async def cexswap_get_all_lp_pools():
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def cexswap_get_add_remove_user(user_id: str, user_server: str, pool_id: int=None):
+
+async def cexswap_get_add_remove_user(
+    user_id: str, user_server: str, pool_id: int = None
+):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -229,7 +262,7 @@ async def cexswap_get_add_remove_user(user_id: str, user_server: str, pool_id: i
                     sql += """ AND a.`pool_id`=%s"""
                     data_rows += [pool_id]
 
-                sql +="""
+                sql += """
                 GROUP BY a.`action`, a.`token_name`
                 """
                 if pool_id is None:
@@ -242,7 +275,8 @@ async def cexswap_get_add_remove_user(user_id: str, user_server: str, pool_id: i
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def cexswap_get_pool_details(ticker_1: str, ticker_2: str, user_id: str=None):
+
+async def cexswap_get_pool_details(ticker_1: str, ticker_2: str, user_id: str = None):
     try:
         pool_detail = {}
         await store.openConnection()
@@ -256,28 +290,29 @@ async def cexswap_get_pool_details(ticker_1: str, ticker_2: str, user_id: str=No
                 await cur.execute(sql, (ticker_1, ticker_2, ticker_2, ticker_1))
                 result = await cur.fetchone()
                 if result:
-                    pool_detail['pool'] = result
-                    pool_detail['pool_share'] = None
+                    pool_detail["pool"] = result
+                    pool_detail["pool_share"] = None
                     async with conn.cursor() as cur:
                         detail_res = None
                         if user_id is None:
                             sql = """ SELECT * 
                             FROM `cexswap_pools_share` 
                             WHERE `pool_id`=%s """
-                            await cur.execute(sql, (result['pool_id']))
+                            await cur.execute(sql, (result["pool_id"]))
                             detail_res = await cur.fetchall()
                         else:
                             sql = """ SELECT * 
                             FROM `cexswap_pools_share` 
                             WHERE `pool_id`=%s AND `user_id`=%s """
-                            await cur.execute(sql, (result['pool_id'], user_id))
+                            await cur.execute(sql, (result["pool_id"], user_id))
                             detail_res = await cur.fetchone()
                         if detail_res is not None:
-                            pool_detail['pool_share'] = detail_res
+                            pool_detail["pool_share"] = detail_res
                         return pool_detail
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
+
 
 async def cexswap_get_poolshare(user_id: str, user_server: str):
     try:
@@ -300,9 +335,12 @@ async def cexswap_get_poolshare(user_id: str, user_server: str):
         traceback.print_exc(file=sys.stdout)
     return []
 
+
 async def get_cexswap_get_sell_logs(
-    user_id: str=None, user_server: str="DISCORD",
-    from_time: int=None, pool_id: int=None
+    user_id: str = None,
+    user_server: str = "DISCORD",
+    from_time: int = None,
+    pool_id: int = None,
 ):
     try:
         await store.openConnection()
@@ -329,7 +367,8 @@ async def get_cexswap_get_sell_logs(
                         """
 
                 if user_id is not None:
-                    sql = """
+                    sql = (
+                        """
                     SELECT SUM(a.`total_sold_amount`) AS sold, SUM(a.`total_sold_amount_usd`) AS sold_usd,
                     SUM(a.`got_total_amount`) AS got, SUM(a.`got_total_amount_usd`) AS got_usd,
                     a.`sold_ticker`, a.`got_ticker`,
@@ -338,11 +377,17 @@ async def get_cexswap_get_sell_logs(
                     INNER JOIN `a_cexswap_pools` b
                         ON a.pool_id = b.pool_id
                     GROUP BY a.`sold_ticker`, a.`got_ticker`
-                    WHERE a.`sell_user_id`=%s AND a.`user_server`=%s """ + extra_sql + """ """ + pool_sql + """
+                    WHERE a.`sell_user_id`=%s AND a.`user_server`=%s """
+                        + extra_sql
+                        + """ """
+                        + pool_sql
+                        + """
                     """
+                    )
                     data_rows = [user_id, user_server]
                 else:
-                    sql = """
+                    sql = (
+                        """
                     SELECT SUM(a.`total_sold_amount`) AS sold, SUM(a.`total_sold_amount_usd`) AS sold_usd,
                     SUM(a.`got_total_amount`) AS got, SUM(a.`got_total_amount_usd`) AS got_usd,
                     a.`sold_ticker`, a.`got_ticker`,
@@ -350,9 +395,14 @@ async def get_cexswap_get_sell_logs(
                     FROM `cexswap_sell_logs` a
                     INNER JOIN `a_cexswap_pools` b
                         ON a.pool_id = b.pool_id
-                     """ + extra_sql + """ """ + pool_sql + """
+                     """
+                        + extra_sql
+                        + """ """
+                        + pool_sql
+                        + """
                     GROUP BY a.`sold_ticker`, a.`got_ticker`
                     """
+                    )
                     data_rows = []
                 if extra_sql != "":
                     data_rows += [from_time]
@@ -367,8 +417,12 @@ async def get_cexswap_get_sell_logs(
         traceback.print_exc(file=sys.stdout)
     return []
 
+
 async def get_cexswap_get_coin_sell_logs(
-    coin_name: str=None, user_id: str=None, user_server: str="DISCORD", from_time: int=None
+    coin_name: str = None,
+    user_id: str = None,
+    user_server: str = "DISCORD",
+    from_time: int = None,
 ):
     try:
         await store.openConnection()
@@ -387,17 +441,26 @@ async def get_cexswap_get_coin_sell_logs(
                 if coin_name is not None:
                     coin_name_sql = "WHERE (`sold_ticker`=%s OR `got_ticker`=%s)"
 
-                sql = """
+                sql = (
+                    """
                 SELECT SUM(`total_sold_amount`) AS sold, SUM(`total_sold_amount_usd`) AS sold_usd,
                 SUM(`got_total_amount`) AS got, SUM(`got_total_amount_usd`) AS got_usd,
                 `sold_ticker`, `got_ticker`, `pairs`,
                 SUM(`got_fee_liquidators`) AS `fee_liquidators`,
                 COUNT(*) AS total_swap
                 FROM `cexswap_sell_logs`
-                """+ coin_name_sql + extra_sql + """
+                """
+                    + coin_name_sql
+                    + extra_sql
+                    + """
                 GROUP BY `sold_ticker`, `got_ticker`
                 """
-                if coin_name is None and (from_time is not None or user_id is not None) and "WHERE" not in sql:
+                )
+                if (
+                    coin_name is None
+                    and (from_time is not None or user_id is not None)
+                    and "WHERE" not in sql
+                ):
                     sql = sql.replace("AND", "WHERE", 1)
                 data_rows = []
                 if coin_name is not None:
@@ -414,7 +477,13 @@ async def get_cexswap_get_coin_sell_logs(
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: int=None, group_pool: bool=False):
+
+async def get_cexswap_earning(
+    user_id: str = None,
+    from_time: int = None,
+    pool_id: int = None,
+    group_pool: bool = False,
+):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -440,30 +509,42 @@ async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: i
                         """
 
                 if user_id is not None:
-                    sql = """
+                    sql = (
+                        """
                     SELECT b.`pairs`, a.`pool_id`, a.`got_ticker`, a.`distributed_user_id`, a.`distributed_user_server`, 
                         SUM(a.`distributed_amount`) AS collected_amount, SUM(a.`got_total_amount`) AS got_total_amount,
                         COUNT(*) AS total_swap
                     FROM `cexswap_distributing_fee` a
                         INNER JOIN `a_cexswap_pools` b
                             ON a.pool_id= b.pool_id
-                    WHERE a.`distributed_user_id`=%s """ + extra_sql + """ """ + pool_sql + """
+                    WHERE a.`distributed_user_id`=%s """
+                        + extra_sql
+                        + """ """
+                        + pool_sql
+                        + """
                     GROUP BY a.`got_ticker`
                     """
+                    )
                     if group_pool:
                         sql += """
                         , a.`pool_id`
                         """
                     data_rows = [user_id]
                 else:
-                    sql = """
+                    sql = (
+                        """
                     SELECT `got_ticker`, `distributed_user_id`, `distributed_user_server`, 
                         SUM(`distributed_amount`) AS collected_amount, SUM(`got_total_amount`) AS got_total_amount,
                         COUNT(*) as total_swap
                     FROM `cexswap_distributing_fee`
-                     """ + extra_sql + """ """ + pool_sql + """
+                     """
+                        + extra_sql
+                        + """ """
+                        + pool_sql
+                        + """
                     GROUP BY `got_ticker`
                     """
+                    )
                     data_rows = []
                 if extra_sql != "":
                     data_rows += [from_time]
@@ -478,7 +559,8 @@ async def get_cexswap_earning(user_id: str=None, from_time: int=None, pool_id: i
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def cexswap_earning_guild(guild_id: str=None):
+
+async def cexswap_earning_guild(guild_id: str = None):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -508,9 +590,8 @@ async def cexswap_earning_guild(guild_id: str=None):
         traceback.print_exc(file=sys.stdout)
     return []
 
-async def cexswap_airdrop_check_op(
-    user_id: str, user_server: str, pool_name: str
-):
+
+async def cexswap_airdrop_check_op(user_id: str, user_server: str, pool_name: str):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
@@ -527,8 +608,9 @@ async def cexswap_airdrop_check_op(
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 async def cexswap_airdrop_count(
-    user_id: str, user_server: str, pool_name: str, duration: int=7*24*3600
+    user_id: str, user_server: str, pool_name: str, duration: int = 7 * 24 * 3600
 ):
     try:
         lap_time = int(time.time()) - duration
@@ -543,14 +625,20 @@ async def cexswap_airdrop_count(
                 await cur.execute(sql, (user_id, user_server, pool_name, lap_time))
                 result = await cur.fetchone()
                 if result:
-                    return result['counts']
+                    return result["counts"]
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return 0
 
+
 async def cexswap_airdrop_lp_detail(
-    list_balance_updates, list_lp_receivers,
-    op_id: str, user_server: str, drop_amount: float, drop_coin: str, pool_name: str
+    list_balance_updates,
+    list_lp_receivers,
+    op_id: str,
+    user_server: str,
+    drop_amount: float,
+    drop_coin: str,
+    pool_name: str,
 ):
     try:
         await store.openConnection()
@@ -584,17 +672,33 @@ async def cexswap_airdrop_lp_detail(
                 (`user_id`, `user_server`, `drop_amount`, `drop_coin`, `drop_time`, `pool_name`)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """
-                await cur.execute(sql, (op_id, user_server, drop_amount, drop_coin, int(time.time()), pool_name))
+                await cur.execute(
+                    sql,
+                    (
+                        op_id,
+                        user_server,
+                        drop_amount,
+                        drop_coin,
+                        int(time.time()),
+                        pool_name,
+                    ),
+                )
                 await conn.commit()
                 return True
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 async def cexswap_admin_remove_pool(
-    pool_id: int, user_id: str, user_server: str,
-    amount_1: float, ticker_1: str, amount_2: float, ticker_2: str,
-    liq_users
+    pool_id: int,
+    user_id: str,
+    user_server: str,
+    amount_1: float,
+    ticker_1: str,
+    amount_2: float,
+    ticker_2: str,
+    liq_users,
 ):
     try:
         await store.openConnection()
@@ -617,8 +721,24 @@ async def cexswap_admin_remove_pool(
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
                 """
                 )
-                data_rows += [pool_id, user_id, user_server, "removepool", int(time.time()), amount_1, ticker_1]
-                data_rows += [pool_id, user_id, user_server, "removepool", int(time.time()), amount_2, ticker_2]
+                data_rows += [
+                    pool_id,
+                    user_id,
+                    user_server,
+                    "removepool",
+                    int(time.time()),
+                    amount_1,
+                    ticker_1,
+                ]
+                data_rows += [
+                    pool_id,
+                    user_id,
+                    user_server,
+                    "removepool",
+                    int(time.time()),
+                    amount_2,
+                    ticker_2,
+                ]
 
                 sql += """
                 DELETE FROM `cexswap_pools_share` 
@@ -644,9 +764,17 @@ async def cexswap_admin_remove_pool(
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 async def cexswap_remove_pool_share(
-    pool_id: int, amount_1: float, ticker_1: str, amount_2: float, ticker_2: str,
-    user_id: str, user_server: str, complete: bool=False, delete_pool: bool=False
+    pool_id: int,
+    amount_1: float,
+    ticker_1: str,
+    amount_2: float,
+    ticker_2: str,
+    user_id: str,
+    user_server: str,
+    complete: bool = False,
+    delete_pool: bool = False,
 ):
     try:
         await store.openConnection()
@@ -665,7 +793,9 @@ async def cexswap_remove_pool_share(
                         WHERE `pool_id`=%s AND `ticker_1_name`=%s AND `ticker_2_name`=%s;
                     """
                 if complete:
-                    sql = extra + """
+                    sql = (
+                        extra
+                        + """
                     DELETE FROM `cexswap_pools_share`
                     WHERE `pool_id`=%s AND `ticker_1_name`=%s AND `ticker_2_name`=%s 
                         AND `user_id`=%s AND `user_server`=%s LIMIT 1;
@@ -692,15 +822,42 @@ async def cexswap_remove_pool_share(
                     (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
+                    )
                     data_rows = [
-                        pool_id, ticker_1, ticker_2, user_id, user_server,
-                        user_id, ticker_1, user_server, amount_1, int(time.time()),
-                        user_id, ticker_2, user_server, amount_2, int(time.time()),
-                        pool_id, user_id, user_server, "remove", int(time.time()), amount_1, ticker_1,
-                        pool_id, user_id, user_server, "remove", int(time.time()), amount_2, ticker_2,
+                        pool_id,
+                        ticker_1,
+                        ticker_2,
+                        user_id,
+                        user_server,
+                        user_id,
+                        ticker_1,
+                        user_server,
+                        amount_1,
+                        int(time.time()),
+                        user_id,
+                        ticker_2,
+                        user_server,
+                        amount_2,
+                        int(time.time()),
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "remove",
+                        int(time.time()),
+                        amount_1,
+                        ticker_1,
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "remove",
+                        int(time.time()),
+                        amount_2,
+                        ticker_2,
                     ]
                 else:
-                    sql = extra + """
+                    sql = (
+                        extra
+                        + """
                     UPDATE `cexswap_pools_share`
                         SET `amount_ticker_1`=`amount_ticker_1`-%s, `amount_ticker_2`=`amount_ticker_2`-%s
                     WHERE `pool_id`=%s AND `ticker_1_name`=%s AND `ticker_2_name`=%s AND `user_id`=%s 
@@ -728,17 +885,50 @@ async def cexswap_remove_pool_share(
                     (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
+                    )
                     data_rows = [
-                        amount_1, amount_2, pool_id, ticker_1, ticker_2, user_id, user_server,
-                        user_id, ticker_1, user_server, amount_1, int(time.time()),
-                        user_id, ticker_2, user_server, amount_2, int(time.time()),
-                        pool_id, user_id, user_server, "remove", int(time.time()), amount_1, ticker_1,
-                        pool_id, user_id, user_server, "remove", int(time.time()), amount_2, ticker_2
+                        amount_1,
+                        amount_2,
+                        pool_id,
+                        ticker_1,
+                        ticker_2,
+                        user_id,
+                        user_server,
+                        user_id,
+                        ticker_1,
+                        user_server,
+                        amount_1,
+                        int(time.time()),
+                        user_id,
+                        ticker_2,
+                        user_server,
+                        amount_2,
+                        int(time.time()),
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "remove",
+                        int(time.time()),
+                        amount_1,
+                        ticker_1,
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "remove",
+                        int(time.time()),
+                        amount_2,
+                        ticker_2,
                     ]
                 if delete_pool:
                     data_rows = [pool_id] + data_rows
                 else:
-                    data_rows = [amount_1, amount_2, pool_id, ticker_1, ticker_2] + data_rows
+                    data_rows = [
+                        amount_1,
+                        amount_2,
+                        pool_id,
+                        ticker_1,
+                        ticker_2,
+                    ] + data_rows
                 await cur.execute(sql, tuple(data_rows))
                 await conn.commit()
                 return True
@@ -746,9 +936,8 @@ async def cexswap_remove_pool_share(
         traceback.print_exc(file=sys.stdout)
     return False
 
-async def cexswap_route_trade(
-    from_coin: str, to_coin: str
-):
+
+async def cexswap_route_trade(from_coin: str, to_coin: str):
     try:
         # Select all pair where there is from_coin
         # Need A->B, Find A->C, C->B .. A->D, D->B, so on
@@ -762,9 +951,7 @@ async def cexswap_route_trade(
                     OR (`ticker_2_name`=%s AND `ticker_1_name`<>%s)
                 """
                 # FROM
-                await cur.execute(sql, (
-                    from_coin, to_coin, from_coin, to_coin
-                ))
+                await cur.execute(sql, (from_coin, to_coin, from_coin, to_coin))
                 result = await cur.fetchall()
 
                 from_coin_pairs = result if result else []
@@ -782,24 +969,24 @@ async def cexswap_route_trade(
                     return possible_trade
                     # check if a coin in from_coin_pairs exist in to_coin_pairs
                 for each in from_coin_pairs:
-                    middle_coin = each['ticker_2_name']
+                    middle_coin = each["ticker_2_name"]
                     if from_coin == middle_coin:
-                        middle_coin = each['ticker_1_name']
+                        middle_coin = each["ticker_1_name"]
 
                     possible_trade.extend(
                         middle_coin
                         for target in to_coin_pairs
-                        if target['ticker_1_name'] == middle_coin
-                        or target['ticker_2_name'] == middle_coin
+                        if target["ticker_1_name"] == middle_coin
+                        or target["ticker_2_name"] == middle_coin
                     )
                 return list(set(possible_trade))
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return possible_trade
 
+
 async def cexswap_find_possible_trade(
-    from_coin: str, to_coin: str, from_amount: float,
-    old_amount_get: float
+    from_coin: str, to_coin: str, from_amount: float, old_amount_get: float
 ):
     try:
         # Select all pair where there is from_coin
@@ -814,9 +1001,10 @@ async def cexswap_find_possible_trade(
                     OR (`ticker_2_name`=%s AND `amount_ticker_2`>%s AND `ticker_1_name`<>%s)
                 """
                 # FROM
-                await cur.execute(sql, (
-                    from_coin, from_amount, to_coin, from_coin, from_amount, to_coin
-                ))
+                await cur.execute(
+                    sql,
+                    (from_coin, from_amount, to_coin, from_coin, from_amount, to_coin),
+                )
                 result = await cur.fetchall()
                 from_coin_pairs = result if result else []
                 # TO
@@ -831,23 +1019,40 @@ async def cexswap_find_possible_trade(
                 if len(from_coin_pairs) != 0 and len(to_coin_pairs) != 0:
                     # check if a coin in from_coin_pairs exist in to_coin_pairs
                     for each in from_coin_pairs:
-                        coin = each['ticker_1_name']
-                        middle_coin = each['ticker_2_name']
-                        middle_amount = each['amount_ticker_2'] / each['amount_ticker_1'] * Decimal(from_amount) * Decimal(0.99)
+                        coin = each["ticker_1_name"]
+                        middle_coin = each["ticker_2_name"]
+                        middle_amount = (
+                            each["amount_ticker_2"]
+                            / each["amount_ticker_1"]
+                            * Decimal(from_amount)
+                            * Decimal(0.99)
+                        )
                         if coin != from_coin:
-                            coin = each['ticker_2_name']
-                            middle_coin = each['ticker_1_name']
-                            middle_amount = each['amount_ticker_1'] / each['amount_ticker_2'] * Decimal(from_amount) * Decimal(0.99)
+                            coin = each["ticker_2_name"]
+                            middle_coin = each["ticker_1_name"]
+                            middle_amount = (
+                                each["amount_ticker_1"]
+                                / each["amount_ticker_2"]
+                                * Decimal(from_amount)
+                                * Decimal(0.99)
+                            )
                         for target in to_coin_pairs:
-                            target_coin = target['ticker_1_name']
-                            middle_coin_check = target['ticker_2_name']
+                            target_coin = target["ticker_1_name"]
+                            middle_coin_check = target["ticker_2_name"]
                             if target_coin != to_coin:
-                                target_coin = target['ticker_2_name']
-                                middle_coin_check = target['ticker_1_name']
+                                target_coin = target["ticker_2_name"]
+                                middle_coin_check = target["ticker_1_name"]
                                 if middle_coin == middle_coin_check:
-                                    midle_rate = target['amount_ticker_2'] / target['amount_ticker_1']
-                                    middle_coin_rate = target['amount_ticker_1'] / target['amount_ticker_2']
-                                    got_amount = middle_amount / middle_coin_rate * Decimal(0.99)
+                                    target["amount_ticker_2"] / target[
+                                        "amount_ticker_1"
+                                    ]
+                                    middle_coin_rate = (
+                                        target["amount_ticker_1"]
+                                        / target["amount_ticker_2"]
+                                    )
+                                    got_amount = (
+                                        middle_amount / middle_coin_rate * Decimal(0.99)
+                                    )
                                     msg = f"{from_coin}/{middle_coin} = {middle_amount} {middle_coin} => {middle_coin}/{to_coin} got: {got_amount} {to_coin}"
                                     if old_amount_get < got_amount:
                                         # print("PROFIT=>{}".format(msg))
@@ -859,12 +1064,22 @@ async def cexswap_find_possible_trade(
         traceback.print_exc(file=sys.stdout)
     return possible_profits
 
+
 async def cexswap_estimate(
-    ref_log: str, pool_id: int, pairs: str, amount_sell: float, sell_ticker: str,
-    amount_get: float, got_ticker: str,
-    got_fee_dev: float, got_fee_liquidators: float,
-    got_fee_guild: float, price_impact_percent: float,
-    user_id: str, user_server: str, use_api: int
+    ref_log: str,
+    pool_id: int,
+    pairs: str,
+    amount_sell: float,
+    sell_ticker: str,
+    amount_get: float,
+    got_ticker: str,
+    got_fee_dev: float,
+    got_fee_liquidators: float,
+    got_fee_guild: float,
+    price_impact_percent: float,
+    user_id: str,
+    user_server: str,
+    use_api: int,
 ):
     try:
         await store.openConnection()
@@ -901,8 +1116,9 @@ async def cexswap_estimate(
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 async def cexswap_count_api_usage(
-    user_id: str, user_server: int, use_api: int=1, duration: int=1*3600
+    user_id: str, user_server: int, use_api: int = 1, duration: int = 1 * 3600
 ):
     lap = int(time.time()) - duration
     try:
@@ -916,16 +1132,23 @@ async def cexswap_count_api_usage(
                 await cur.execute(sql, (user_id, user_server, use_api, lap))
                 result = await cur.fetchone()
                 if result:
-                    return result['numb']
+                    return result["numb"]
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return 0
 
+
 async def cexswap_sold_by_api(
-    ref_log: str, amount_sell: float, sell_token: str, 
-    for_token: str, user_id: str, user_server: str,
-    coin_list, config,
-    per_unit_sell, per_unit_get
+    ref_log: str,
+    amount_sell: float,
+    sell_token: str,
+    for_token: str,
+    user_id: str,
+    user_server: str,
+    coin_list,
+    config,
+    per_unit_sell,
+    per_unit_get,
 ):
     """
     coin_list: list of all coin to get params
@@ -975,22 +1198,30 @@ async def cexswap_sold_by_api(
                 }
             try:
                 # check amount
-                amount_liq_sell = liq_pair['pool']['amount_ticker_1']
-                if sell_token == liq_pair['pool']['ticker_2_name']:
-                    amount_liq_sell = liq_pair['pool']['amount_ticker_2']
-                cexswap_min = getattr(getattr(coin_list, sell_token), "cexswap_min")
-                token_display = getattr(getattr(coin_list, sell_token), "display_name")
-                cexswap_max_swap_percent_sell = getattr(getattr(coin_list, sell_token), "cexswap_max_swap_percent")
-                max_swap_sell_cap = cexswap_max_swap_percent_sell * float(amount_liq_sell)
+                amount_liq_sell = liq_pair["pool"]["amount_ticker_1"]
+                if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                    amount_liq_sell = liq_pair["pool"]["amount_ticker_2"]
+                getattr(getattr(coin_list, sell_token), "cexswap_min")
+                getattr(getattr(coin_list, sell_token), "display_name")
+                cexswap_max_swap_percent_sell = getattr(
+                    getattr(coin_list, sell_token), "cexswap_max_swap_percent"
+                )
+                max_swap_sell_cap = cexswap_max_swap_percent_sell * float(
+                    amount_liq_sell
+                )
 
                 # Check if amount is more than liquidity
-                if truncate(float(amount_sell), 8) > truncate(float(max_swap_sell_cap), 8):
-                    msg = f"The given amount {amount_sell}"\
-                        f" is more than allowable 10% of liquidity {num_format_coin(max_swap_sell_cap)} {sell_token}." \
-                        f" Current LP: {num_format_coin(liq_pair['pool']['amount_ticker_1'])} "\
-                        f"{liq_pair['pool']['ticker_1_name']} and "\
-                        f"{num_format_coin(liq_pair['pool']['amount_ticker_2'])} "\
+                if truncate(float(amount_sell), 8) > truncate(
+                    float(max_swap_sell_cap), 8
+                ):
+                    msg = (
+                        f"The given amount {amount_sell}"
+                        f" is more than allowable 10% of liquidity {num_format_coin(max_swap_sell_cap)} {sell_token}."
+                        f" Current LP: {num_format_coin(liq_pair['pool']['amount_ticker_1'])} "
+                        f"{liq_pair['pool']['ticker_1_name']} and "
+                        f"{num_format_coin(liq_pair['pool']['amount_ticker_2'])} "
                         f"{liq_pair['pool']['ticker_2_name']} for LP {liq_pair['pool']['ticker_1_name']}/{liq_pair['pool']['ticker_2_name']}."
+                    )
                     return {
                         "success": False,
                         "error": msg,
@@ -998,8 +1229,11 @@ async def cexswap_sold_by_api(
 
                 # Check if too big rate gap
                 try:
-                    rate_ratio = liq_pair['pool']['amount_ticker_1'] / liq_pair['pool']['amount_ticker_2']
-                    if rate_ratio > 10**12 or rate_ratio < 1/10**12:
+                    rate_ratio = (
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
+                    )
+                    if rate_ratio > 10**12 or rate_ratio < 1 / 10**12:
                         msg = "Rate ratio is out of range. Try with other pairs."
                         return {
                             "success": False,
@@ -1009,18 +1243,32 @@ async def cexswap_sold_by_api(
                     traceback.print_exc(file=sys.stdout)
 
                 # check slippage first
-                slippage = 1.0 - amount_sell / float(liq_pair['pool']['amount_ticker_1']) - config['cexswap_slipage']['reserve']
-                amount_get = amount_sell * float(liq_pair['pool']['amount_ticker_2'] / liq_pair['pool']['amount_ticker_1'])
+                slippage = (
+                    1.0
+                    - amount_sell / float(liq_pair["pool"]["amount_ticker_1"])
+                    - config["cexswap_slipage"]["reserve"]
+                )
+                amount_get = amount_sell * float(
+                    liq_pair["pool"]["amount_ticker_2"]
+                    / liq_pair["pool"]["amount_ticker_1"]
+                )
 
-                amount_qty_1 = liq_pair['pool']['amount_ticker_2']
-                amount_qty_2 = liq_pair['pool']['amount_ticker_1']
+                amount_qty_1 = liq_pair["pool"]["amount_ticker_2"]
+                amount_qty_2 = liq_pair["pool"]["amount_ticker_1"]
 
-                if sell_token == liq_pair['pool']['ticker_2_name']:
-                    amount_get = amount_sell * float(liq_pair['pool']['amount_ticker_1'] / liq_pair['pool']['amount_ticker_2'])
-                    slippage = 1.0 - amount_sell / float(liq_pair['pool']['amount_ticker_2']) - config['cexswap_slipage']['reserve']
+                if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                    amount_get = amount_sell * float(
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
+                    )
+                    slippage = (
+                        1.0
+                        - amount_sell / float(liq_pair["pool"]["amount_ticker_2"])
+                        - config["cexswap_slipage"]["reserve"]
+                    )
 
-                    amount_qty_1 = liq_pair['pool']['amount_ticker_1']
-                    amount_qty_2 = liq_pair['pool']['amount_ticker_2']
+                    amount_qty_1 = liq_pair["pool"]["amount_ticker_1"]
+                    amount_qty_2 = liq_pair["pool"]["amount_ticker_2"]
 
                 # adjust slippage
                 amount_get = slippage * amount_get
@@ -1034,22 +1282,30 @@ async def cexswap_sold_by_api(
                 # price impact = unit price now / unit price after sold
                 price_impact_text = ""
                 price_impact_percent = 0.0
-                new_impact_ratio = (float(amount_qty_2) + amount_sell) / (float(amount_qty_1) - amount_get)
+                new_impact_ratio = (float(amount_qty_2) + amount_sell) / (
+                    float(amount_qty_1) - amount_get
+                )
                 old_impact_ratio = float(amount_qty_2) / float(amount_qty_1)
-                impact_ratio = abs(old_impact_ratio - new_impact_ratio) / max(old_impact_ratio, new_impact_ratio)
+                impact_ratio = abs(old_impact_ratio - new_impact_ratio) / max(
+                    old_impact_ratio, new_impact_ratio
+                )
                 if 0.0001 < impact_ratio < 1:
-                    price_impact_text = "\nPrice impact: ~{:,.2f}{}".format(impact_ratio * 100, "%")
+                    price_impact_text = "\nPrice impact: ~{:,.2f}{}".format(
+                        impact_ratio * 100, "%"
+                    )
                     price_impact_percent = impact_ratio * 100
-                
+
                 # If the amount get is too small.
-                if amount_get < config['cexswap']['minimum_receive_or_reject']:
-                    msg = f"The received amount is too small below "\
+                if amount_get < config["cexswap"]["minimum_receive_or_reject"]:
+                    msg = (
+                        f"The received amount is too small below "
                         f"{str(config['cexswap']['minimum_receive_or_reject'])} {for_token}. Please increase your sell amount of {sell_token}!"
+                    )
                     await log_to_channel(
                         "cexswap",
-                        f"🔴 API User <@{user_id}> wanted to sell: " \
+                        f"🔴 API User <@{user_id}> wanted to sell: "
                         f"{str(amount_sell)} {sell_token} for {str(amount_get)} {for_token} (Below receiving amount)",
-                        config['discord']['cexswap']
+                        config["discord"]["cexswap"],
                     )
                     return {
                         "success": False,
@@ -1057,55 +1313,102 @@ async def cexswap_sold_by_api(
                     }
                 else:
                     # OK, sell..
-                    got_fee_dev = amount_get * config['cexswap']['dev_fee'] / 100
-                    got_fee_liquidators = amount_get * config['cexswap']['liquidator_fee'] / 100
+                    got_fee_dev = amount_get * config["cexswap"]["dev_fee"] / 100
+                    got_fee_liquidators = (
+                        amount_get * config["cexswap"]["liquidator_fee"] / 100
+                    )
                     got_fee_guild = 0.0
                     guild_id = "CEXSWAP API"
-                    got_fee_dev += amount_get * config['cexswap']['guild_fee'] / 100
+                    got_fee_dev += amount_get * config["cexswap"]["guild_fee"] / 100
                     liq_users = []
-                    if len(liq_pair['pool_share']) > 0:
-                        for each_s in liq_pair['pool_share']:
+                    if len(liq_pair["pool_share"]) > 0:
+                        for each_s in liq_pair["pool_share"]:
                             distributed_amount = None
-                            if for_token == each_s['ticker_1_name']:
-                                distributed_amount = float(each_s['amount_ticker_1']) / float(liq_pair['pool']['amount_ticker_1']) * float(truncate(got_fee_liquidators, 12))
-                            elif for_token == each_s['ticker_2_name']:
-                                distributed_amount = float(each_s['amount_ticker_2']) / float(liq_pair['pool']['amount_ticker_2']) * float(truncate(got_fee_liquidators, 12))
+                            if for_token == each_s["ticker_1_name"]:
+                                distributed_amount = (
+                                    float(each_s["amount_ticker_1"])
+                                    / float(liq_pair["pool"]["amount_ticker_1"])
+                                    * float(truncate(got_fee_liquidators, 12))
+                                )
+                            elif for_token == each_s["ticker_2_name"]:
+                                distributed_amount = (
+                                    float(each_s["amount_ticker_2"])
+                                    / float(liq_pair["pool"]["amount_ticker_2"])
+                                    * float(truncate(got_fee_liquidators, 12))
+                                )
                             if distributed_amount is not None:
-                                liq_users.append([distributed_amount, each_s['user_id'], each_s['user_server']])
+                                liq_users.append(
+                                    [
+                                        distributed_amount,
+                                        each_s["user_id"],
+                                        each_s["user_server"],
+                                    ]
+                                )
                     contract = getattr(getattr(coin_list, for_token), "contract")
                     channel_id = "CEXSWAP API"
 
-                    fee = truncate(got_fee_dev, 12) + truncate(got_fee_liquidators, 12) + truncate(got_fee_guild, 12)
-                    user_amount_get = num_format_coin(truncate(amount_get - float(fee), 12))
+                    fee = (
+                        truncate(got_fee_dev, 12)
+                        + truncate(got_fee_liquidators, 12)
+                        + truncate(got_fee_guild, 12)
+                    )
+                    user_amount_get = num_format_coin(
+                        truncate(amount_get - float(fee), 12)
+                    )
                     user_amount_sell = num_format_coin(amount_sell)
                     coin_decimal = getattr(getattr(coin_list, for_token), "decimal")
 
-                    pool_amount_get = liq_pair['pool']['amount_ticker_2']
-                    pool_amount_sell = liq_pair['pool']['amount_ticker_1']
-                    if sell_token == liq_pair['pool']['ticker_2_name']:
-                        pool_amount_get = liq_pair['pool']['amount_ticker_1']
-                        pool_amount_sell = liq_pair['pool']['amount_ticker_2']
+                    pool_amount_get = liq_pair["pool"]["amount_ticker_2"]
+                    pool_amount_sell = liq_pair["pool"]["amount_ticker_1"]
+                    if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                        pool_amount_get = liq_pair["pool"]["amount_ticker_1"]
+                        pool_amount_sell = liq_pair["pool"]["amount_ticker_2"]
 
                     api_message = "[CEXSWAP API]: A user sold {} {} for {} {}.".format(
                         user_amount_sell, sell_token, user_amount_get, for_token
                     )
                     selling = await cexswap_sold(
-                        ref_log, liq_pair['pool']['pool_id'], truncate(amount_sell, 12), sell_token, 
-                        truncate(amount_get, 12), for_token, user_id, user_server,
+                        ref_log,
+                        liq_pair["pool"]["pool_id"],
+                        truncate(amount_sell, 12),
+                        sell_token,
+                        truncate(amount_get, 12),
+                        for_token,
+                        user_id,
+                        user_server,
                         guild_id,
-                        truncate(got_fee_dev, 12), truncate(got_fee_liquidators, 12), truncate(got_fee_guild, 12),
-                        liq_users, contract, coin_decimal, channel_id, per_unit_sell, per_unit_get,
-                        pool_amount_sell, pool_amount_get,
-                        1, api_message
+                        truncate(got_fee_dev, 12),
+                        truncate(got_fee_liquidators, 12),
+                        truncate(got_fee_guild, 12),
+                        liq_users,
+                        contract,
+                        coin_decimal,
+                        channel_id,
+                        per_unit_sell,
+                        per_unit_get,
+                        pool_amount_sell,
+                        pool_amount_get,
+                        1,
+                        api_message,
                     )
                     if selling is True:
-                        msg = f"Successfully traded! "\
-                            f"Get {user_amount_get} {for_token} "\
+                        msg = (
+                            f"Successfully traded! "
+                            f"Get {user_amount_get} {for_token} "
                             f"from selling {user_amount_sell} {sell_token}{price_impact_text} Ref: {ref_log}"
-                        del_users_cache =  ["{}_{}_{}".format(i[1], sell_token, i[2]) for i in liq_users]
-                        del_users_cache +=  ["{}_{}_{}".format(i[1], for_token, i[2]) for i in liq_users]
-                        del_users_cache += ["{}_{}_{}".format(user_id, sell_token, user_server)]
-                        del_users_cache += ["{}_{}_{}".format(user_id, for_token, user_server)]
+                        )
+                        del_users_cache = [
+                            "{}_{}_{}".format(i[1], sell_token, i[2]) for i in liq_users
+                        ]
+                        del_users_cache += [
+                            "{}_{}_{}".format(i[1], for_token, i[2]) for i in liq_users
+                        ]
+                        del_users_cache += [
+                            "{}_{}_{}".format(user_id, sell_token, user_server)
+                        ]
+                        del_users_cache += [
+                            "{}_{}_{}".format(user_id, for_token, user_server)
+                        ]
                         return {
                             "success": True,
                             "sell": user_amount_sell,
@@ -1113,9 +1416,9 @@ async def cexswap_sold_by_api(
                             "get": user_amount_get,
                             "for_token": for_token,
                             "price_impact_percent": price_impact_percent,
-                            "delete_cache_balance":del_users_cache,
+                            "delete_cache_balance": del_users_cache,
                             "message": msg,
-                            "ref": ref_log
+                            "ref": ref_log,
                         }
             except Exception:
                 traceback.print_exc(file=sys.stdout)
@@ -1126,16 +1429,30 @@ async def cexswap_sold_by_api(
         "error": "Internal error!",
     }
 
+
 async def cexswap_sold(
-    ref_log: str, pool_id: int, amount_sell: float, sell_ticker: str,
-    amount_get: float, got_ticker: str,
-    user_id: str, user_server: str,
+    ref_log: str,
+    pool_id: int,
+    amount_sell: float,
+    sell_ticker: str,
+    amount_get: float,
+    got_ticker: str,
+    user_id: str,
+    user_server: str,
     guild_id: str,
-    got_fee_dev: float, got_fee_liquidators: float,
-    got_fee_guild: float, liquidators, contract: str, coin_decimal: int,
-    channel_id: str, per_unit_sell: float, per_unit_get: float,
-    pool_amount_sell: float, pool_amount_get: float,
-    api: int=0, api_message: str=None
+    got_fee_dev: float,
+    got_fee_liquidators: float,
+    got_fee_guild: float,
+    liquidators,
+    contract: str,
+    coin_decimal: int,
+    channel_id: str,
+    per_unit_sell: float,
+    per_unit_get: float,
+    pool_amount_sell: float,
+    pool_amount_get: float,
+    api: int = 0,
+    api_message: str = None,
 ):
     try:
         await store.openConnection()
@@ -1166,8 +1483,18 @@ async def cexswap_sold(
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
                 data_rows = [
-                    float(amount_sell), sell_ticker, pool_id, float(amount_sell), sell_ticker, pool_id, 
-                    float(amount_get), got_ticker, pool_id, float(amount_get), got_ticker, pool_id
+                    float(amount_sell),
+                    sell_ticker,
+                    pool_id,
+                    float(amount_sell),
+                    sell_ticker,
+                    pool_id,
+                    float(amount_get),
+                    got_ticker,
+                    pool_id,
+                    float(amount_get),
+                    got_ticker,
+                    pool_id,
                 ]
                 ### END TODO
 
@@ -1181,8 +1508,12 @@ async def cexswap_sold(
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
                 data_rows += [
-                    float(amount_sell)/float(pool_amount_sell), sell_ticker, pool_id,
-                    float(amount_sell)/float(pool_amount_sell), sell_ticker, pool_id
+                    float(amount_sell) / float(pool_amount_sell),
+                    sell_ticker,
+                    pool_id,
+                    float(amount_sell) / float(pool_amount_sell),
+                    sell_ticker,
+                    pool_id,
                 ]
 
                 sql += """
@@ -1195,8 +1526,12 @@ async def cexswap_sold(
                 WHERE `ticker_2_name`=%s AND `pool_id`=%s;
                 """
                 data_rows += [
-                    float(amount_get)/float(pool_amount_get), got_ticker, pool_id,
-                    float(amount_get)/float(pool_amount_get), got_ticker, pool_id
+                    float(amount_get) / float(pool_amount_get),
+                    got_ticker,
+                    pool_id,
+                    float(amount_get) / float(pool_amount_get),
+                    got_ticker,
+                    pool_id,
                 ]
 
                 sql += """
@@ -1215,8 +1550,19 @@ async def cexswap_sold(
                     `update_date`=VALUES(`update_date`);
                 """
                 data_rows += [
-                    user_id, sell_ticker, SERVER_BOT, -float(amount_sell), int(time.time()),
-                    user_id, got_ticker, SERVER_BOT,  float(amount_get)-float(got_fee_dev)-float(got_fee_liquidators)-float(got_fee_guild), int(time.time())                            
+                    user_id,
+                    sell_ticker,
+                    SERVER_BOT,
+                    -float(amount_sell),
+                    int(time.time()),
+                    user_id,
+                    got_ticker,
+                    SERVER_BOT,
+                    float(amount_get)
+                    - float(got_fee_dev)
+                    - float(got_fee_liquidators)
+                    - float(got_fee_guild),
+                    int(time.time()),
                 ]
 
                 sql += """
@@ -1236,8 +1582,16 @@ async def cexswap_sold(
 
                 """
                 data_rows += [
-                    "SYSTEM", got_ticker, SERVER_BOT, float(got_fee_dev), int(time.time()),
-                    guild_id, got_ticker, SERVER_BOT, float(got_fee_guild), int(time.time())
+                    "SYSTEM",
+                    got_ticker,
+                    SERVER_BOT,
+                    float(got_fee_dev),
+                    int(time.time()),
+                    guild_id,
+                    got_ticker,
+                    SERVER_BOT,
+                    float(got_fee_guild),
+                    int(time.time()),
                 ]
 
                 sql += """
@@ -1249,10 +1603,24 @@ async def cexswap_sold(
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
                 data_rows += [
-                    pool_id, "{}->{}".format(sell_ticker, got_ticker), ref_log, sell_ticker, float(amount_sell),
-                    float(amount_sell)*float(per_unit_sell) if per_unit_sell else 0.0, guild_id, float(amount_get), float(amount_get)*float(per_unit_get) if per_unit_get else 0.0,
-                    float(got_fee_dev), float(got_fee_liquidators), float(got_fee_guild), got_ticker, user_id,
-                    user_server, api, api_message, int(time.time())
+                    pool_id,
+                    "{}->{}".format(sell_ticker, got_ticker),
+                    ref_log,
+                    sell_ticker,
+                    float(amount_sell),
+                    float(amount_sell) * float(per_unit_sell) if per_unit_sell else 0.0,
+                    guild_id,
+                    float(amount_get),
+                    float(amount_get) * float(per_unit_get) if per_unit_get else 0.0,
+                    float(got_fee_dev),
+                    float(got_fee_liquidators),
+                    float(got_fee_guild),
+                    got_ticker,
+                    user_id,
+                    user_server,
+                    api,
+                    api_message,
+                    int(time.time()),
                 ]
                 await cur.execute(sql, tuple(data_rows))
                 await conn.commit()
@@ -1265,7 +1633,7 @@ async def cexswap_sold(
                 await cur.execute(sql, ref_log)
                 result = await cur.fetchone()
                 if result:
-                    sell_id = result['log_id']
+                    sell_id = result["log_id"]
 
                 # add to distributed fee
                 sql = """
@@ -1276,10 +1644,19 @@ async def cexswap_sold(
                 """
                 liq_rows = []
                 for each in liquidators:
-                    liq_rows.append((
-                        sell_id, pool_id, got_ticker, float(amount_get),
-                        each[0], float(each[0])*float(per_unit_get), each[1], each[2], int(time.time())
-                    ))
+                    liq_rows.append(
+                        (
+                            sell_id,
+                            pool_id,
+                            got_ticker,
+                            float(amount_get),
+                            each[0],
+                            float(each[0]) * float(per_unit_get),
+                            each[1],
+                            each[2],
+                            int(time.time()),
+                        )
+                    )
                 await cur.executemany(sql, liq_rows)
 
                 # add to mv_data # user_balance_mv_data
@@ -1292,21 +1669,45 @@ async def cexswap_sold(
                 liq_rows = []
                 credit_lp = []
                 for each in liquidators:
-                    liq_rows.append((
-                        got_ticker, contract, "SYSTEM", each[1], guild_id, channel_id,
-                        each[0], each[0]*float(per_unit_get), coin_decimal, "CEXSWAPLP", int(time.time()), each[2],
-                        ref_log
-                    ))
+                    liq_rows.append(
+                        (
+                            got_ticker,
+                            contract,
+                            "SYSTEM",
+                            each[1],
+                            guild_id,
+                            channel_id,
+                            each[0],
+                            each[0] * float(per_unit_get),
+                            coin_decimal,
+                            "CEXSWAPLP",
+                            int(time.time()),
+                            each[2],
+                            ref_log,
+                        )
+                    )
                     credit_lp.append(
                         (each[1], got_ticker, each[2], each[0], int(time.time()))
                     )
 
                 if guild_id != "DM":
-                    liq_rows.append((
-                        got_ticker, contract, "SYSTEM", guild_id, guild_id, channel_id,
-                        float(got_fee_guild), float(got_fee_guild)*float(per_unit_get), coin_decimal, "CEXSWAPLP", int(time.time()), each[2],
-                        ref_log
-                    ))
+                    liq_rows.append(
+                        (
+                            got_ticker,
+                            contract,
+                            "SYSTEM",
+                            guild_id,
+                            guild_id,
+                            channel_id,
+                            float(got_fee_guild),
+                            float(got_fee_guild) * float(per_unit_get),
+                            coin_decimal,
+                            "CEXSWAPLP",
+                            int(time.time()),
+                            each[2],
+                            ref_log,
+                        )
+                    )
                 await cur.executemany(sql, liq_rows)
                 # add mv distribution fee
                 sql = """
@@ -1325,9 +1726,15 @@ async def cexswap_sold(
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 async def cexswap_insert_new(
-    pairs: str, amount_ticker_1: str, ticker_1_name: str,
-    amount_ticker_2: str, ticker_2_name: str, user_id: str, user_server: str
+    pairs: str,
+    amount_ticker_1: str,
+    ticker_1_name: str,
+    amount_ticker_2: str,
+    ticker_2_name: str,
+    user_id: str,
+    user_server: str,
 ):
     try:
         await store.openConnection()
@@ -1340,10 +1747,12 @@ async def cexswap_insert_new(
                     WHERE `enable`=1 
                     AND ((`ticker_1_name`=%s AND `ticker_2_name`=%s)
                         OR (`ticker_1_name`=%s AND `ticker_2_name`=%s)) """
-                await cur.execute(sql, (ticker_1_name, ticker_2_name, ticker_2_name, ticker_1_name))
+                await cur.execute(
+                    sql, (ticker_1_name, ticker_2_name, ticker_2_name, ticker_1_name)
+                )
                 result = await cur.fetchone()
                 if result:
-                    pool_id = result['pool_id']
+                    pool_id = result["pool_id"]
                     existing_pool = True
                 else:
                     sql = """ INSERT INTO `cexswap_pools` 
@@ -1351,13 +1760,22 @@ async def cexswap_insert_new(
                         `ticker_2_name`, `initialized_by`, `initialized_date`, `updated_date`)
                         VALUES 
                         (%s, %s, %s, %s, %s, %s, %s, %s) """
-                    await cur.execute(sql, (
-                        pairs, amount_ticker_1, ticker_1_name, amount_ticker_2, ticker_2_name,
-                        user_id, int(time.time()), int(time.time())
-                    ))
+                    await cur.execute(
+                        sql,
+                        (
+                            pairs,
+                            amount_ticker_1,
+                            ticker_1_name,
+                            amount_ticker_2,
+                            ticker_2_name,
+                            user_id,
+                            int(time.time()),
+                            int(time.time()),
+                        ),
+                    )
                     await conn.commit()
                     pool_id = cur.lastrowid
-                
+
                 if pool_id is not None:
                     sql = """
                     INSERT INTO `cexswap_pools_share`
@@ -1379,10 +1797,30 @@ async def cexswap_insert_new(
                     (`pool_id`, `user_id`, `user_server`, `action`, `date`, `amount`, `token_name`)
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
-                    data_row = [pool_id, pairs, amount_ticker_1, ticker_1_name,
-                        amount_ticker_2, ticker_2_name, user_id, user_server, int(time.time()),
-                        pool_id, user_id, user_server, "add", int(time.time()), amount_ticker_1, ticker_1_name,
-                        pool_id, user_id, user_server, "add", int(time.time()), amount_ticker_2, ticker_2_name
+                    data_row = [
+                        pool_id,
+                        pairs,
+                        amount_ticker_1,
+                        ticker_1_name,
+                        amount_ticker_2,
+                        ticker_2_name,
+                        user_id,
+                        user_server,
+                        int(time.time()),
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "add",
+                        int(time.time()),
+                        amount_ticker_1,
+                        ticker_1_name,
+                        pool_id,
+                        user_id,
+                        user_server,
+                        "add",
+                        int(time.time()),
+                        amount_ticker_2,
+                        ticker_2_name,
                     ]
                     # Insert new pool share
                     sql += """
@@ -1401,8 +1839,16 @@ async def cexswap_insert_new(
                         `update_date`=VALUES(`update_date`);
                     """
                     data_row += [
-                        user_id, ticker_1_name, user_server, -amount_ticker_1, int(time.time()),
-                        user_id, ticker_2_name, user_server, -amount_ticker_2, int(time.time())
+                        user_id,
+                        ticker_1_name,
+                        user_server,
+                        -amount_ticker_1,
+                        int(time.time()),
+                        user_id,
+                        ticker_2_name,
+                        user_server,
+                        -amount_ticker_2,
+                        int(time.time()),
                     ]
                     # TODO using trigger instead
                     if existing_pool is True:
@@ -1411,7 +1857,12 @@ async def cexswap_insert_new(
                             `amount_ticker_2`=`amount_ticker_2`+%s,
                             `updated_date`=%s
                         WHERE `pool_id`=%s LIMIT 1;"""
-                        data_row += [amount_ticker_1, amount_ticker_2, int(time.time()), pool_id]
+                        data_row += [
+                            amount_ticker_1,
+                            amount_ticker_2,
+                            int(time.time()),
+                            pool_id,
+                        ]
                     # END OF TODO
                     await cur.execute(sql, tuple(data_row))
                     await conn.commit()
@@ -1420,14 +1871,10 @@ async def cexswap_insert_new(
         traceback.print_exc(file=sys.stdout)
     return False
 
+
 class EarningMenu(disnake.ui.View):
     def __init__(
-        self, bot,
-        ctx,
-        owner_id: int,
-        embed_lp,
-        embed_earning,
-        embed_sell_logs
+        self, bot, ctx, owner_id: int, embed_lp, embed_earning, embed_sell_logs
     ):
         super().__init__(timeout=60.0)
         self.bot = bot
@@ -1439,83 +1886,105 @@ class EarningMenu(disnake.ui.View):
         self.embed_sell_logs = embed_sell_logs
 
     async def on_timeout(self):
-        await self.ctx.edit_original_message(
-            view=None
-        )
+        await self.ctx.edit_original_message(view=None)
 
-    @disnake.ui.button(label="Your LP", emoji="💵", style=ButtonStyle.grey, custom_id="btn_user_lp")
+    @disnake.ui.button(
+        label="Your LP", emoji="💵", style=ButtonStyle.grey, custom_id="btn_user_lp"
+    )
     async def btn_earning_your_lp(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.owner_id:
             await inter.response.defer()
             return
         else:
             view = EarningMenu(
-                self.bot, self.ctx, self.owner_id,
-                self.embed_lp, self.embed_earning, self.embed_sell_logs
+                self.bot,
+                self.ctx,
+                self.owner_id,
+                self.embed_lp,
+                self.embed_earning,
+                self.embed_sell_logs,
             )
             embed = self.embed_lp.copy()
             if len(embed.fields) == 0:
                 embed.add_field(
                     name="INFO",
                     value="You don't have any coins in CEXSwap LP.",
-                    inline=False
+                    inline=False,
                 )
             await self.ctx.edit_original_message(content=None, embed=embed, view=view)
             await inter.response.defer()
 
-    @disnake.ui.button(label="Earning", emoji="💰", style=ButtonStyle.grey, custom_id="btn_earning")
+    @disnake.ui.button(
+        label="Earning", emoji="💰", style=ButtonStyle.grey, custom_id="btn_earning"
+    )
     async def btn_earning_your_earning(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.owner_id:
             await inter.response.defer()
             return
         else:
             view = EarningMenu(
-                self.bot, self.ctx, self.owner_id,
-                self.embed_lp, self.embed_earning, self.embed_sell_logs
+                self.bot,
+                self.ctx,
+                self.owner_id,
+                self.embed_lp,
+                self.embed_earning,
+                self.embed_sell_logs,
             )
             embed = self.embed_earning.copy()
             if len(embed.fields) <= 1:
                 embed.add_field(
                     name="INFO",
                     value="You don't have any earning from CEXSwap LP.",
-                    inline=False
+                    inline=False,
                 )
             await self.ctx.edit_original_message(content=None, embed=embed, view=view)
             await inter.response.defer()
 
-    @disnake.ui.button(label="Trades", emoji="🔁", style=ButtonStyle.grey, custom_id="btn_trade_sum")
+    @disnake.ui.button(
+        label="Trades", emoji="🔁", style=ButtonStyle.grey, custom_id="btn_trade_sum"
+    )
     async def btn_earning_your_trades(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.owner_id:
             await inter.response.defer()
             return
         else:
             view = EarningMenu(
-                self.bot, self.ctx, self.owner_id,
-                self.embed_lp, self.embed_earning, self.embed_sell_logs
+                self.bot,
+                self.ctx,
+                self.owner_id,
+                self.embed_lp,
+                self.embed_earning,
+                self.embed_sell_logs,
             )
             embed = self.embed_sell_logs.copy()
             if len(embed.fields) == 0:
                 embed.add_field(
                     name="INFO",
                     value="You don't have any trade with CEXSwap.",
-                    inline=False
+                    inline=False,
                 )
             await self.ctx.edit_original_message(content=None, embed=embed, view=view)
             await inter.response.defer()
 
+
 # Single coin of /selectpool
 class SelectPoolSingle(disnake.ui.View):
     def __init__(
-        self, timeout, ctx, bot, owner_id: int, embed_rate, embed_lp, embed_30d=None, embed_7d=None
+        self,
+        timeout,
+        ctx,
+        bot,
+        owner_id: int,
+        embed_rate,
+        embed_lp,
+        embed_30d=None,
+        embed_7d=None,
     ):
         super().__init__(timeout=timeout)
         self.ctx = ctx
@@ -1529,86 +1998,93 @@ class SelectPoolSingle(disnake.ui.View):
             self.btn_vol30d.disabled = True
         if embed_7d is None:
             self.btn_vol7d.disabled = True
-    
+
     async def on_timeout(self):
         for child in self.children:
             if isinstance(child, disnake.ui.Button):
                 child.disabled = True
-        await self.ctx.edit_original_message(
-            view=self
-        )
+        await self.ctx.edit_original_message(view=self)
 
-    @disnake.ui.button(label="1️⃣ Rate", style=ButtonStyle.red, custom_id="cexswap_selectpool_rate")
+    @disnake.ui.button(
+        label="1️⃣ Rate", style=ButtonStyle.red, custom_id="cexswap_selectpool_rate"
+    )
     async def btn_rate(
-        self, button: disnake.ui.Button,
-        interaction: disnake.MessageInteraction
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
     ):
         if interaction.author.id != self.owner_id:
             await interaction.response.defer()
             return
         else:
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed_rate,
-                view=self
+                content=None, embed=self.embed_rate, view=self
             )
             await interaction.response.defer()
 
-    @disnake.ui.button(label="2️⃣ Top LP", style=ButtonStyle.gray, custom_id="cexswap_selectpool_toplp")
+    @disnake.ui.button(
+        label="2️⃣ Top LP", style=ButtonStyle.gray, custom_id="cexswap_selectpool_toplp"
+    )
     async def btn_top(
-        self, button: disnake.ui.Button,
-        interaction: disnake.MessageInteraction
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
     ):
         if interaction.author.id != self.owner_id:
             await interaction.response.defer()
             return
         else:
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed_lp,
-                view=self
+                content=None, embed=self.embed_lp, view=self
             )
             await interaction.response.defer()
 
-    @disnake.ui.button(label="Volume 7d", style=ButtonStyle.primary, custom_id="cexswap_selectpool_vol7d")
+    @disnake.ui.button(
+        label="Volume 7d",
+        style=ButtonStyle.primary,
+        custom_id="cexswap_selectpool_vol7d",
+    )
     async def btn_vol7d(
-        self, button: disnake.ui.Button,
-        interaction: disnake.MessageInteraction
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
     ):
         if interaction.author.id != self.owner_id:
             await interaction.response.defer()
             return
         else:
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed_7d,
-                view=self
+                content=None, embed=self.embed_7d, view=self
             )
             await interaction.response.defer()
 
-    @disnake.ui.button(label="Volume 30d", style=ButtonStyle.secondary, custom_id="cexswap_selectpool_vol30d")
+    @disnake.ui.button(
+        label="Volume 30d",
+        style=ButtonStyle.secondary,
+        custom_id="cexswap_selectpool_vol30d",
+    )
     async def btn_vol30d(
-        self, button: disnake.ui.Button,
-        interaction: disnake.MessageInteraction
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
     ):
         if interaction.author.id != self.owner_id:
             await interaction.response.defer()
             return
         else:
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed_30d,
-                view=self
+                content=None, embed=self.embed_30d, view=self
             )
             await interaction.response.defer()
+
 
 class Dropdown_Vol_Fee(disnake.ui.StringSelect):
     def __init__(
-            self, ctx, bot, ori_embed, embed,
-            list_fields, lp_list_coins,
-            lp_in_usd, lp_sorted_key, has_dropdown: bool,
-            selected_duration, use_for
-        ):
+        self,
+        ctx,
+        bot,
+        ori_embed,
+        embed,
+        list_fields,
+        lp_list_coins,
+        lp_in_usd,
+        lp_sorted_key,
+        has_dropdown: bool,
+        selected_duration,
+        use_for,
+    ):
         """
         selected_duration: 1d, 7d
         """
@@ -1622,16 +2098,19 @@ class Dropdown_Vol_Fee(disnake.ui.StringSelect):
         self.lp_sorted_key = lp_sorted_key
         self.has_dropdown = has_dropdown
         self.selected_duration = selected_duration
-        self.use_for = use_for # fee, volume
+        self.use_for = use_for  # fee, volume
 
         options = [
             disnake.SelectOption(
                 label=each.lower(), description="Select {}".format(each.lower())
-            ) for each in ["1D", "7D", "30D"]
+            )
+            for each in ["1D", "7D", "30D"]
         ]
 
         super().__init__(
-            placeholder="Choose duration..." if self.selected_duration is None else self.selected_duration,
+            placeholder="Choose duration..."
+            if self.selected_duration is None
+            else self.selected_duration,
             min_values=1,
             max_values=1,
             options=options,
@@ -1646,49 +2125,64 @@ class Dropdown_Vol_Fee(disnake.ui.StringSelect):
             self.embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
             self.embed.add_field(
-                name="Info",
-                value="Please use menu dropdown.",
-                inline=False
+                name="Info", value="Please use menu dropdown.", inline=False
             )
         if self.values[0] is not None:
             if self.use_for == "fee":
                 key = self.values[0]
-                list_fee = list(chunks(self.list_fields[key]['fee_value'], 15))
+                list_fee = list(chunks(self.list_fields[key]["fee_value"], 15))
                 for i in list_fee:
                     self.embed.add_field(
-                        name=self.list_fields[key]['fee_title'],
+                        name=self.list_fields[key]["fee_title"],
                         value="{}".format("\n".join(i)),
-                        inline=False
+                        inline=False,
                     )
             elif self.use_for == "volume":
                 key = self.values[0]
-                list_vol = list(chunks(self.list_fields[key]['volume_value'], 15))
+                list_vol = list(chunks(self.list_fields[key]["volume_value"], 15))
                 for i in list_vol:
                     self.embed.add_field(
-                        name=self.list_fields[key]['volume_title'],
+                        name=self.list_fields[key]["volume_title"],
                         value="{}".format("\n".join(i)),
-                        inline=False
+                        inline=False,
                     )
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=True, selected_duration=self.values[0], use_for=self.use_for
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=True,
+                selected_duration=self.values[0],
+                use_for=self.use_for,
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed,
-                view=view
+                content=None, embed=self.embed, view=view
             )
             await inter.response.defer()
 
+
 class ViewSummary(disnake.ui.View):
     def __init__(
-            self, ctx, bot, ori_embed, embed, list_fields, lp_list_coins,
-            lp_in_usd, lp_sorted_key, has_dropdown: bool=True, selected_duration: str=None,
-            use_for: str=None
-        ):
+        self,
+        ctx,
+        bot,
+        ori_embed,
+        embed,
+        list_fields,
+        lp_list_coins,
+        lp_in_usd,
+        lp_sorted_key,
+        has_dropdown: bool = True,
+        selected_duration: str = None,
+        use_for: str = None,
+    ):
         super().__init__(timeout=120.0)
         self.ctx = ctx
         self.bot = bot
@@ -1701,39 +2195,61 @@ class ViewSummary(disnake.ui.View):
         self.selected_duration = selected_duration
 
         if has_dropdown is True:
-            self.add_item(Dropdown_Vol_Fee(
-                self.ctx, self.bot, ori_embed, embed,
-                list_fields, lp_list_coins, lp_in_usd, lp_sorted_key,
-                has_dropdown, selected_duration=selected_duration, use_for=use_for
-            ))
+            self.add_item(
+                Dropdown_Vol_Fee(
+                    self.ctx,
+                    self.bot,
+                    ori_embed,
+                    embed,
+                    list_fields,
+                    lp_list_coins,
+                    lp_in_usd,
+                    lp_sorted_key,
+                    has_dropdown,
+                    selected_duration=selected_duration,
+                    use_for=use_for,
+                )
+            )
 
     async def on_timeout(self):
         await self.ctx.edit_original_message(view=None)
 
-    @disnake.ui.button(label="Summary", emoji="🏠", style=ButtonStyle.grey, custom_id="cex_summary_home")
+    @disnake.ui.button(
+        label="Summary", emoji="🏠", style=ButtonStyle.grey, custom_id="cex_summary_home"
+    )
     async def btn_balance_home(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
             return
         else:
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=False, selected_duration=None, use_for=None
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=False,
+                selected_duration=None,
+                use_for=None,
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.ori_embed,
-                view=view
+                content=None, embed=self.ori_embed, view=view
             )
             await inter.response.defer()
 
-    @disnake.ui.button(label="Top Pools", emoji="⭐", style=ButtonStyle.grey, custom_id="cex_summary_top_pool")
+    @disnake.ui.button(
+        label="Top Pools",
+        emoji="⭐",
+        style=ButtonStyle.grey,
+        custom_id="cex_summary_top_pool",
+    )
     async def btn_summary_top_pool(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
@@ -1743,33 +2259,52 @@ class ViewSummary(disnake.ui.View):
             self.embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
-            for i in self.lp_sorted_key[:self.bot.config['cexswap_summary']['top_pool']]:
+            for i in self.lp_sorted_key[
+                : self.bot.config["cexswap_summary"]["top_pool"]
+            ]:
                 self.embed.add_field(
                     name=i,
                     value="{} {}\n{} {}{}".format(
-                        self.lp_in_usd[i]['amount_ticker_1'], self.lp_in_usd[i]['ticker_1_name'],
-                        self.lp_in_usd[i]['amount_ticker_2'], self.lp_in_usd[i]['ticker_2_name'],
-                        "\n~{}{}".format(truncate(self.lp_in_usd[i]['value_usd'], 2), " USD") if self.lp_in_usd[i]['value_usd'] > 0 else ""
+                        self.lp_in_usd[i]["amount_ticker_1"],
+                        self.lp_in_usd[i]["ticker_1_name"],
+                        self.lp_in_usd[i]["amount_ticker_2"],
+                        self.lp_in_usd[i]["ticker_2_name"],
+                        "\n~{}{}".format(
+                            truncate(self.lp_in_usd[i]["value_usd"], 2), " USD"
+                        )
+                        if self.lp_in_usd[i]["value_usd"] > 0
+                        else "",
                     ),
-                    inline=True
+                    inline=True,
                 )
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=False, selected_duration=None, use_for=None
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=False,
+                selected_duration=None,
+                use_for=None,
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed,
-                view=view
+                content=None, embed=self.embed, view=view
             )
             await inter.response.defer()
 
-    @disnake.ui.button(label="Liquidity", emoji="💵", style=ButtonStyle.grey, custom_id="cex_summary_liquidity")
+    @disnake.ui.button(
+        label="Liquidity",
+        emoji="💵",
+        style=ButtonStyle.grey,
+        custom_id="cex_summary_liquidity",
+    )
     async def btn_summary_liqudity(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
@@ -1779,35 +2314,46 @@ class ViewSummary(disnake.ui.View):
             self.embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
             list_lp = []
             for k, v in self.lp_list_coins.items():
-                coin_emoji = getattr(getattr(self.bot.coin_list, k), "coin_emoji_discord")
+                coin_emoji = getattr(
+                    getattr(self.bot.coin_list, k), "coin_emoji_discord"
+                )
                 amount_str = num_format_coin(v)
                 list_lp.append("{} {} {}".format(coin_emoji, amount_str, k))
             list_lp_chunks = list(chunks(list_lp, 15))
             for i in list_lp_chunks:
                 self.embed.add_field(
-                    name="LIQUIDITY",
-                    value="{}".format("\n".join(i)),
-                    inline=False
+                    name="LIQUIDITY", value="{}".format("\n".join(i)), inline=False
                 )
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=False, selected_duration=None, use_for=None
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=False,
+                selected_duration=None,
+                use_for=None,
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed,
-                view=view
+                content=None, embed=self.embed, view=view
             )
             await inter.response.defer()
 
-    @disnake.ui.button(label="Volume", emoji="💰", style=ButtonStyle.grey, custom_id="cex_summary_volume")
+    @disnake.ui.button(
+        label="Volume",
+        emoji="💰",
+        style=ButtonStyle.grey,
+        custom_id="cex_summary_volume",
+    )
     async def btn_summary_volume(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
@@ -1817,28 +2363,37 @@ class ViewSummary(disnake.ui.View):
             self.embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
             self.embed.add_field(
-                name="Info",
-                value="Please use menu dropdown.",
-                inline=False
+                name="Info", value="Please use menu dropdown.", inline=False
             )
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=True, selected_duration=None, use_for="volume"
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=True,
+                selected_duration=None,
+                use_for="volume",
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed,
-                view=view
+                content=None, embed=self.embed, view=view
             )
             await inter.response.defer()
 
-    @disnake.ui.button(label="Collected Fee", emoji="🤑", style=ButtonStyle.grey, custom_id="cex_summary_fee")
+    @disnake.ui.button(
+        label="Collected Fee",
+        emoji="🤑",
+        style=ButtonStyle.grey,
+        custom_id="cex_summary_fee",
+    )
     async def btn_summary_fee(
-        self, button: disnake.ui.Button,
-        inter: disnake.MessageInteraction
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
     ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
@@ -1848,23 +2403,29 @@ class ViewSummary(disnake.ui.View):
             self.embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
             self.embed.add_field(
-                name="Info",
-                value="Please use menu dropdown.",
-                inline=False
+                name="Info", value="Please use menu dropdown.", inline=False
             )
             view = ViewSummary(
-                self.ctx, self.bot, self.ori_embed, self.embed, self.list_fields, self.lp_list_coins,
-                self.lp_in_usd, self.lp_sorted_key, has_dropdown=True, selected_duration=None, use_for="fee"
+                self.ctx,
+                self.bot,
+                self.ori_embed,
+                self.embed,
+                self.list_fields,
+                self.lp_list_coins,
+                self.lp_in_usd,
+                self.lp_sorted_key,
+                has_dropdown=True,
+                selected_duration=None,
+                use_for="fee",
             )
             await self.ctx.edit_original_message(
-                content=None,
-                embed=self.embed,
-                view=view
+                content=None, embed=self.embed, view=view
             )
             await inter.response.defer()
+
 
 # DropdownLP Viewer
 class DropdownLP(disnake.ui.StringSelect):
@@ -1880,12 +2441,15 @@ class DropdownLP(disnake.ui.StringSelect):
             disnake.SelectOption(
                 label=each,
                 description="Select {}".format(each),
-                emoji=getattr(getattr(self.bot.coin_list, each), "coin_emoji_discord")
-            ) for each in self.list_chunks
+                emoji=getattr(getattr(self.bot.coin_list, each), "coin_emoji_discord"),
+            )
+            for each in self.list_chunks
         ]
 
         super().__init__(
-            placeholder="Choose coin/token..." if self.active_coin is None or self.active_coin not in self.list_chunks else "You selected {}".format(self.active_coin),
+            placeholder="Choose coin/token..."
+            if self.active_coin is None or self.active_coin not in self.list_chunks
+            else "You selected {}".format(self.active_coin),
             min_values=1,
             max_values=1,
             options=options,
@@ -1896,13 +2460,17 @@ class DropdownLP(disnake.ui.StringSelect):
             await inter.response.defer()
             return
         else:
-            testing = self.bot.config['cexswap']['testing_msg']
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="Liquidity Pool of TipBot's CEXSwap",
                 description=f"{self.ctx.author.mention}, {testing}Available Liquidity Pools.",
                 timestamp=datetime.now(),
             )
-            embed.set_footer(text="Requested by: {}#{}".format(self.ctx.author.name, self.ctx.author.discriminator))
+            embed.set_footer(
+                text="Requested by: {}#{}".format(
+                    self.ctx.author.name, self.ctx.author.discriminator
+                )
+            )
             embed.set_thumbnail(url=self.bot.user.display_avatar)
             # get LP by coin
             get_pools = await cexswap_get_pools(self.values[0])
@@ -1911,54 +2479,70 @@ class DropdownLP(disnake.ui.StringSelect):
                 embed.add_field(
                     name="Selected Coin {}".format(self.values[0]),
                     value="There {} LP with {}".format(
-                        "is {}".format(len(get_pools)) if len(get_pools) == 1 else "are {}".format(len(get_pools)), self.values[0]
+                        "is {}".format(len(get_pools))
+                        if len(get_pools) == 1
+                        else "are {}".format(len(get_pools)),
+                        self.values[0],
                     ),
-                    inline = False
+                    inline=False,
                 )
                 for each_p in get_pools[0:showing_num]:
                     rate_1 = num_format_coin(
-                        each_p['amount_ticker_2']/each_p['amount_ticker_1']
+                        each_p["amount_ticker_2"] / each_p["amount_ticker_1"]
                     )
                     rate_2 = num_format_coin(
-                        each_p['amount_ticker_1']/each_p['amount_ticker_2']
+                        each_p["amount_ticker_1"] / each_p["amount_ticker_2"]
                     )
                     rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
-                        1, each_p['ticker_1_name'], rate_1, each_p['ticker_2_name'], 1, each_p['ticker_2_name'], rate_2, each_p['ticker_1_name']
+                        1,
+                        each_p["ticker_1_name"],
+                        rate_1,
+                        each_p["ticker_2_name"],
+                        1,
+                        each_p["ticker_2_name"],
+                        rate_2,
+                        each_p["ticker_1_name"],
                     )
 
                     embed.add_field(
                         name="Active LP {}{}".format(
-                            each_p['pairs'], " {} / {}".format(
-                                self.utils.get_coin_emoji(each_p['ticker_1_name']),
-                                self.utils.get_coin_emoji(each_p['ticker_2_name'])
-                            )
+                            each_p["pairs"],
+                            " {} / {}".format(
+                                self.utils.get_coin_emoji(each_p["ticker_1_name"]),
+                                self.utils.get_coin_emoji(each_p["ticker_2_name"]),
+                            ),
                         ),
                         value="{} {}\n{} {}\n{}".format(
-                            num_format_coin(each_p['amount_ticker_1']), each_p['ticker_1_name'],
-                            num_format_coin(each_p['amount_ticker_2']), each_p['ticker_2_name'],
-                            rate_coin_12
+                            num_format_coin(each_p["amount_ticker_1"]),
+                            each_p["ticker_1_name"],
+                            num_format_coin(each_p["amount_ticker_2"]),
+                            each_p["ticker_2_name"],
+                            rate_coin_12,
                         ),
-                        inline=False
+                        inline=False,
                     )
                 if len(get_pools) > showing_num:
-                    list_remaining = [i['ticker_1_name'] for i in get_pools[showing_num:]] + [i['ticker_2_name'] for i in get_pools[showing_num:]]
+                    list_remaining = [
+                        i["ticker_1_name"] for i in get_pools[showing_num:]
+                    ] + [i["ticker_2_name"] for i in get_pools[showing_num:]]
                     list_remaining = list(set(list_remaining))
                     if self.values[0] in list_remaining:
                         list_remaining.remove(self.values[0])
                     if len(list_remaining) > 0:
                         embed.add_field(
-                            name="More with {} coin/token(s)".format(len(list_remaining)),
+                            name="More with {} coin/token(s)".format(
+                                len(list_remaining)
+                            ),
                             value="{}".format(", ".join(list_remaining)),
-                            inline=False
+                            inline=False,
                         )
             # Create the view containing our dropdown
-            view = DropdownViewLP(self.ctx, self.bot, self.list_coins, active_coin=self.values[0])
-            await self.ctx.edit_original_message(
-                content=None,
-                embed=embed,
-                view=view
+            view = DropdownViewLP(
+                self.ctx, self.bot, self.list_coins, active_coin=self.values[0]
             )
+            await self.ctx.edit_original_message(content=None, embed=embed, view=view)
             await inter.response.defer()
+
 
 class DropdownViewLP(disnake.ui.View):
     def __init__(self, ctx, bot, list_coins, active_coin: str):
@@ -1971,17 +2555,34 @@ class DropdownViewLP(disnake.ui.View):
         # split to small chunks
         list_chunks = list(chunks(self.list_coins, 20))
         for i in list_chunks:
-            self.add_item(DropdownLP(self.ctx, self.bot, i, self.list_coins, self.active_coin))
+            self.add_item(
+                DropdownLP(self.ctx, self.bot, i, self.list_coins, self.active_coin)
+            )
 
     async def on_timeout(self):
         await self.ctx.edit_original_message(view=None)
+
+
 # End of DropdownLP Viewer
+
 
 # Dropdown mypool
 class DropdownMyPool(disnake.ui.StringSelect):
     def __init__(
-            self, ctx, bot, list_chunks, list_pairs, total_liq,
-            pool_share, add, remove, gain_lose, list_earnings, embed, active_pair, is_admin: bool=False
+        self,
+        ctx,
+        bot,
+        list_chunks,
+        list_pairs,
+        total_liq,
+        pool_share,
+        add,
+        remove,
+        gain_lose,
+        list_earnings,
+        embed,
+        active_pair,
+        is_admin: bool = False,
     ):
         self.ctx = ctx
         self.bot = bot
@@ -2002,11 +2603,14 @@ class DropdownMyPool(disnake.ui.StringSelect):
             disnake.SelectOption(
                 label=each,
                 description="Select {}".format(each),
-            ) for each in self.list_chunks
+            )
+            for each in self.list_chunks
         ]
 
         super().__init__(
-            placeholder="Choose pairs..." if self.active_pair is None or self.active_pair not in self.list_chunks else "You selected {}".format(self.active_pair),
+            placeholder="Choose pairs..."
+            if self.active_pair is None or self.active_pair not in self.list_chunks
+            else "You selected {}".format(self.active_pair),
             min_values=1,
             max_values=1,
             options=options,
@@ -2018,68 +2622,91 @@ class DropdownMyPool(disnake.ui.StringSelect):
             return
         else:
             embed = self.embed.copy()
-            embed.clear_fields() 
+            embed.clear_fields()
             # Add embed here
             if self.values[0] in self.total_liq:
                 embed.add_field(
                     name="Total liquidity",
                     value=self.total_liq[self.values[0]],
-                    inline=False
+                    inline=False,
                 )
             if self.values[0] in self.add:
                 embed.add_field(
-                    name="{} added (Original)".format("You" if self.is_admin is False else "User"),
+                    name="{} added (Original)".format(
+                        "You" if self.is_admin is False else "User"
+                    ),
                     value=self.add[self.values[0]],
-                    inline=False
+                    inline=False,
                 )
             if self.values[0] in self.remove:
                 embed.add_field(
-                    name="{} removed".format("You" if self.is_admin is False else "User"),
+                    name="{} removed".format(
+                        "You" if self.is_admin is False else "User"
+                    ),
                     value=self.remove[self.values[0]],
-                    inline=False
+                    inline=False,
                 )
             if self.values[0] in self.pool_share:
                 embed.add_field(
-                    name="{} current LP (Share %)".format("Your" if self.is_admin is False else "User's"),
+                    name="{} current LP (Share %)".format(
+                        "Your" if self.is_admin is False else "User's"
+                    ),
                     value=self.pool_share[self.values[0]],
-                    inline=False
+                    inline=False,
                 )
             if self.values[0] in self.gain_lose:
                 embed.add_field(
                     name="Inc./Decr.",
                     value="\n".join(self.gain_lose[self.values[0]]),
-                    inline=False
+                    inline=False,
                 )
             if self.values[0] in self.list_earnings:
                 embed.add_field(
                     name="Earning (LP Distribution Fee)",
                     value="\n".join(self.list_earnings[self.values[0]]),
-                    inline=False
+                    inline=False,
                 )
                 embed.add_field(
                     name="Note",
-                    value="Earning from LP Distribution fee isn't added to the LP. "\
-                        "It always go to you balance from each successful trade. You can check with __/recent cexswaplp <tokenn>__.",
-                    inline=False
+                    value="Earning from LP Distribution fee isn't added to the LP. "
+                    "It always go to you balance from each successful trade. You can check with __/recent cexswaplp <tokenn>__.",
+                    inline=False,
                 )
             view = DropdownViewMyPool(
-                self.ctx, self.bot, self.list_pairs, self.total_liq, self.pool_share,
-                self.add, self.remove, self.gain_lose, self.list_earnings, embed, active_pair=self.values[0],
-                is_admin=self.is_admin
+                self.ctx,
+                self.bot,
+                self.list_pairs,
+                self.total_liq,
+                self.pool_share,
+                self.add,
+                self.remove,
+                self.gain_lose,
+                self.list_earnings,
+                embed,
+                active_pair=self.values[0],
+                is_admin=self.is_admin,
             )
             # Create the view containing our dropdown
-            await self.ctx.edit_original_message(
-                content=None,
-                embed=embed,
-                view=view
-            )
+            await self.ctx.edit_original_message(content=None, embed=embed, view=view)
             await inter.response.defer()
+
 
 class DropdownViewMyPool(disnake.ui.View):
     def __init__(
-            self, ctx, bot, list_pairs, total_liq, pool_share,
-            add, remove, gain_lose, list_earnings, embed, active_pair: str, is_admin: bool=False
-        ):
+        self,
+        ctx,
+        bot,
+        list_pairs,
+        total_liq,
+        pool_share,
+        add,
+        remove,
+        gain_lose,
+        list_earnings,
+        embed,
+        active_pair: str,
+        is_admin: bool = False,
+    ):
         super().__init__(timeout=300.0)
         self.ctx = ctx
         self.bot = bot
@@ -2093,15 +2720,30 @@ class DropdownViewMyPool(disnake.ui.View):
         # split to small chunks
         list_chunks = list(chunks(self.list_pairs, 20))
         for i in list_chunks:
-            self.add_item(DropdownMyPool(
-                self.ctx, self.bot, i, self.list_pairs, total_liq, 
-                pool_share, add, remove, gain_lose, list_earnings, self.embed, self.active_pair,
-                self.is_admin
-            ))
+            self.add_item(
+                DropdownMyPool(
+                    self.ctx,
+                    self.bot,
+                    i,
+                    self.list_pairs,
+                    total_liq,
+                    pool_share,
+                    add,
+                    remove,
+                    gain_lose,
+                    list_earnings,
+                    self.embed,
+                    self.active_pair,
+                    self.is_admin,
+                )
+            )
 
     async def on_timeout(self):
         await self.ctx.edit_original_message(view=None)
+
+
 # End of dropdown mypool
+
 
 class ConfirmSell(disnake.ui.View):
     def __init__(self, bot, owner_id: int):
@@ -2111,16 +2753,22 @@ class ConfirmSell(disnake.ui.View):
         self.owner_id = owner_id
 
     @disnake.ui.button(label="Confirm", emoji="✅", style=disnake.ButtonStyle.green)
-    async def confirm(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+    async def confirm(
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
+    ):
         if inter.author.id != self.owner_id:
             await inter.response.defer()
             return
         else:
-            if str(inter.author.id) in self.bot.tipping_in_progress and \
-                int(time.time()) - self.bot.tipping_in_progress[str(inter.author.id)] < 30:
+            if (
+                str(inter.author.id) in self.bot.tipping_in_progress
+                and int(time.time())
+                - self.bot.tipping_in_progress[str(inter.author.id)]
+                < 30
+            ):
                 await inter.response.send_message(
                     content=f"{EMOJI_ERROR} {inter.author.mention}, you have another transaction in progress.",
-                    ephemeral=True
+                    ephemeral=True,
                 )
                 return
             else:
@@ -2130,7 +2778,9 @@ class ConfirmSell(disnake.ui.View):
             await inter.response.defer()
 
     @disnake.ui.button(label="Cancel", emoji="❌", style=disnake.ButtonStyle.grey)
-    async def cancel(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+    async def cancel(
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
+    ):
         if inter.author.id != self.owner_id:
             await inter.response.defer()
             return
@@ -2139,8 +2789,18 @@ class ConfirmSell(disnake.ui.View):
             self.stop()
             await inter.response.defer()
 
+
 class add_liquidity(disnake.ui.Modal):
-    def __init__(self, ctx, bot, ticker_1: str, ticker_2: str, owner_userid: str, balances_str, command_mention) -> None:
+    def __init__(
+        self,
+        ctx,
+        bot,
+        ticker_1: str,
+        ticker_2: str,
+        owner_userid: str,
+        balances_str,
+        command_mention,
+    ) -> None:
         self.ctx = ctx
         self.bot = bot
         self.ticker_1 = ticker_1.upper()
@@ -2156,45 +2816,62 @@ class add_liquidity(disnake.ui.Modal):
                 placeholder="10000",
                 custom_id="cexswap_amount_coin_id_1",
                 style=TextInputStyle.short,
-                max_length=16
+                max_length=16,
             ),
             disnake.ui.TextInput(
                 label="{} | Having {}".format(ticker_2.upper(), self.balances_str[1]),
                 placeholder="10000",
                 custom_id="cexswap_amount_coin_id_2",
                 style=TextInputStyle.short,
-                max_length=16
-            )
+                max_length=16,
+            ),
         ]
-        super().__init__(title="Add a new liqudity", custom_id="modal_add_new_liqudity", components=components)
+        super().__init__(
+            title="Add a new liqudity",
+            custom_id="modal_add_new_liqudity",
+            components=components,
+        )
 
     async def callback(self, interaction: disnake.ModalInteraction) -> None:
         try:
             # await interaction.response.defer()
-            await interaction.response.send_message(content=f"{interaction.author.mention}, checking liquidity...", ephemeral=True)
+            await interaction.response.send_message(
+                content=f"{interaction.author.mention}, checking liquidity...",
+                ephemeral=True,
+            )
 
-            liq_pair = await cexswap_get_pool_details(self.ticker_1, self.ticker_2, self.owner_userid)
-            testing = self.bot.config['cexswap']['testing_msg']
+            liq_pair = await cexswap_get_pool_details(
+                self.ticker_1, self.ticker_2, self.owner_userid
+            )
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="Add Liquidity to TipBot's CEXSwap",
                 description=f"{interaction.author.mention}, {testing}Please click on add liquidity and confirm later.",
                 timestamp=datetime.now(),
             )
-            amount_1 = interaction.text_values['cexswap_amount_coin_id_1'].strip()
+            amount_1 = interaction.text_values["cexswap_amount_coin_id_1"].strip()
             amount_1 = amount_1.replace(",", "")
             amount_1 = text_to_num(amount_1)
 
-            amount_2 = interaction.text_values['cexswap_amount_coin_id_2'].strip()
+            amount_2 = interaction.text_values["cexswap_amount_coin_id_2"].strip()
             amount_2 = amount_2.replace(",", "")
             amount_2 = text_to_num(amount_2)
 
-            min_initialized_liq_1 = getattr(getattr(self.bot.coin_list, self.ticker_1), "cexswap_min_initialized_liq")
-            min_initialized_liq_2 = getattr(getattr(self.bot.coin_list, self.ticker_2), "cexswap_min_initialized_liq")
+            min_initialized_liq_1 = getattr(
+                getattr(self.bot.coin_list, self.ticker_1),
+                "cexswap_min_initialized_liq",
+            )
+            min_initialized_liq_2 = getattr(
+                getattr(self.bot.coin_list, self.ticker_2),
+                "cexswap_min_initialized_liq",
+            )
 
             accepted = False
             text_adjust_1 = ""
             text_adjust_2 = ""
-            error_msg = f"{EMOJI_RED_NO} {interaction.author.mention}, Please check amount!"
+            error_msg = (
+                f"{EMOJI_RED_NO} {interaction.author.mention}, Please check amount!"
+            )
             if amount_1 and amount_2:
                 accepted = True
                 if amount_1 < 0 or amount_2 < 0:
@@ -2203,62 +2880,114 @@ class add_liquidity(disnake.ui.Modal):
 
                 # check user balance
                 # self.ticker_1
-                net_name = getattr(getattr(self.bot.coin_list, self.ticker_1), "net_name")
+                net_name = getattr(
+                    getattr(self.bot.coin_list, self.ticker_1), "net_name"
+                )
                 type_coin = getattr(getattr(self.bot.coin_list, self.ticker_1), "type")
-                deposit_confirm_depth = getattr(getattr(self.bot.coin_list, self.ticker_1), "deposit_confirm_depth")
-                contract = getattr(getattr(self.bot.coin_list, self.ticker_1), "contract")
-                height = await self.wallet_api.get_block_height(type_coin, self.ticker_1, net_name)
+                deposit_confirm_depth = getattr(
+                    getattr(self.bot.coin_list, self.ticker_1), "deposit_confirm_depth"
+                )
+                getattr(getattr(self.bot.coin_list, self.ticker_1), "contract")
+                height = await self.wallet_api.get_block_height(
+                    type_coin, self.ticker_1, net_name
+                )
                 get_deposit = await self.wallet_api.sql_get_userwallet(
-                    str(interaction.author.id), self.ticker_1, net_name, type_coin, SERVER_BOT, 0
+                    str(interaction.author.id),
+                    self.ticker_1,
+                    net_name,
+                    type_coin,
+                    SERVER_BOT,
+                    0,
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(interaction.author.id), self.ticker_1, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(interaction.author.id),
+                        self.ticker_1,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                wallet_address = get_deposit['balance_wallet_address']
+                wallet_address = get_deposit["balance_wallet_address"]
                 if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                    wallet_address = get_deposit['paymentid']
+                    wallet_address = get_deposit["paymentid"]
                 elif type_coin in ["XRP"]:
-                    wallet_address = get_deposit['destination_tag']
+                    wallet_address = get_deposit["destination_tag"]
 
-                height = await self.wallet_api.get_block_height(type_coin, self.ticker_1, net_name)
-                userdata_balance = await self.wallet_api.user_balance(
-                    str(interaction.author.id), self.ticker_1, wallet_address, 
-                    type_coin, height, deposit_confirm_depth, SERVER_BOT
+                height = await self.wallet_api.get_block_height(
+                    type_coin, self.ticker_1, net_name
                 )
-                actual_balance = float(userdata_balance['adjust'])
-                if actual_balance < 0 or truncate(actual_balance, 8) < truncate(amount_1, 8):
+                userdata_balance = await self.wallet_api.user_balance(
+                    str(interaction.author.id),
+                    self.ticker_1,
+                    wallet_address,
+                    type_coin,
+                    height,
+                    deposit_confirm_depth,
+                    SERVER_BOT,
+                )
+                actual_balance = float(userdata_balance["adjust"])
+                if actual_balance < 0 or truncate(actual_balance, 8) < truncate(
+                    amount_1, 8
+                ):
                     accepted = False
                     error_msg = f"{EMOJI_RED_NO}, You don't have sufficient balance for {self.ticker_1}!"
 
                 # self.ticker_2
-                net_name = getattr(getattr(self.bot.coin_list, self.ticker_2), "net_name")
+                net_name = getattr(
+                    getattr(self.bot.coin_list, self.ticker_2), "net_name"
+                )
                 type_coin = getattr(getattr(self.bot.coin_list, self.ticker_2), "type")
-                deposit_confirm_depth = getattr(getattr(self.bot.coin_list, self.ticker_2), "deposit_confirm_depth")
-                contract = getattr(getattr(self.bot.coin_list, self.ticker_2), "contract")
-                height = await self.wallet_api.get_block_height(type_coin, self.ticker_2, net_name)
+                deposit_confirm_depth = getattr(
+                    getattr(self.bot.coin_list, self.ticker_2), "deposit_confirm_depth"
+                )
+                getattr(getattr(self.bot.coin_list, self.ticker_2), "contract")
+                height = await self.wallet_api.get_block_height(
+                    type_coin, self.ticker_2, net_name
+                )
                 get_deposit = await self.wallet_api.sql_get_userwallet(
-                    str(interaction.author.id), self.ticker_2, net_name, type_coin, SERVER_BOT, 0
+                    str(interaction.author.id),
+                    self.ticker_2,
+                    net_name,
+                    type_coin,
+                    SERVER_BOT,
+                    0,
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(interaction.author.id), self.ticker_2, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(interaction.author.id),
+                        self.ticker_2,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                wallet_address = get_deposit['balance_wallet_address']
+                wallet_address = get_deposit["balance_wallet_address"]
                 if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                    wallet_address = get_deposit['paymentid']
+                    wallet_address = get_deposit["paymentid"]
                 elif type_coin in ["XRP"]:
-                    wallet_address = get_deposit['destination_tag']
+                    wallet_address = get_deposit["destination_tag"]
 
-                height = await self.wallet_api.get_block_height(type_coin, self.ticker_2, net_name)
-                userdata_balance = await self.wallet_api.user_balance(
-                    str(interaction.author.id), self.ticker_2, wallet_address, 
-                    type_coin, height, deposit_confirm_depth, SERVER_BOT
+                height = await self.wallet_api.get_block_height(
+                    type_coin, self.ticker_2, net_name
                 )
-                actual_balance = float(userdata_balance['adjust'])
-                if actual_balance < 0 or truncate(actual_balance, 8) < truncate(amount_2, 8):
+                userdata_balance = await self.wallet_api.user_balance(
+                    str(interaction.author.id),
+                    self.ticker_2,
+                    wallet_address,
+                    type_coin,
+                    height,
+                    deposit_confirm_depth,
+                    SERVER_BOT,
+                )
+                actual_balance = float(userdata_balance["adjust"])
+                if actual_balance < 0 or truncate(actual_balance, 8) < truncate(
+                    amount_2, 8
+                ):
                     accepted = False
                     error_msg = f"{EMOJI_RED_NO}, You don't have sufficient balance for {self.ticker_2}!"
                 # end of check user balance
@@ -2267,19 +2996,35 @@ class add_liquidity(disnake.ui.Modal):
                     embed.add_field(
                         name="New Pool",
                         value="This is a new pair and a start price will be based on yours.",
-                        inline=False
+                        inline=False,
                     )
 
-                    if amount_1 < min_initialized_liq_1 and interaction.author.id != self.bot.config['discord']['owner_id']:
+                    if (
+                        amount_1 < min_initialized_liq_1
+                        and interaction.author.id
+                        != self.bot.config["discord"]["owner_id"]
+                    ):
                         accepted = False
                         error_msg = f"{EMOJI_INFORMATION} New pool requires minimum amount to initialize!"
-                    elif amount_2 < min_initialized_liq_2 and interaction.author.id != self.bot.config['discord']['owner_id']:
+                    elif (
+                        amount_2 < min_initialized_liq_2
+                        and interaction.author.id
+                        != self.bot.config["discord"]["owner_id"]
+                    ):
                         accepted = False
                         error_msg = f"{EMOJI_INFORMATION} New pool requires minimum amount to initialize!"
                 else:
                     # if existing pool, check rate and set it to which one lower.
-                    new_amount_1 = amount_2 * liq_pair['pool']['amount_ticker_1']/liq_pair['pool']['amount_ticker_2']
-                    new_amount_2 = amount_1 * liq_pair['pool']['amount_ticker_2']/liq_pair['pool']['amount_ticker_1']
+                    new_amount_1 = (
+                        amount_2
+                        * liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
+                    )
+                    new_amount_2 = (
+                        amount_1
+                        * liq_pair["pool"]["amount_ticker_2"]
+                        / liq_pair["pool"]["amount_ticker_1"]
+                    )
                     if amount_1 > new_amount_1:
                         amount_1 = new_amount_1
                         text_adjust_1 = " (Adjusted based on rate)"
@@ -2287,90 +3032,135 @@ class add_liquidity(disnake.ui.Modal):
                         amount_2 = new_amount_2
                         text_adjust_2 = " (Adjusted based on rate)"
                     rate_1 = num_format_coin(
-                        liq_pair['pool']['amount_ticker_2']/liq_pair['pool']['amount_ticker_1']
+                        liq_pair["pool"]["amount_ticker_2"]
+                        / liq_pair["pool"]["amount_ticker_1"]
                     )
                     rate_2 = num_format_coin(
-                        liq_pair['pool']['amount_ticker_1']/liq_pair['pool']['amount_ticker_2']
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
                     )
                     rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
-                        1, self.ticker_1, rate_1, self.ticker_2, 1, self.ticker_2, rate_2, self.ticker_1
+                        1,
+                        self.ticker_1,
+                        rate_1,
+                        self.ticker_2,
+                        1,
+                        self.ticker_2,
+                        rate_2,
+                        self.ticker_1,
                     )
                     embed.add_field(
                         name="Total liquidity",
                         value="{} {}\n{} {}".format(
-                            num_format_coin(liq_pair['pool']['amount_ticker_1']), liq_pair['pool']['ticker_1_name'],
-                            num_format_coin(liq_pair['pool']['amount_ticker_2']), liq_pair['pool']['ticker_2_name']
+                            num_format_coin(liq_pair["pool"]["amount_ticker_1"]),
+                            liq_pair["pool"]["ticker_1_name"],
+                            num_format_coin(liq_pair["pool"]["amount_ticker_2"]),
+                            liq_pair["pool"]["ticker_2_name"],
                         ),
-                        inline=False
+                        inline=False,
                     )
                     embed.add_field(
                         name="Existing Pool | Rate",
                         value="{}".format(rate_coin_12),
-                        inline=False
+                        inline=False,
                     )
                     # If a user has already some liq
                     percent_1 = ""
                     percent_2 = ""
-                    if liq_pair['pool_share'] is not None:
+                    if liq_pair["pool_share"] is not None:
                         try:
-                            percent_1 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
-                            percent_2 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
+                            percent_1 = " - {:,.2f} {}".format(
+                                liq_pair["pool_share"]["amount_ticker_1"]
+                                / liq_pair["pool"]["amount_ticker_1"]
+                                * 100,
+                                "%",
+                            )
+                            percent_2 = " - {:,.2f} {}".format(
+                                liq_pair["pool_share"]["amount_ticker_1"]
+                                / liq_pair["pool"]["amount_ticker_1"]
+                                * 100,
+                                "%",
+                            )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                         embed.add_field(
                             name="Your existing liquidity",
                             value="{} {}{}\n{} {}{}".format(
-                                num_format_coin(liq_pair['pool_share']['amount_ticker_1']), liq_pair['pool_share']['ticker_1_name'], percent_1, 
-                                num_format_coin(liq_pair['pool_share']['amount_ticker_2']), liq_pair['pool_share']['ticker_2_name'], percent_2
+                                num_format_coin(
+                                    liq_pair["pool_share"]["amount_ticker_1"]
+                                ),
+                                liq_pair["pool_share"]["ticker_1_name"],
+                                percent_1,
+                                num_format_coin(
+                                    liq_pair["pool_share"]["amount_ticker_2"]
+                                ),
+                                liq_pair["pool_share"]["ticker_2_name"],
+                                percent_2,
                             ),
-                            inline=False
+                            inline=False,
                         )
                 if accepted is True:
                     embed.add_field(
                         name="Adding Ticker {}".format(self.ticker_1),
-                        value="Amount: {} {}{}".format(num_format_coin(amount_1), self.ticker_1, text_adjust_1),
-                        inline=False
+                        value="Amount: {} {}{}".format(
+                            num_format_coin(amount_1), self.ticker_1, text_adjust_1
+                        ),
+                        inline=False,
                     )
                     embed.add_field(
                         name="Adding Ticker {}".format(self.ticker_2),
-                        value="Amount: {} {}{}".format(num_format_coin(amount_2), self.ticker_2, text_adjust_2),
-                        inline=False
+                        value="Amount: {} {}{}".format(
+                            num_format_coin(amount_2), self.ticker_2, text_adjust_2
+                        ),
+                        inline=False,
                     )
                 else:
                     if liq_pair is not None:
-                        cexswap_min_add_liq_1 = getattr(getattr(self.bot.coin_list, self.ticker_1), "cexswap_min_add_liq")
-                        cexswap_min_add_liq_2 = getattr(getattr(self.bot.coin_list, self.ticker_2), "cexswap_min_add_liq")
+                        cexswap_min_add_liq_1 = getattr(
+                            getattr(self.bot.coin_list, self.ticker_1),
+                            "cexswap_min_add_liq",
+                        )
+                        cexswap_min_add_liq_2 = getattr(
+                            getattr(self.bot.coin_list, self.ticker_2),
+                            "cexswap_min_add_liq",
+                        )
                     else:
-                        cexswap_min_add_liq_1 = getattr(getattr(self.bot.coin_list, self.ticker_1), "cexswap_min_initialized_liq")
-                        cexswap_min_add_liq_2 = getattr(getattr(self.bot.coin_list, self.ticker_2), "cexswap_min_initialized_liq")
+                        cexswap_min_add_liq_1 = getattr(
+                            getattr(self.bot.coin_list, self.ticker_1),
+                            "cexswap_min_initialized_liq",
+                        )
+                        cexswap_min_add_liq_2 = getattr(
+                            getattr(self.bot.coin_list, self.ticker_2),
+                            "cexswap_min_initialized_liq",
+                        )
 
                     init_liq_text = "{} {}\n{} {}".format(
-                        num_format_coin(cexswap_min_add_liq_1), self.ticker_1,
-                        num_format_coin(cexswap_min_add_liq_2), self.ticker_2
+                        num_format_coin(cexswap_min_add_liq_1),
+                        self.ticker_1,
+                        num_format_coin(cexswap_min_add_liq_2),
+                        self.ticker_2,
                     )
                     embed.add_field(
-                        name="Minimum adding",
-                        value=f"{init_liq_text}",
-                        inline=False
+                        name="Minimum adding", value=f"{init_liq_text}", inline=False
                     )
-                    embed.add_field(
-                        name="Error",
-                        value=error_msg,
-                        inline=False
-                    )
+                    embed.add_field(name="Error", value=error_msg, inline=False)
             else:
-                embed.add_field(
-                    name="Error",
-                    value=error_msg,
-                    inline=False
-                )
-    
+                embed.add_field(name="Error", value=error_msg, inline=False)
+
             await interaction.message.edit(
-                content = None,
-                embed = embed,
-                view = add_liquidity_btn(self.ctx, self.bot, self.owner_userid, "{}/{}".format(
-                    self.ticker_1, self.ticker_2), self.balances_str, self.command_mention, accepted,  amount_1, amount_2
-                )
+                content=None,
+                embed=embed,
+                view=add_liquidity_btn(
+                    self.ctx,
+                    self.bot,
+                    self.owner_userid,
+                    "{}/{}".format(self.ticker_1, self.ticker_2),
+                    self.balances_str,
+                    self.command_mention,
+                    accepted,
+                    amount_1,
+                    amount_2,
+                ),
             )
 
             await interaction.delete_original_message()
@@ -2378,11 +3168,20 @@ class add_liquidity(disnake.ui.Modal):
             traceback.print_exc(file=sys.stdout)
             return
 
+
 # Defines a simple view of row buttons.
 class add_liquidity_btn(disnake.ui.View):
     def __init__(
-        self, ctx, bot, owner_id: str, pool_name: str, balances_str, command_mention: str, accepted: bool=False,
-        amount_1: float=None, amount_2: float=None,
+        self,
+        ctx,
+        bot,
+        owner_id: str,
+        pool_name: str,
+        balances_str,
+        command_mention: str,
+        accepted: bool = False,
+        amount_1: float = None,
+        amount_2: float = None,
     ):
         super().__init__(timeout=42.0)
         self.ctx = ctx
@@ -2410,8 +3209,12 @@ class add_liquidity_btn(disnake.ui.View):
         except Exception:
             pass
 
-    @disnake.ui.button(label="Add", style=disnake.ButtonStyle.red, custom_id="cexswap_addliquidity_btn")
-    async def add_click(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+    @disnake.ui.button(
+        label="Add", style=disnake.ButtonStyle.red, custom_id="cexswap_addliquidity_btn"
+    )
+    async def add_click(
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
+    ):
         # await inter.response.send_message("This is the first button.")
         # await inter.response.defer()
         if inter.author.id != self.ctx.author.id:
@@ -2419,20 +3222,40 @@ class add_liquidity_btn(disnake.ui.View):
             return
         ticker = self.pool_name.split("/")
         await inter.response.send_modal(
-                modal=add_liquidity(inter, self.bot, ticker[0], ticker[1], self.owner_id, self.balances_str, self.command_mention))
+            modal=add_liquidity(
+                inter,
+                self.bot,
+                ticker[0],
+                ticker[1],
+                self.owner_id,
+                self.balances_str,
+                self.command_mention,
+            )
+        )
 
-    @disnake.ui.button(label="Accept", style=disnake.ButtonStyle.green, custom_id="cexswap_acceptliquidity_btn")
-    async def accept_click(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+    @disnake.ui.button(
+        label="Accept",
+        style=disnake.ButtonStyle.green,
+        custom_id="cexswap_acceptliquidity_btn",
+    )
+    async def accept_click(
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
+    ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
             return
         else:
-            await inter.response.send_message(f"{inter.author.mention}, checking liquidity.")
+            await inter.response.send_message(
+                f"{inter.author.mention}, checking liquidity."
+            )
         # add liquidity
 
         # Check if tx in progress
-        if str(inter.author.id) in self.bot.tipping_in_progress and \
-            int(time.time()) - self.bot.tipping_in_progress[str(inter.author.id)] < 42:
+        if (
+            str(inter.author.id) in self.bot.tipping_in_progress
+            and int(time.time()) - self.bot.tipping_in_progress[str(inter.author.id)]
+            < 42
+        ):
             msg = f"{EMOJI_ERROR} {inter.author.mention}, you have another transaction in progress."
             await inter.edit_original_message(content=msg)
             return
@@ -2460,10 +3283,17 @@ class add_liquidity_btn(disnake.ui.View):
                 return
             ticker = self.pool_name.split("/")
             # re-check rate
-            liq_pair = await cexswap_get_pool_details(ticker[0], ticker[1], self.owner_id)
+            liq_pair = await cexswap_get_pool_details(
+                ticker[0], ticker[1], self.owner_id
+            )
             if liq_pair is not None:
-                rate_1 = liq_pair['pool']['amount_ticker_2']/liq_pair['pool']['amount_ticker_1']
-                if truncate(float(rate_1), 8) != truncate(float(self.amount_2 / self.amount_1), 8):
+                rate_1 = (
+                    liq_pair["pool"]["amount_ticker_2"]
+                    / liq_pair["pool"]["amount_ticker_1"]
+                )
+                if truncate(float(rate_1), 8) != truncate(
+                    float(self.amount_2 / self.amount_1), 8
+                ):
                     msg = f"{EMOJI_INFORMATION} {inter.author.mention}, ⚠️ Price updated! Try again!"
                     await inter.edit_original_message(content=msg)
                     self.accept_click.disabled = True
@@ -2481,20 +3311,27 @@ class add_liquidity_btn(disnake.ui.View):
             coin_name = ticker[0]
             net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
             type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-            deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
-            contract = getattr(getattr(self.bot.coin_list, coin_name), "contract")
-            height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-            min_add = getattr(getattr(self.bot.coin_list, coin_name), "cexswap_min_add_liq")
+            deposit_confirm_depth = getattr(
+                getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth"
+            )
+            getattr(getattr(self.bot.coin_list, coin_name), "contract")
+            height = await self.wallet_api.get_block_height(
+                type_coin, coin_name, net_name
+            )
+            min_add = getattr(
+                getattr(self.bot.coin_list, coin_name), "cexswap_min_add_liq"
+            )
             if self.amount_1 < min_add:
                 await inter.edit_original_message(
-                    content=f"{EMOJI_RED_NO} {inter.author.mention}, "\
-                        f"{num_format_coin(self.amount_1)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}.")
+                    content=f"{EMOJI_RED_NO} {inter.author.mention}, "
+                    f"{num_format_coin(self.amount_1)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}."
+                )
                 await self.ctx.delete_original_message()
                 await log_to_channel(
                     "cexswap",
-                    f"[REJECT LIQUIDITY]: User {inter.author.mention} wanted to add new liquidity to pool __{self.pool_name}__! "\
+                    f"[REJECT LIQUIDITY]: User {inter.author.mention} wanted to add new liquidity to pool __{self.pool_name}__! "
                     f"{num_format_coin(self.amount_1)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}.",
-                    self.bot.config['discord']['cexswap']
+                    self.bot.config["discord"]["cexswap"],
                 )
                 await self.ctx.delete_original_message()
                 try:
@@ -2508,19 +3345,30 @@ class add_liquidity_btn(disnake.ui.View):
             )
             if get_deposit is None:
                 get_deposit = await self.wallet_api.sql_register_user(
-                    str(inter.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
+                    str(inter.author.id),
+                    coin_name,
+                    net_name,
+                    type_coin,
+                    SERVER_BOT,
+                    0,
+                    0,
                 )
-            wallet_address = get_deposit['balance_wallet_address']
+            wallet_address = get_deposit["balance_wallet_address"]
             if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                wallet_address = get_deposit['paymentid']
+                wallet_address = get_deposit["paymentid"]
             elif type_coin in ["XRP"]:
-                wallet_address = get_deposit['destination_tag']
+                wallet_address = get_deposit["destination_tag"]
 
             userdata_balance = await self.wallet_api.user_balance(
-                str(inter.author.id), coin_name, wallet_address, 
-                type_coin, height, deposit_confirm_depth, SERVER_BOT
+                str(inter.author.id),
+                coin_name,
+                wallet_address,
+                type_coin,
+                height,
+                deposit_confirm_depth,
+                SERVER_BOT,
             )
-            actual_balance = float(userdata_balance['adjust'])
+            actual_balance = float(userdata_balance["adjust"])
             if actual_balance <= self.amount_1:
                 msg = f"{EMOJI_RED_NO} {inter.author.mention}, ⚠️ Not sufficient balance. Please get more {coin_name}."
                 await inter.edit_original_message(content=msg)
@@ -2535,20 +3383,27 @@ class add_liquidity_btn(disnake.ui.View):
             coin_name = ticker[1]
             net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
             type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-            deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
-            contract = getattr(getattr(self.bot.coin_list, coin_name), "contract")
-            height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-            min_add = getattr(getattr(self.bot.coin_list, coin_name), "cexswap_min_add_liq")
+            deposit_confirm_depth = getattr(
+                getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth"
+            )
+            getattr(getattr(self.bot.coin_list, coin_name), "contract")
+            height = await self.wallet_api.get_block_height(
+                type_coin, coin_name, net_name
+            )
+            min_add = getattr(
+                getattr(self.bot.coin_list, coin_name), "cexswap_min_add_liq"
+            )
             if self.amount_2 < min_add:
                 await inter.edit_original_message(
-                    content=f"{EMOJI_RED_NO} {inter.author.mention}, "\
-                        f"{num_format_coin(self.amount_2)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}.")
+                    content=f"{EMOJI_RED_NO} {inter.author.mention}, "
+                    f"{num_format_coin(self.amount_2)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}."
+                )
                 await self.ctx.delete_original_message()
                 await log_to_channel(
                     "cexswap",
-                    f"[REJECT LIQUIDITY]: User {inter.author.mention} wanted to add new liquidity to pool __{self.pool_name}__! "\
+                    f"[REJECT LIQUIDITY]: User {inter.author.mention} wanted to add new liquidity to pool __{self.pool_name}__! "
                     f"{num_format_coin(self.amount_2)} {coin_name} is below min. {num_format_coin(min_add)} {coin_name}.",
-                    self.bot.config['discord']['cexswap']
+                    self.bot.config["discord"]["cexswap"],
                 )
                 return
 
@@ -2557,19 +3412,30 @@ class add_liquidity_btn(disnake.ui.View):
             )
             if get_deposit is None:
                 get_deposit = await self.wallet_api.sql_register_user(
-                    str(inter.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
+                    str(inter.author.id),
+                    coin_name,
+                    net_name,
+                    type_coin,
+                    SERVER_BOT,
+                    0,
+                    0,
                 )
-            wallet_address = get_deposit['balance_wallet_address']
+            wallet_address = get_deposit["balance_wallet_address"]
             if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                wallet_address = get_deposit['paymentid']
+                wallet_address = get_deposit["paymentid"]
             elif type_coin in ["XRP"]:
-                wallet_address = get_deposit['destination_tag']
+                wallet_address = get_deposit["destination_tag"]
 
             userdata_balance = await self.wallet_api.user_balance(
-                str(inter.author.id), coin_name, wallet_address, 
-                type_coin, height, deposit_confirm_depth, SERVER_BOT
+                str(inter.author.id),
+                coin_name,
+                wallet_address,
+                type_coin,
+                height,
+                deposit_confirm_depth,
+                SERVER_BOT,
             )
-            actual_balance = float(userdata_balance['adjust'])
+            actual_balance = float(userdata_balance["adjust"])
             if actual_balance <= self.amount_2:
                 msg = f"{EMOJI_RED_NO} {inter.author.mention}, ⚠️ Not sufficient balance. Please get more {coin_name}."
                 await inter.edit_original_message(content=msg)
@@ -2582,8 +3448,13 @@ class add_liquidity_btn(disnake.ui.View):
             # end of re-check balance
 
             add_liq = await cexswap_insert_new(
-                self.pool_name, self.amount_1, ticker[0], self.amount_2, ticker[1],
-                str(inter.author.id), SERVER_BOT
+                self.pool_name,
+                self.amount_1,
+                ticker[0],
+                self.amount_2,
+                ticker[1],
+                str(inter.author.id),
+                SERVER_BOT,
             )
             if add_liq is True:
                 # disable buttons first
@@ -2595,10 +3466,12 @@ class add_liquidity_btn(disnake.ui.View):
                     pass
 
                 add_msg = "{} {} and {} {}".format(
-                    num_format_coin(self.amount_1), ticker[0],
-                    num_format_coin(self.amount_2), ticker[1]
+                    num_format_coin(self.amount_1),
+                    ticker[0],
+                    num_format_coin(self.amount_2),
+                    ticker[1],
                 )
-                msg = f'{EMOJI_INFORMATION} {inter.author.mention}, successfully added.```{add_msg}```'
+                msg = f"{EMOJI_INFORMATION} {inter.author.mention}, successfully added.```{add_msg}```"
                 await inter.edit_original_message(content=msg)
                 self.accept_click.disabled = True
                 self.add_click.disabled = True
@@ -2609,35 +3482,45 @@ class add_liquidity_btn(disnake.ui.View):
                     pass
                 # remove /summary cache
                 try:
-                    self.utils.del_cache_kv(self.bot.config['kv_db']['prefix_cexswap'], "summary")
+                    self.utils.del_cache_kv(
+                        self.bot.config["kv_db"]["prefix_cexswap"], "summary"
+                    )
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                 await log_to_channel(
                     "cexswap",
                     f"[ADD LIQUIDITY]: User {inter.author.mention} add new liquidity to pool __{self.pool_name}__! {add_msg}",
-                    self.bot.config['discord']['cexswap']
+                    self.bot.config["discord"]["cexswap"],
                 )
                 # Find guild where there is trade channel assign
                 get_guilds = await self.utils.get_trade_channel_list()
-                if len(get_guilds) > 0 and self.bot.config['cexswap']['disable'] == 0:
+                if len(get_guilds) > 0 and self.bot.config["cexswap"]["disable"] == 0:
                     list_guild_ids = [i.id for i in self.bot.guilds]
                     for item in get_guilds:
-                        if int(item['serverid']) not in list_guild_ids:
+                        if int(item["serverid"]) not in list_guild_ids:
                             continue
                         try:
-                            get_guild = self.bot.get_guild(int(item['serverid']))
+                            get_guild = self.bot.get_guild(int(item["serverid"]))
                             if get_guild:
-                                channel = get_guild.get_channel(int(item['trade_channel']))
+                                channel = get_guild.get_channel(
+                                    int(item["trade_channel"])
+                                )
                                 if channel is None:
                                     continue
-                                if hasattr(inter, "guild") and hasattr(inter.guild, "id") and channel.id != inter.channel.id:
+                                if (
+                                    hasattr(inter, "guild")
+                                    and hasattr(inter.guild, "id")
+                                    and channel.id != inter.channel.id
+                                ):
                                     continue
                                 elif channel is not None:
-                                    await channel.send(f"{self.command_mention}: A user added more liquidity pool __{self.pool_name}__! {add_msg}")
+                                    await channel.send(
+                                        f"{self.command_mention}: A user added more liquidity pool __{self.pool_name}__! {add_msg}"
+                                    )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
             else:
-                msg = f'{EMOJI_INFORMATION} {inter.author.mention}, internal error.'
+                msg = f"{EMOJI_INFORMATION} {inter.author.mention}, internal error."
                 await inter.edit_original_message(content=msg)
                 self.accept_click.disabled = True
                 self.add_click.disabled = True
@@ -2649,8 +3532,14 @@ class add_liquidity_btn(disnake.ui.View):
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
-    @disnake.ui.button(label="Cancel", style=disnake.ButtonStyle.gray, custom_id="cexswap_cancelliquidity_btn")
-    async def cancel_click(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+    @disnake.ui.button(
+        label="Cancel",
+        style=disnake.ButtonStyle.gray,
+        custom_id="cexswap_cancelliquidity_btn",
+    )
+    async def cancel_click(
+        self, button: disnake.ui.Button, inter: disnake.MessageInteraction
+    ):
         if inter.author.id != self.ctx.author.id:
             await inter.response.defer()
             return
@@ -2662,28 +3551,25 @@ class add_liquidity_btn(disnake.ui.View):
             await self.ctx.delete_original_message()
             await inter.response.defer()
 
-class Cexswap(commands.Cog):
 
+class Cexswap(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.wallet_api = WalletAPI(self.bot)
         self.utils = Utils(self.bot)
         self.cache_sold_notify = TTLCache(maxsize=20000, ttl=60.0)
-        self.withdraw_tx = TTLCache(maxsize=2048, ttl=300.0) # key = user_id + coin => time
+        self.withdraw_tx = TTLCache(
+            maxsize=2048, ttl=300.0
+        )  # key = user_id + coin => time
 
         self.botLogChan = None
         self.enable_logchan = True
         # if user try to sell or buy for this, Bot give info to wrap
-        self.wrapped_coin = {
-            "PWRKZ": "WRKZ",
-            "BWRKZ": "WRKZ",
-            "XWRKZ": "WRKZ"
-        }
+        self.wrapped_coin = {"PWRKZ": "WRKZ", "BWRKZ": "WRKZ", "XWRKZ": "WRKZ"}
 
     async def bot_log(self):
         if self.botLogChan is None:
             self.botLogChan = self.bot.get_channel(self.bot.LOG_CHAN)
-
 
     # Cexswap
     async def placeholder_balances(self, user_id: str, user_server: str):
@@ -2701,7 +3587,7 @@ class Cexswap(commands.Cog):
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
-        
+
     async def cexswap_get_list_enable_pairs(self):
         list_pairs = []
         try:
@@ -2711,10 +3597,12 @@ class Cexswap(commands.Cog):
                     sql = """ SELECT * 
                     FROM `coin_settings` 
                     WHERE `enable`=1 AND `cexswap_enable`=1 """
-                    await cur.execute(sql,)
+                    await cur.execute(
+                        sql,
+                    )
                     result = await cur.fetchall()
                     if result:
-                        list_coins = sorted([i['coin_name'] for i in result])
+                        list_coins = sorted([i["coin_name"] for i in result])
                         self.bot.cexswap_coins = list_coins
                         for pair in itertools.combinations(list_coins, 2):
                             list_pairs.append("{}/{}".format(pair[0], pair[1]))
@@ -2728,32 +3616,46 @@ class Cexswap(commands.Cog):
     # End of Cexswap
 
     @commands.slash_command(
-        name="cexswap",
-        description="Various crypto cexswap commands."
+        name="cexswap", description="Various crypto cexswap commands."
     )
     async def cexswap(self, ctx):
         await self.bot_log()
         try:
-            if self.bot.config['cexswap']['is_private'] == 1 and ctx.author.id not in self.bot.config['cexswap']['private_user_list']:
-                msg = f"{EMOJI_RED_NO} {ctx.author.mention}, this command is not public yet. "\
+            if (
+                self.bot.config["cexswap"]["is_private"] == 1
+                and ctx.author.id not in self.bot.config["cexswap"]["private_user_list"]
+            ):
+                msg = (
+                    f"{EMOJI_RED_NO} {ctx.author.mention}, this command is not public yet. "
                     "Please try again later!"
+                )
                 await ctx.response.send_message(msg)
                 return
             if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
-                serverinfo = self.bot.other_data['guild_list'].get(str(ctx.guild.id))
-                if serverinfo and 'enable_trade' in serverinfo and serverinfo['enable_trade'] == "NO":
-                    msg = f"{EMOJI_RED_NO} {ctx.author.mention}, cexswap/market function is not ENABLE yet in this guild. "\
+                serverinfo = self.bot.other_data["guild_list"].get(str(ctx.guild.id))
+                if (
+                    serverinfo
+                    and "enable_trade" in serverinfo
+                    and serverinfo["enable_trade"] == "NO"
+                ):
+                    msg = (
+                        f"{EMOJI_RED_NO} {ctx.author.mention}, cexswap/market function is not ENABLE yet in this guild. "
                         "Please request Guild owner to enable by `/SETTING TRADE`"
+                    )
                     await ctx.response.send_message(msg)
                     if self.enable_logchan:
                         await self.botLogChan.send(
-                            f"{ctx.author.name} / {ctx.author.id} tried **cexswap/market command** in "\
+                            f"{ctx.author.name} / {ctx.author.id} tried **cexswap/market command** in "
                             f"{ctx.guild.name} / {ctx.guild.id} which is not ENABLE."
                         )
                     return
-                elif serverinfo and serverinfo['trade_channel'] is not None and \
-                    int(serverinfo['trade_channel']) != ctx.channel.id and ctx.author.id != self.bot.config['discord']['owner']:
-                    channel = ctx.guild.get_channel(int(serverinfo['trade_channel']))
+                elif (
+                    serverinfo
+                    and serverinfo["trade_channel"] is not None
+                    and int(serverinfo["trade_channel"]) != ctx.channel.id
+                    and ctx.author.id != self.bot.config["discord"]["owner"]
+                ):
+                    channel = ctx.guild.get_channel(int(serverinfo["trade_channel"]))
                     if channel is not None:
                         msg = f"{EMOJI_RED_NO} {ctx.author.mention}, cexswap/trade channel was assigned to {channel.mention}."
                         await ctx.response.send_message(msg)
@@ -2762,7 +3664,10 @@ class Cexswap(commands.Cog):
                 msg = f"{EMOJI_RED_NO} {ctx.author.mention}, your account is locked from using the Bot. Please contact bot dev by /about link."
                 await ctx.response.send_message(msg)
                 return
-            if self.bot.config['cexswap']['disable'] == 1 and ctx.author.id != self.bot.config['discord']['owner_id']:
+            if (
+                self.bot.config["cexswap"]["disable"] == 1
+                and ctx.author.id != self.bot.config["discord"]["owner_id"]
+            ):
                 msg = f"{EMOJI_RED_NO} {ctx.author.mention}, CEXSwap is currently on maintenance. Be back soon!"
                 await ctx.response.send_message(msg)
                 return
@@ -2771,26 +3676,30 @@ class Cexswap(commands.Cog):
                 return
 
     @cexswap.sub_command(
-        name="intro",
-        usage="cexswap intro",
-        description="Introduction of /cexswap."
+        name="intro", usage="cexswap intro", description="Introduction of /cexswap."
     )
-    async def cexswap_intro(
-        self,
-        ctx
-    ):
+    async def cexswap_intro(self, ctx):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap intro", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap intro",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
         try:
-            testing = self.bot.config['cexswap']['testing_msg']
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="TipBot's CEXSwap",
                 description=f"{ctx.author.mention}, {testing}You can join our supported guild for #help.",
@@ -2798,46 +3707,50 @@ class Cexswap(commands.Cog):
             )
             embed.add_field(
                 name="BRIEF",
-                value=self.bot.config['cexswap']['brief_msg'],
-                inline=False
-            )        
-            embed.add_field(
-                name="FEE?",
-                value=self.bot.config['cexswap']['fee_msg'],
-                inline=False
+                value=self.bot.config["cexswap"]["brief_msg"],
+                inline=False,
             )
             embed.add_field(
-                name="NOTE",
-                value=self.bot.config['cexswap']['note_msg'],
-                inline=False
+                name="FEE?", value=self.bot.config["cexswap"]["fee_msg"], inline=False
             )
-            embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+            embed.add_field(
+                name="NOTE", value=self.bot.config["cexswap"]["note_msg"], inline=False
+            )
+            embed.set_footer(
+                text="Requested by: {}#{}".format(
+                    ctx.author.name, ctx.author.discriminator
+                )
+            )
             embed.set_thumbnail(url=self.bot.user.display_avatar)
             await ctx.edit_original_message(content=None, embed=embed)
         except Exception:
             traceback.print_exc(file=sys.stdout)
-    
+
     @cexswap.sub_command(
-        name="summary",
-        usage="cexswap summary",
-        description="Summary of /cexswap."
+        name="summary", usage="cexswap summary", description="Summary of /cexswap."
     )
-    async def cexswap_summary(
-        self,
-        ctx
-    ):
+    async def cexswap_summary(self, ctx):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap summary", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap summary",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
         try:
-            testing = self.bot.config['cexswap']['testing_msg']
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="TipBot's CEXSwap",
                 description=f"{ctx.author.mention}, {testing}You can join our supported guild for #help.",
@@ -2847,84 +3760,130 @@ class Cexswap(commands.Cog):
             embed.add_field(
                 name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
                 value="{}".format(", ".join(self.bot.cexswap_coins)),
-                inline=False
+                inline=False,
             )
-            embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+            embed.set_footer(
+                text="Requested by: {}#{}".format(
+                    ctx.author.name, ctx.author.discriminator
+                )
+            )
             embed.set_thumbnail(url=self.bot.user.display_avatar)
             # LP available
             get_pools = await cexswap_get_pools()
             if len(get_pools) > 0:
-                list_pairs = [i['pairs'] for i in get_pools]
+                list_pairs = [i["pairs"] for i in get_pools]
                 some_active_lp = list_pairs.copy()
                 random.shuffle(some_active_lp)
-                list_pair_msg = "{}".format(
-                    ", ".join(some_active_lp)
-                ) if len(some_active_lp) < self.bot.config['cexswap_summary']['show_max_pair'] else \
-                    "{} and {} more..".format(
-                        ", ".join(some_active_lp[0:self.bot.config['cexswap_summary']['show_max_pair']]),
-                        len(some_active_lp) - self.bot.config['cexswap_summary']['show_max_pair']
+                list_pair_msg = (
+                    "{}".format(", ".join(some_active_lp))
+                    if len(some_active_lp)
+                    < self.bot.config["cexswap_summary"]["show_max_pair"]
+                    else "{} and {} more..".format(
+                        ", ".join(
+                            some_active_lp[
+                                0 : self.bot.config["cexswap_summary"]["show_max_pair"]
+                            ]
+                        ),
+                        len(some_active_lp)
+                        - self.bot.config["cexswap_summary"]["show_max_pair"],
                     )
+                )
                 embed.add_field(
                     name="Active LP: {}".format(len(list_pairs)),
                     value=list_pair_msg,
-                    inline=False
+                    inline=False,
                 )
 
             # List distributed fee
             earning = {}
-            earning['1d'] = await get_cexswap_get_coin_sell_logs(coin_name=None, user_id=None, user_server=None, from_time=int(time.time())-1*24*3600)
-            earning['7d'] = await get_cexswap_get_coin_sell_logs(coin_name=None, user_id=None, user_server=None, from_time=int(time.time())-7*24*3600)
-            earning['30d'] = await get_cexswap_get_coin_sell_logs(coin_name=None, user_id=None, user_server=None, from_time=int(time.time())-30*24*3600)
+            earning["1d"] = await get_cexswap_get_coin_sell_logs(
+                coin_name=None,
+                user_id=None,
+                user_server=None,
+                from_time=int(time.time()) - 1 * 24 * 3600,
+            )
+            earning["7d"] = await get_cexswap_get_coin_sell_logs(
+                coin_name=None,
+                user_id=None,
+                user_server=None,
+                from_time=int(time.time()) - 7 * 24 * 3600,
+            )
+            earning["30d"] = await get_cexswap_get_coin_sell_logs(
+                coin_name=None,
+                user_id=None,
+                user_server=None,
+                from_time=int(time.time()) - 30 * 24 * 3600,
+            )
             list_fields = {}
             get_pools = await cexswap_get_all_lp_pools()
             lp_list_coins = {}
             lp_in_usd = {}
 
             for each_lp in get_pools:
-                if each_lp['pairs'] not in lp_in_usd:
+                if each_lp["pairs"] not in lp_in_usd:
                     sub_1 = 0.0
                     sub_2 = 0.0
                     single_pair_amount = 0.0
                     pair_amount = 0.0
-                    price_with = getattr(getattr(self.bot.coin_list, each_lp['ticker_1_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, each_lp["ticker_1_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(each_lp['ticker_1_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_1 = float(Decimal(each_lp['amount_ticker_1']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            each_lp["ticker_1_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_1 = float(
+                                Decimal(each_lp["amount_ticker_1"]) * Decimal(per_unit)
+                            )
 
-                    price_with = getattr(getattr(self.bot.coin_list, each_lp['ticker_2_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, each_lp["ticker_2_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(each_lp['ticker_2_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_2 = float(Decimal(each_lp['amount_ticker_2']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            each_lp["ticker_2_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_2 = float(
+                                Decimal(each_lp["amount_ticker_2"]) * Decimal(per_unit)
+                            )
                     # check max price
                     if sub_1 >= 0.0 and sub_2 >= 0.0:
                         single_pair_amount = max(sub_1, sub_2)
                     if single_pair_amount > 0:
                         pair_amount = 2 * single_pair_amount
-                    lp_in_usd[each_lp['pairs']] = {
-                        'ticker_1_name': each_lp['ticker_1_name'],
-                        'amount_ticker_1': num_format_coin(each_lp['amount_ticker_1']),
-                        'ticker_2_name': each_lp['ticker_2_name'],
-                        'amount_ticker_2': num_format_coin(each_lp['amount_ticker_2']),
-                        'value_usd': pair_amount
+                    lp_in_usd[each_lp["pairs"]] = {
+                        "ticker_1_name": each_lp["ticker_1_name"],
+                        "amount_ticker_1": num_format_coin(each_lp["amount_ticker_1"]),
+                        "ticker_2_name": each_lp["ticker_2_name"],
+                        "amount_ticker_2": num_format_coin(each_lp["amount_ticker_2"]),
+                        "value_usd": pair_amount,
                     }
 
-                if each_lp['ticker_1_name'] not in lp_list_coins:
-                    lp_list_coins[each_lp['ticker_1_name']] = each_lp['amount_ticker_1']
+                if each_lp["ticker_1_name"] not in lp_list_coins:
+                    lp_list_coins[each_lp["ticker_1_name"]] = each_lp["amount_ticker_1"]
                 else:
-                    lp_list_coins[each_lp['ticker_1_name']] += each_lp['amount_ticker_1']
-                if each_lp['ticker_2_name'] not in lp_list_coins:
-                    lp_list_coins[each_lp['ticker_2_name']] = each_lp['amount_ticker_2']
+                    lp_list_coins[each_lp["ticker_1_name"]] += each_lp[
+                        "amount_ticker_1"
+                    ]
+                if each_lp["ticker_2_name"] not in lp_list_coins:
+                    lp_list_coins[each_lp["ticker_2_name"]] = each_lp["amount_ticker_2"]
                 else:
-                    lp_list_coins[each_lp['ticker_2_name']] += each_lp['amount_ticker_2']
+                    lp_list_coins[each_lp["ticker_2_name"]] += each_lp[
+                        "amount_ticker_2"
+                    ]
 
             # sort LP
             # https://stackoverflow.com/questions/16412563/python-sorting-dictionary-of-dictionaries
             lp_sorted_key = lp_in_usd.copy()
-            lp_sorted_key = sorted(lp_sorted_key, key=lambda k: lp_sorted_key[k]['value_usd'], reverse=True)
+            lp_sorted_key = sorted(
+                lp_sorted_key, key=lambda k: lp_sorted_key[k]["value_usd"], reverse=True
+            )
 
             key_lp = list(sorted(lp_list_coins.keys()))
             tmp_lp = lp_list_coins.copy()
@@ -2953,166 +3912,211 @@ class Cexswap(commands.Cog):
                     list_earning_dict = {}
                     list_volume_dict = {}
                     for each in v:
-                        if not hasattr(self.bot.coin_list, each['got_ticker']):
+                        if not hasattr(self.bot.coin_list, each["got_ticker"]):
                             continue
-                        if not hasattr(self.bot.coin_list, each['sold_ticker']):
+                        if not hasattr(self.bot.coin_list, each["sold_ticker"]):
                             continue
 
-                        if each['got'] not in traded_coins_got[k]:
-                            traded_coins_got[k][each['got_ticker']] = 0
-                        if each['sold_ticker'] not in traded_coins_sell[k]:
-                            traded_coins_sell[k][each['sold_ticker']] = 0
+                        if each["got"] not in traded_coins_got[k]:
+                            traded_coins_got[k][each["got_ticker"]] = 0
+                        if each["sold_ticker"] not in traded_coins_sell[k]:
+                            traded_coins_sell[k][each["sold_ticker"]] = 0
                         list_sold[k].append(
                             {
-                                "pairs": each['pairs'],
-                                "amount": each['got'],
-                                "coin_name": each['got_ticker'],
-                                "other_amount": each['sold'],
-                                "other_token": each['sold_ticker']
+                                "pairs": each["pairs"],
+                                "amount": each["got"],
+                                "coin_name": each["got_ticker"],
+                                "other_amount": each["sold"],
+                                "other_token": each["sold_ticker"],
                             }
                         )
-                        traded_coins_got[k][each['got_ticker']] += each['total_swap']
-                        traded_coins_sell[k][each['sold_ticker']] += each['total_swap']
-                        if each['got_ticker'] not in list_earning_dict.keys():
-                            list_earning_dict[each['got_ticker']] = each['fee_liquidators']
+                        traded_coins_got[k][each["got_ticker"]] += each["total_swap"]
+                        traded_coins_sell[k][each["sold_ticker"]] += each["total_swap"]
+                        if each["got_ticker"] not in list_earning_dict.keys():
+                            list_earning_dict[each["got_ticker"]] = each[
+                                "fee_liquidators"
+                            ]
                         else:
-                            list_earning_dict[each['got_ticker']] += each['fee_liquidators']
-                        if each['got_ticker'] not in list_volume_dict.keys():
-                            list_volume_dict[each['got_ticker']] = each['got']
+                            list_earning_dict[each["got_ticker"]] += each[
+                                "fee_liquidators"
+                            ]
+                        if each["got_ticker"] not in list_volume_dict.keys():
+                            list_volume_dict[each["got_ticker"]] = each["got"]
                         else:
-                            list_volume_dict[each['got_ticker']] += each['got']
-                        if each['got_ticker'] not in list_coin_set:
-                            list_coin_set.append(each['got_ticker'])
+                            list_volume_dict[each["got_ticker"]] += each["got"]
+                        if each["got_ticker"] not in list_coin_set:
+                            list_coin_set.append(each["got_ticker"])
                         # add volume
                         try:
-                            trade_volumes[k]['numb_trades'] += each['total_swap']
+                            trade_volumes[k]["numb_trades"] += each["total_swap"]
                             amount_sold_usd = 0.0
                             amount_got_usd = 0.0
-                            price_with = getattr(getattr(self.bot.coin_list, each['got_ticker']), "price_with")
+                            price_with = getattr(
+                                getattr(self.bot.coin_list, each["got_ticker"]),
+                                "price_with",
+                            )
                             if price_with:
-                                per_unit = await self.utils.get_coin_price(each['got_ticker'], price_with)
-                                if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                    amount_got_usd = float(Decimal(per_unit['price']) * each['got'])
-                            price_with = getattr(getattr(self.bot.coin_list, each['sold_ticker']), "price_with")
+                                per_unit = await self.utils.get_coin_price(
+                                    each["got_ticker"], price_with
+                                )
+                                if (
+                                    per_unit
+                                    and per_unit["price"]
+                                    and per_unit["price"] > 0
+                                ):
+                                    amount_got_usd = float(
+                                        Decimal(per_unit["price"]) * each["got"]
+                                    )
+                            price_with = getattr(
+                                getattr(self.bot.coin_list, each["sold_ticker"]),
+                                "price_with",
+                            )
                             if price_with:
-                                per_unit = await self.utils.get_coin_price(each['sold_ticker'], price_with)
-                                if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                    amount_sold_usd = float(Decimal(per_unit['price']) * each['sold'])
+                                per_unit = await self.utils.get_coin_price(
+                                    each["sold_ticker"], price_with
+                                )
+                                if (
+                                    per_unit
+                                    and per_unit["price"]
+                                    and per_unit["price"] > 0
+                                ):
+                                    amount_sold_usd = float(
+                                        Decimal(per_unit["price"]) * each["sold"]
+                                    )
                             if max(amount_got_usd, amount_sold_usd) > 0:
-                                trade_volumes[k]["volume_usd"] += max(amount_got_usd, amount_sold_usd)
+                                trade_volumes[k]["volume_usd"] += max(
+                                    amount_got_usd, amount_sold_usd
+                                )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
 
                     # Sort by alpha
                     if len(list_sold[k]) > 0:
-                        list_sold[k] = sorted(list_sold[k], key=lambda d: d['pairs'], reverse=False)
+                        list_sold[k] = sorted(
+                            list_sold[k], key=lambda d: d["pairs"], reverse=False
+                        )
                         embed_t = embed.copy()
                         embed_t.clear_fields()
                         for i in list_sold[k]:
                             embed_t.add_field(
-                                name=i['pairs'] + " - " + k,
+                                name=i["pairs"] + " - " + k,
                                 value="{} {}\n{} {}".format(
-                                    num_format_coin(i['amount']), i['coin_name'],
-                                    num_format_coin(i['other_amount']), i['other_token']
+                                    num_format_coin(i["amount"]),
+                                    i["coin_name"],
+                                    num_format_coin(i["other_amount"]),
+                                    i["other_token"],
                                 ),
-                                inline=True
+                                inline=True,
                             )
                         list_embeds[k] = embed_t
                     list_coin_set = list(sorted(list_coin_set))
                     for i in list_coin_set:
                         if i not in list_volume_dict.keys():
                             continue
-                        coin_emoji = getattr(getattr(self.bot.coin_list, i), "coin_emoji_discord")
+                        coin_emoji = getattr(
+                            getattr(self.bot.coin_list, i), "coin_emoji_discord"
+                        )
                         coin_emoji = coin_emoji + " " if coin_emoji else ""
-                        earning_amount = num_format_coin(
-                            list_earning_dict[i]
+                        earning_amount = num_format_coin(list_earning_dict[i])
+                        traded_amount = num_format_coin(list_volume_dict[i])
+                        earning_list.append(
+                            "{}{} {}".format(coin_emoji, earning_amount, i)
                         )
-                        traded_amount = num_format_coin(
-                            list_volume_dict[i]
+                        volume_list.append(
+                            "{}{} {}".format(coin_emoji, traded_amount, i)
                         )
-                        earning_list.append("{}{} {}".format(coin_emoji, earning_amount, i))
-                        volume_list.append("{}{} {}".format(coin_emoji, traded_amount, i))
 
                     if len(v) > 0:
                         list_fields[k] = {}
-                        list_fields[k]['fee_title'] = "Fee to liquidator(s) [{}]".format(k.upper())
-                        list_fields[k]['fee_value'] = earning_list
-                        list_fields[k]['volume_title'] = "Total volume [{}]".format(k.upper())
-                        list_fields[k]['volume_value'] = volume_list
-            #print(list_sold, list_embeds)
+                        list_fields[k][
+                            "fee_title"
+                        ] = "Fee to liquidator(s) [{}]".format(k.upper())
+                        list_fields[k]["fee_value"] = earning_list
+                        list_fields[k]["volume_title"] = "Total volume [{}]".format(
+                            k.upper()
+                        )
+                        list_fields[k]["volume_value"] = volume_list
+            # print(list_sold, list_embeds)
             if len(trade_volumes) > 0:
                 msg_trade = []
                 for k, v in trade_volumes.items():
-                    msg_trade.append("{}: {:,.0f} trade(s) ~ {:,.2f} USD".format(
-                        k, v['numb_trades'], v['volume_usd']
-                    ))
+                    msg_trade.append(
+                        "{}: {:,.0f} trade(s) ~ {:,.2f} USD".format(
+                            k, v["numb_trades"], v["volume_usd"]
+                        )
+                    )
                 embed.add_field(
-                    name="Volumes",
-                    value="\n".join(msg_trade),
-                    inline=False
+                    name="Volumes", value="\n".join(msg_trade), inline=False
                 )
                 # traded_coins_got, traded_coins_sell
                 buys = {}
                 sells = {}
                 for k, v in traded_coins_got.items():
-                    buy = dict(sorted(v.items(), key=lambda x:x[1], reverse=True))
-                    buys[k] = ["⚆ {}: {:,.0f} trade(s)".format(i, j) for i, j in buy.items()]
+                    buy = dict(sorted(v.items(), key=lambda x: x[1], reverse=True))
+                    buys[k] = [
+                        "⚆ {}: {:,.0f} trade(s)".format(i, j) for i, j in buy.items()
+                    ]
                 for k, v in traded_coins_sell.items():
-                    sell = dict(sorted(v.items(), key=lambda x:x[1], reverse=True))
-                    sells[k] = ["⚆ {}: {:,.0f} trade(s)".format(i, j) for i, j in sell.items()]
+                    sell = dict(sorted(v.items(), key=lambda x: x[1], reverse=True))
+                    sells[k] = [
+                        "⚆ {}: {:,.0f} trade(s)".format(i, j) for i, j in sell.items()
+                    ]
             sell_sum_list = []
             buy_sum_list = []
             for k, v in sells.items():
-                sell_sum_list.append("-**{}**-)\n{}".format(
-                    k, "\n".join(v[:5])
-                ))
+                sell_sum_list.append("-**{}**-)\n{}".format(k, "\n".join(v[:5])))
             for k, v in buys.items():
-                buy_sum_list.append("-**{}**-)\n{}".format(
-                    k, "\n".join(v[:5])
-                ))
+                buy_sum_list.append("-**{}**-)\n{}".format(k, "\n".join(v[:5])))
             embed.add_field(
-                name="Top sell(s)",
-                value="\n".join(sell_sum_list),
-                inline=True
+                name="Top sell(s)", value="\n".join(sell_sum_list), inline=True
             )
             embed.add_field(
-                name="Top buy(s)",
-                value="\n".join(buy_sum_list),
-                inline=True
+                name="Top buy(s)", value="\n".join(buy_sum_list), inline=True
             )
             embed.add_field(
                 name="Menu",
                 value="Please use menu or dropdown. Bot will remove menu after timeout.",
-                inline=False
+                inline=False,
             )
             # Create the view containing our dropdown
             view = ViewSummary(
-                ctx, self.bot, embed.copy(), embed, list_fields, lp_list_coins,
-                lp_in_usd, lp_sorted_key, has_dropdown=False, selected_duration=None, use_for=None
+                ctx,
+                self.bot,
+                embed.copy(),
+                embed,
+                list_fields,
+                lp_list_coins,
+                lp_in_usd,
+                lp_sorted_key,
+                has_dropdown=False,
+                selected_duration=None,
+                use_for=None,
             )
-            await ctx.edit_original_message(
-                content=None,
-                embed=embed,
-                view=view
-            )
+            await ctx.edit_original_message(content=None, embed=embed, view=view)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap.sub_command(
         name="listpools",
         usage="cexswap listpools",
-        description="List opened pools in cexswap."
+        description="List opened pools in cexswap.",
     )
-    async def cexswap_listpools(
-        self,
-        ctx
-    ):
+    async def cexswap_listpools(self, ctx):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap listpools", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap listpools",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -3122,76 +4126,90 @@ class Cexswap(commands.Cog):
                 msg = f"{ctx.author.mention}, thank you for checking. There is no pools yet. Try again later."
                 await ctx.edit_original_message(content=msg)
             else:
-                testing = self.bot.config['cexswap']['testing_msg']
+                testing = self.bot.config["cexswap"]["testing_msg"]
                 embed = disnake.Embed(
                     title="Liquidity Pool of TipBot's CEXSwap",
                     description=f"{ctx.author.mention}, {testing}Available Liquidity Pools.",
                     timestamp=datetime.now(),
                 )
-                embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+                embed.set_footer(
+                    text="Requested by: {}#{}".format(
+                        ctx.author.name, ctx.author.discriminator
+                    )
+                )
                 embed.set_thumbnail(url=self.bot.user.display_avatar)
                 for each_p in get_pools[0:5]:
                     rate_1 = num_format_coin(
-                        each_p['amount_ticker_2']/each_p['amount_ticker_1']
+                        each_p["amount_ticker_2"] / each_p["amount_ticker_1"]
                     )
                     rate_2 = num_format_coin(
-                        each_p['amount_ticker_1']/each_p['amount_ticker_2']
+                        each_p["amount_ticker_1"] / each_p["amount_ticker_2"]
                     )
                     rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
-                        1, each_p['ticker_1_name'], rate_1, each_p['ticker_2_name'], 1, each_p['ticker_2_name'], rate_2, each_p['ticker_1_name']
+                        1,
+                        each_p["ticker_1_name"],
+                        rate_1,
+                        each_p["ticker_2_name"],
+                        1,
+                        each_p["ticker_2_name"],
+                        rate_2,
+                        each_p["ticker_1_name"],
                     )
-                    
+
                     embed.add_field(
-                        name="Active LP {}{}".format(each_p['pairs'], " {} / {}".format(
-                                self.utils.get_coin_emoji(each_p['ticker_1_name']),
-                                self.utils.get_coin_emoji(each_p['ticker_2_name'])
-                            )
+                        name="Active LP {}{}".format(
+                            each_p["pairs"],
+                            " {} / {}".format(
+                                self.utils.get_coin_emoji(each_p["ticker_1_name"]),
+                                self.utils.get_coin_emoji(each_p["ticker_2_name"]),
+                            ),
                         ),
                         value="{} {}\n{} {}\n{}".format(
-                            num_format_coin(each_p['amount_ticker_1']), each_p['ticker_1_name'],
-                            num_format_coin(each_p['amount_ticker_2']), each_p['ticker_2_name'],
-                            rate_coin_12
+                            num_format_coin(each_p["amount_ticker_1"]),
+                            each_p["ticker_1_name"],
+                            num_format_coin(each_p["amount_ticker_2"]),
+                            each_p["ticker_2_name"],
+                            rate_coin_12,
                         ),
-                        inline=False
+                        inline=False,
                     )
 
                 # filter uniq tokens
-                list_coins = list(sorted(set([i['ticker_1_name'] for i in get_pools] + [i['ticker_2_name'] for i in get_pools])))
+                list_coins = list(
+                    sorted(
+                        set(
+                            [i["ticker_1_name"] for i in get_pools]
+                            + [i["ticker_2_name"] for i in get_pools]
+                        )
+                    )
+                )
 
                 # Create the view containing our dropdown
                 # list_coins can be more than 25 - limit of Discord
                 view = DropdownViewLP(ctx, self.bot, list_coins, active_coin=None)
-                await ctx.edit_original_message(
-                    content=None,
-                    embed=embed,
-                    view=view
-                )
+                await ctx.edit_original_message(content=None, embed=embed, view=view)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap.sub_command(
         name="sell",
         options=[
-            Option('amount', 'amount', OptionType.string, required=True),
-            Option('sell_token', 'sell_token', OptionType.string, required=True),
-            Option('for_token', 'for_token', OptionType.string, required=True),
+            Option("amount", "amount", OptionType.string, required=True),
+            Option("sell_token", "sell_token", OptionType.string, required=True),
+            Option("for_token", "for_token", OptionType.string, required=True),
         ],
         usage="cexswap sell <amount> <token> <for token>",
-        description="Sell an amount of coins for another."
+        description="Sell an amount of coins for another.",
     )
-    async def cexswap_sell(
-        self,
-        ctx,
-        amount: str,
-        sell_token: str,
-        for_token: str
-    ):
+    async def cexswap_sell(self, ctx, amount: str, sell_token: str, for_token: str):
         cmd_name = ctx.application_command.qualified_name
         command_mention = f"__/{cmd_name}__"
         try:
-            if self.bot.config['discord']['enable_command_mention'] == 1:
+            if self.bot.config["discord"]["enable_command_mention"] == 1:
                 cmd = self.bot.get_global_command_named(cmd_name.split()[0])
-                command_mention = f"</{ctx.application_command.qualified_name}:{cmd.id}>"
+                command_mention = (
+                    f"</{ctx.application_command.qualified_name}:{cmd.id}>"
+                )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -3199,7 +4217,10 @@ class Cexswap(commands.Cog):
         await ctx.response.send_message(msg)
         sell_amount_old = amount
 
-        if self.bot.config['cexswap']['enable_sell'] != 1 and ctx.author.id != self.bot.config['discord']['owner_id']:
+        if (
+            self.bot.config["cexswap"]["enable_sell"] != 1
+            and ctx.author.id != self.bot.config["discord"]["owner_id"]
+        ):
             msg = f"{EMOJI_RED_NO} {ctx.author.mention}, {command_mention} is temporarily offline! Check again soon."
             await ctx.edit_original_message(content=msg)
             return
@@ -3212,14 +4233,25 @@ class Cexswap(commands.Cog):
             await ctx.edit_original_message(content=msg)
             return
         if for_token in self.wrapped_coin.keys():
-            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, you should trade with __{self.wrapped_coin[for_token]}__ "\
+            msg = (
+                f"{EMOJI_INFORMATION} {ctx.author.mention}, you should trade with __{self.wrapped_coin[for_token]}__ "
                 f"and do __/wrap__ from __{self.wrapped_coin[for_token]}__ to __{for_token}__."
+            )
             await ctx.edit_original_message(content=msg)
             return
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap sell", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap sell",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -3249,30 +4281,58 @@ class Cexswap(commands.Cog):
             find_other_lp = await cexswap_get_pools(sell_token)
             limit_show = 30
             if len(find_other_lp) > 0:
-                items = list(sorted([i['pairs'] for i in find_other_lp]))
-                additional_msg = "\n__**More {} LP**__:\n   {}.".format(sell_token, ", ".join(items))
+                items = list(sorted([i["pairs"] for i in find_other_lp]))
+                additional_msg = "\n__**More {} LP**__:\n   {}.".format(
+                    sell_token, ", ".join(items)
+                )
                 if len(items) > limit_show:
-                    additional_msg = "\n__**More {} LP**__:\n   {} and {} more...".format(sell_token, ", ".join(items[:limit_show]), len(items) - limit_show)
+                    additional_msg = (
+                        "\n__**More {} LP**__:\n   {} and {} more...".format(
+                            sell_token,
+                            ", ".join(items[:limit_show]),
+                            len(items) - limit_show,
+                        )
+                    )
             find_other_lp = await cexswap_get_pools(for_token)
             if len(find_other_lp) > 0:
-                items = list(sorted([i['pairs'] for i in find_other_lp]))
-                additional_msg = "\n__**More {} LP**__:\n   {}.".format(for_token, ", ".join(items))
+                items = list(sorted([i["pairs"] for i in find_other_lp]))
+                additional_msg = "\n__**More {} LP**__:\n   {}.".format(
+                    for_token, ", ".join(items)
+                )
                 if len(items) > limit_show:
-                    additional_msg = "\n__**More {} LP**__:\n   {} and {} more...".format(for_token, ", ".join(items[:limit_show]), len(items) - limit_show)
-            
-            if sell_token in self.bot.config['nanswap']['coin_list'] or for_token in self.bot.config['nanswap']['coin_list']:
-                additional_msg += "\n__**/Nanswap's coin list:**__:\n   {}".format(", ".join(self.bot.config['nanswap']['coin_list']))
+                    additional_msg = (
+                        "\n__**More {} LP**__:\n   {} and {} more...".format(
+                            for_token,
+                            ", ".join(items[:limit_show]),
+                            len(items) - limit_show,
+                        )
+                    )
+
+            if (
+                sell_token in self.bot.config["nanswap"]["coin_list"]
+                or for_token in self.bot.config["nanswap"]["coin_list"]
+            ):
+                additional_msg += "\n__**/Nanswap's coin list:**__:\n   {}".format(
+                    ", ".join(self.bot.config["nanswap"]["coin_list"])
+                )
             if len(find_route) > 0:
                 list_paths = []
                 for i in find_route:
-                    list_paths.append("  ⚆ {} {} ➡️ {} {} ➡️ {} {}".format(
-                        self.utils.get_coin_emoji(sell_token), sell_token,
-                        self.utils.get_coin_emoji(i), i,
-                        self.utils.get_coin_emoji(for_token), for_token
-                    ))
+                    list_paths.append(
+                        "  ⚆ {} {} ➡️ {} {} ➡️ {} {}".format(
+                            self.utils.get_coin_emoji(sell_token),
+                            sell_token,
+                            self.utils.get_coin_emoji(i),
+                            i,
+                            self.utils.get_coin_emoji(for_token),
+                            for_token,
+                        )
+                    )
                 path_trades = "\n".join(list_paths)
-                msg = f"{EMOJI_INFORMATION}, {ctx.author.mention}, there is no liquidity of __{sell_token}/{for_token}__ yet." \
+                msg = (
+                    f"{EMOJI_INFORMATION}, {ctx.author.mention}, there is no liquidity of __{sell_token}/{for_token}__ yet."
                     f"\n__**Possible trade:**__\n{path_trades}{additional_msg}"
+                )
                 await ctx.edit_original_message(content=msg)
                 return
             else:
@@ -3281,47 +4341,67 @@ class Cexswap(commands.Cog):
                 return
         else:
             # check if coin sell is enable
-            is_sellable = getattr(getattr(self.bot.coin_list, sell_token), "cexswap_sell_enable")
+            is_sellable = getattr(
+                getattr(self.bot.coin_list, sell_token), "cexswap_sell_enable"
+            )
             if is_sellable != 1:
                 msg = f"{EMOJI_ERROR}, {ctx.author.mention}, coin/token __{sell_token}__ is currently disable for cexswap."
                 await ctx.edit_original_message(content=msg)
                 return
-            is_sellable = getattr(getattr(self.bot.coin_list, for_token), "cexswap_sell_enable")
+            is_sellable = getattr(
+                getattr(self.bot.coin_list, for_token), "cexswap_sell_enable"
+            )
             if is_sellable != 1:
                 msg = f"{EMOJI_ERROR}, {ctx.author.mention}, coin/token __{for_token}__ is currently disable for cexswap."
                 await ctx.edit_original_message(content=msg)
                 return
             try:
                 # check amount
-                amount_liq_sell = liq_pair['pool']['amount_ticker_1']
-                if sell_token == liq_pair['pool']['ticker_2_name']:
-                    amount_liq_sell = liq_pair['pool']['amount_ticker_2']
-                cexswap_min = getattr(getattr(self.bot.coin_list, sell_token), "cexswap_min")
-                token_display = getattr(getattr(self.bot.coin_list, sell_token), "display_name")
-                cexswap_max_swap_percent_sell = getattr(getattr(self.bot.coin_list, sell_token), "cexswap_max_swap_percent")
-                max_swap_sell_cap = cexswap_max_swap_percent_sell * float(amount_liq_sell)
+                amount_liq_sell = liq_pair["pool"]["amount_ticker_1"]
+                if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                    amount_liq_sell = liq_pair["pool"]["amount_ticker_2"]
+                cexswap_min = getattr(
+                    getattr(self.bot.coin_list, sell_token), "cexswap_min"
+                )
+                token_display = getattr(
+                    getattr(self.bot.coin_list, sell_token), "display_name"
+                )
+                cexswap_max_swap_percent_sell = getattr(
+                    getattr(self.bot.coin_list, sell_token), "cexswap_max_swap_percent"
+                )
+                max_swap_sell_cap = cexswap_max_swap_percent_sell * float(
+                    amount_liq_sell
+                )
 
                 net_name = getattr(getattr(self.bot.coin_list, sell_token), "net_name")
                 type_coin = getattr(getattr(self.bot.coin_list, sell_token), "type")
-                deposit_confirm_depth = getattr(getattr(self.bot.coin_list, sell_token), "deposit_confirm_depth")
+                deposit_confirm_depth = getattr(
+                    getattr(self.bot.coin_list, sell_token), "deposit_confirm_depth"
+                )
                 contract = getattr(getattr(self.bot.coin_list, sell_token), "contract")
 
                 if "$" in amount[-1] or "$" in amount[0]:  # last is $
                     # Check if conversion is allowed for this coin.
                     amount = amount.replace(",", "").replace("$", "")
-                    price_with = getattr(getattr(self.bot.coin_list, sell_token), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, sell_token), "price_with"
+                    )
                     if price_with is None:
                         msg = f"{EMOJI_RED_NO} {ctx.author.mention}, dollar conversion is not enabled for this __{sell_token}__."
                         await ctx.edit_original_message(content=msg)
                         return
                     else:
-                        per_unit = await self.utils.get_coin_price(sell_token, price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
+                        per_unit = await self.utils.get_coin_price(
+                            sell_token, price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
                             amount = float(Decimal(amount) / Decimal(per_unit))
                         else:
-                            msg = f"{EMOJI_RED_NO} {ctx.author.mention}, I cannot fetch equivalent price. "\
+                            msg = (
+                                f"{EMOJI_RED_NO} {ctx.author.mention}, I cannot fetch equivalent price. "
                                 "Try with different method."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                 else:
@@ -3329,7 +4409,7 @@ class Cexswap(commands.Cog):
                     amount = text_to_num(amount)
                     amount = truncate(float(amount), 12)
                     if amount is None:
-                        msg = f'{EMOJI_RED_NO} {ctx.author.mention}, invalid given amount.'
+                        msg = f"{EMOJI_RED_NO} {ctx.author.mention}, invalid given amount."
                         await ctx.edit_original_message(content=msg)
                         return
 
@@ -3340,46 +4420,72 @@ class Cexswap(commands.Cog):
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(ctx.author.id), sell_token, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(ctx.author.id),
+                        sell_token,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                wallet_address = get_deposit['balance_wallet_address']
+                wallet_address = get_deposit["balance_wallet_address"]
                 if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                    wallet_address = get_deposit['paymentid']
+                    wallet_address = get_deposit["paymentid"]
                 elif type_coin in ["XRP"]:
-                    wallet_address = get_deposit['destination_tag']
+                    wallet_address = get_deposit["destination_tag"]
 
-                height = await self.wallet_api.get_block_height(type_coin, sell_token, net_name)
+                height = await self.wallet_api.get_block_height(
+                    type_coin, sell_token, net_name
+                )
                 get_deposit = await self.wallet_api.sql_get_userwallet(
                     str(ctx.author.id), sell_token, net_name, type_coin, SERVER_BOT, 0
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(ctx.author.id), sell_token, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(ctx.author.id),
+                        sell_token,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                height = await self.wallet_api.get_block_height(type_coin, sell_token, net_name)
-                userdata_balance = await self.wallet_api.user_balance(
-                    str(ctx.author.id), sell_token, wallet_address, 
-                    type_coin, height, deposit_confirm_depth, SERVER_BOT
+                height = await self.wallet_api.get_block_height(
+                    type_coin, sell_token, net_name
                 )
-                actual_balance = float(userdata_balance['adjust'])
+                userdata_balance = await self.wallet_api.user_balance(
+                    str(ctx.author.id),
+                    sell_token,
+                    wallet_address,
+                    type_coin,
+                    height,
+                    deposit_confirm_depth,
+                    SERVER_BOT,
+                )
+                actual_balance = float(userdata_balance["adjust"])
 
                 # Check if amount is more than liquidity
                 if truncate(float(amount), 8) > truncate(float(max_swap_sell_cap), 8):
-                    msg = f"{EMOJI_RED_NO} {ctx.author.mention}, the given amount __{sell_amount_old}__"\
-                        f" is more than allowable 10% of liquidity __{num_format_coin(max_swap_sell_cap)} {token_display}__." \
-                        f"```Current LP: {num_format_coin(liq_pair['pool']['amount_ticker_1'])} "\
-                        f"{liq_pair['pool']['ticker_1_name']} and "\
-                        f"{num_format_coin(liq_pair['pool']['amount_ticker_2'])} "\
+                    msg = (
+                        f"{EMOJI_RED_NO} {ctx.author.mention}, the given amount __{sell_amount_old}__"
+                        f" is more than allowable 10% of liquidity __{num_format_coin(max_swap_sell_cap)} {token_display}__."
+                        f"```Current LP: {num_format_coin(liq_pair['pool']['amount_ticker_1'])} "
+                        f"{liq_pair['pool']['ticker_1_name']} and "
+                        f"{num_format_coin(liq_pair['pool']['amount_ticker_2'])} "
                         f"{liq_pair['pool']['ticker_2_name']} for LP {liq_pair['pool']['ticker_1_name']}/{liq_pair['pool']['ticker_2_name']}.```"
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
 
                 # Check if too big rate gap
                 try:
-                    rate_ratio = liq_pair['pool']['amount_ticker_1'] / liq_pair['pool']['amount_ticker_2']
-                    if rate_ratio > 10**12 or rate_ratio < 1/10**12:
+                    rate_ratio = (
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
+                    )
+                    if rate_ratio > 10**12 or rate_ratio < 1 / 10**12:
                         msg = f"{EMOJI_RED_NO} {ctx.author.mention}, rate ratio is out of range. Try with other pairs."
                         await ctx.edit_original_message(content=msg)
                         await self.botLogChan.send(
@@ -3389,18 +4495,32 @@ class Cexswap(commands.Cog):
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                 # check slippage first
-                slippage = 1.0 - amount / float(liq_pair['pool']['amount_ticker_1']) - self.bot.config['cexswap_slipage']['reserve']
-                amount_get = amount * float(liq_pair['pool']['amount_ticker_2'] / liq_pair['pool']['amount_ticker_1'])
+                slippage = (
+                    1.0
+                    - amount / float(liq_pair["pool"]["amount_ticker_1"])
+                    - self.bot.config["cexswap_slipage"]["reserve"]
+                )
+                amount_get = amount * float(
+                    liq_pair["pool"]["amount_ticker_2"]
+                    / liq_pair["pool"]["amount_ticker_1"]
+                )
 
-                amount_qty_1 = liq_pair['pool']['amount_ticker_2']
-                amount_qty_2 = liq_pair['pool']['amount_ticker_1']
+                amount_qty_1 = liq_pair["pool"]["amount_ticker_2"]
+                amount_qty_2 = liq_pair["pool"]["amount_ticker_1"]
 
-                if sell_token == liq_pair['pool']['ticker_2_name']:
-                    amount_get = amount * float(liq_pair['pool']['amount_ticker_1'] / liq_pair['pool']['amount_ticker_2'])
-                    slippage = 1.0 - amount / float(liq_pair['pool']['amount_ticker_2']) - self.bot.config['cexswap_slipage']['reserve']
+                if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                    amount_get = amount * float(
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
+                    )
+                    slippage = (
+                        1.0
+                        - amount / float(liq_pair["pool"]["amount_ticker_2"])
+                        - self.bot.config["cexswap_slipage"]["reserve"]
+                    )
 
-                    amount_qty_1 = liq_pair['pool']['amount_ticker_1']
-                    amount_qty_2 = liq_pair['pool']['amount_ticker_2']
+                    amount_qty_1 = liq_pair["pool"]["amount_ticker_1"]
+                    amount_qty_2 = liq_pair["pool"]["amount_ticker_2"]
 
                 # adjust slippage
                 amount_get = slippage * amount_get
@@ -3412,105 +4532,180 @@ class Cexswap(commands.Cog):
                 # price impact = unit price now / unit price after sold
                 price_impact_text = ""
                 price_impact_percent = 0.0
-                new_impact_ratio = (float(amount_qty_2) + amount) / (float(amount_qty_1) - amount_get)
+                new_impact_ratio = (float(amount_qty_2) + amount) / (
+                    float(amount_qty_1) - amount_get
+                )
                 old_impact_ratio = float(amount_qty_2) / float(amount_qty_1)
-                impact_ratio = abs(old_impact_ratio - new_impact_ratio) / max(old_impact_ratio, new_impact_ratio)
+                impact_ratio = abs(old_impact_ratio - new_impact_ratio) / max(
+                    old_impact_ratio, new_impact_ratio
+                )
                 if 0.0001 < impact_ratio < 1:
-                    price_impact_text = "\nPrice impact: ~{:,.2f}{}".format(impact_ratio * 100, "%")
+                    price_impact_text = "\nPrice impact: ~{:,.2f}{}".format(
+                        impact_ratio * 100, "%"
+                    )
                     price_impact_percent = impact_ratio * 100
-                
+
                 # If the amount get is too small.
-                if amount_get < self.bot.config['cexswap']['minimum_receive_or_reject']:
-                    msg = f"{EMOJI_RED_NO} {ctx.author.mention}, the received amount is too small and below "\
+                if amount_get < self.bot.config["cexswap"]["minimum_receive_or_reject"]:
+                    msg = (
+                        f"{EMOJI_RED_NO} {ctx.author.mention}, the received amount is too small and below "
                         f"{str(self.bot.config['cexswap']['minimum_receive_or_reject'])} {for_token}. Please increase your sell amount of {sell_token}!"
+                    )
                     await ctx.edit_original_message(content=msg)
                     await log_to_channel(
                         "cexswap",
-                        f"🔴 User {ctx.author.mention} wanted to sell: " \
+                        f"🔴 User {ctx.author.mention} wanted to sell: "
                         f"{sell_amount_old} {sell_token} for {str(amount_get)} {for_token} (Below receiving amount)",
-                        self.bot.config['discord']['cexswap']
+                        self.bot.config["discord"]["cexswap"],
                     )
                     return
 
                 if truncate(amount, 8) < truncate(cexswap_min, 8):
-                    msg = f"{EMOJI_RED_NO} {ctx.author.mention}, the given amount __{sell_amount_old}__"\
+                    msg = (
+                        f"{EMOJI_RED_NO} {ctx.author.mention}, the given amount __{sell_amount_old}__"
                         f" is below minimum __{num_format_coin(cexswap_min)} {token_display}__."
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
 
                 elif truncate(actual_balance, 8) < truncate(amount, 8):
                     # Try to see how much user can trade for before checking balance
-                    got_fee_dev = amount_get * self.bot.config['cexswap']['dev_fee'] / 100
-                    got_fee_liquidators = amount_get * self.bot.config['cexswap']['liquidator_fee'] / 100
+                    got_fee_dev = (
+                        amount_get * self.bot.config["cexswap"]["dev_fee"] / 100
+                    )
+                    got_fee_liquidators = (
+                        amount_get * self.bot.config["cexswap"]["liquidator_fee"] / 100
+                    )
                     got_fee_guild = 0.0
                     guild_id = "DM"
                     if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
-                        got_fee_guild = amount_get * self.bot.config['cexswap']['guild_fee'] / 100
+                        got_fee_guild = (
+                            amount_get * self.bot.config["cexswap"]["guild_fee"] / 100
+                        )
                         guild_id = str(ctx.guild.id)
                     else:
-                        got_fee_dev += amount_get * self.bot.config['cexswap']['guild_fee'] / 100
-                    fee = truncate(got_fee_dev, 12) + truncate(got_fee_liquidators, 12) + truncate(got_fee_guild, 12)
-                    user_amount_get = num_format_coin(truncate(amount_get - float(fee), 12))
+                        got_fee_dev += (
+                            amount_get * self.bot.config["cexswap"]["guild_fee"] / 100
+                        )
+                    fee = (
+                        truncate(got_fee_dev, 12)
+                        + truncate(got_fee_liquidators, 12)
+                        + truncate(got_fee_guild, 12)
+                    )
+                    user_amount_get = num_format_coin(
+                        truncate(amount_get - float(fee), 12)
+                    )
                     user_amount_sell = num_format_coin(amount)
-                    msg = f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please re-check balance {token_display}.\n"\
-                        f"```You could get {user_amount_get} {for_token}\n"\
+                    msg = (
+                        f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please re-check balance {token_display}.\n"
+                        f"```You could get {user_amount_get} {for_token}\n"
                         f"From selling {user_amount_sell} {sell_token}{price_impact_text}.```"
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
                 else:
                     # OK, sell..
-                    got_fee_dev = amount_get * self.bot.config['cexswap']['dev_fee'] / 100
-                    got_fee_liquidators = amount_get * self.bot.config['cexswap']['liquidator_fee'] / 100
+                    got_fee_dev = (
+                        amount_get * self.bot.config["cexswap"]["dev_fee"] / 100
+                    )
+                    got_fee_liquidators = (
+                        amount_get * self.bot.config["cexswap"]["liquidator_fee"] / 100
+                    )
                     got_fee_guild = 0.0
                     guild_id = "DM"
                     if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
-                        got_fee_guild = amount_get * self.bot.config['cexswap']['guild_fee'] / 100
+                        got_fee_guild = (
+                            amount_get * self.bot.config["cexswap"]["guild_fee"] / 100
+                        )
                         guild_id = str(ctx.guild.id)
                     else:
-                        got_fee_dev += amount_get * self.bot.config['cexswap']['guild_fee'] / 100
+                        got_fee_dev += (
+                            amount_get * self.bot.config["cexswap"]["guild_fee"] / 100
+                        )
 
-                    ref_log = ''.join(random.choice(ascii_uppercase) for i in range(16))
+                    ref_log = "".join(random.choice(ascii_uppercase) for i in range(16))
 
                     liq_users = []
-                    if len(liq_pair['pool_share']) > 0:
-                        for each_s in liq_pair['pool_share']:
+                    if len(liq_pair["pool_share"]) > 0:
+                        for each_s in liq_pair["pool_share"]:
                             distributed_amount = None
-                            if for_token == each_s['ticker_1_name']:
-                                distributed_amount = float(each_s['amount_ticker_1']) / float(liq_pair['pool']['amount_ticker_1']) * float(truncate(got_fee_liquidators, 12))
-                            elif for_token == each_s['ticker_2_name']:
-                                distributed_amount = float(each_s['amount_ticker_2']) / float(liq_pair['pool']['amount_ticker_2']) * float(truncate(got_fee_liquidators, 12))
+                            if for_token == each_s["ticker_1_name"]:
+                                distributed_amount = (
+                                    float(each_s["amount_ticker_1"])
+                                    / float(liq_pair["pool"]["amount_ticker_1"])
+                                    * float(truncate(got_fee_liquidators, 12))
+                                )
+                            elif for_token == each_s["ticker_2_name"]:
+                                distributed_amount = (
+                                    float(each_s["amount_ticker_2"])
+                                    / float(liq_pair["pool"]["amount_ticker_2"])
+                                    * float(truncate(got_fee_liquidators, 12))
+                                )
                             if distributed_amount is not None:
-                                liq_users.append([distributed_amount, each_s['user_id'], each_s['user_server']])
-                    contract = getattr(getattr(self.bot.coin_list, for_token), "contract")
+                                liq_users.append(
+                                    [
+                                        distributed_amount,
+                                        each_s["user_id"],
+                                        each_s["user_server"],
+                                    ]
+                                )
+                    contract = getattr(
+                        getattr(self.bot.coin_list, for_token), "contract"
+                    )
                     channel_id = "DM" if guild_id == "DM" else str(ctx.channel.id)
                     # get price per unit
                     per_unit_sell = 0.0
-                    price_with = getattr(getattr(self.bot.coin_list, sell_token), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, sell_token), "price_with"
+                    )
                     if price_with:
-                        per_unit_sell = await self.utils.get_coin_price(sell_token, price_with)
-                        if per_unit_sell and per_unit_sell['price'] and per_unit_sell['price'] > 0:
-                            per_unit_sell = per_unit_sell['price']
+                        per_unit_sell = await self.utils.get_coin_price(
+                            sell_token, price_with
+                        )
+                        if (
+                            per_unit_sell
+                            and per_unit_sell["price"]
+                            and per_unit_sell["price"] > 0
+                        ):
+                            per_unit_sell = per_unit_sell["price"]
                         if per_unit_sell and per_unit_sell < 0.0000000001:
                             per_unit_sell = 0.0
 
                     per_unit_get = 0.0
-                    price_with = getattr(getattr(self.bot.coin_list, for_token), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, for_token), "price_with"
+                    )
                     if price_with:
-                        per_unit_get = await self.utils.get_coin_price(for_token, price_with)
-                        if per_unit_get and per_unit_get['price'] and per_unit_get['price'] > 0:
-                            per_unit_get = per_unit_get['price']
+                        per_unit_get = await self.utils.get_coin_price(
+                            for_token, price_with
+                        )
+                        if (
+                            per_unit_get
+                            and per_unit_get["price"]
+                            and per_unit_get["price"] > 0
+                        ):
+                            per_unit_get = per_unit_get["price"]
                         if per_unit_get and per_unit_get < 0.0000000001:
                             per_unit_get = 0.0
 
-                    fee = truncate(got_fee_dev, 12) + truncate(got_fee_liquidators, 12) + truncate(got_fee_guild, 12)
-                    user_amount_get = num_format_coin(truncate(amount_get - float(fee), 12))
+                    fee = (
+                        truncate(got_fee_dev, 12)
+                        + truncate(got_fee_liquidators, 12)
+                        + truncate(got_fee_guild, 12)
+                    )
+                    user_amount_get = num_format_coin(
+                        truncate(amount_get - float(fee), 12)
+                    )
                     user_amount_sell = num_format_coin(amount)
 
                     suggestion_msg = ""
-                    if self.bot.config['cexswap']['enable_better_price'] == 1:
+                    if self.bot.config["cexswap"]["enable_better_price"] == 1:
                         try:
                             get_better_price = await cexswap_find_possible_trade(
-                                sell_token, for_token, amount * slippage, amount_get - float(fee)
+                                sell_token,
+                                for_token,
+                                amount * slippage,
+                                amount_get - float(fee),
                             )
                             if len(get_better_price) > 0:
                                 suggestion_msg = "\n```You may get a better price with:\n{}\n```⚠️ Price can be updated from every trade! ⚠️".format(
@@ -3519,26 +4714,45 @@ class Cexswap(commands.Cog):
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                     # add confirmation
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, Do you want to trade?\n"\
-                        f"```Get {user_amount_get} {for_token}\n"\
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, Do you want to trade?\n"
+                        f"```Get {user_amount_get} {for_token}\n"
                         f"From selling {user_amount_sell} {sell_token}{price_impact_text}```Ref: __{ref_log}__"
+                    )
 
                     # If there is progress
-                    if str(ctx.author.id) in self.bot.tipping_in_progress and \
-                        int(time.time()) - self.bot.tipping_in_progress[str(ctx.author.id)] < 30:
+                    if (
+                        str(ctx.author.id) in self.bot.tipping_in_progress
+                        and int(time.time())
+                        - self.bot.tipping_in_progress[str(ctx.author.id)]
+                        < 30
+                    ):
                         await ctx.edit_original_message(
-                            content=f"{EMOJI_ERROR} {ctx.author.mention}, you have another transaction in progress.")
+                            content=f"{EMOJI_ERROR} {ctx.author.mention}, you have another transaction in progress."
+                        )
                         return
 
                     view = ConfirmSell(self.bot, ctx.author.id)
-                    await ctx.edit_original_message(content=msg+suggestion_msg, view=view)
+                    await ctx.edit_original_message(
+                        content=msg + suggestion_msg, view=view
+                    )
 
                     try:
                         await cexswap_estimate(
-                            ref_log, liq_pair['pool']['pool_id'], "{}->{}".format(sell_token, for_token),
-                            truncate(amount, 12), sell_token, truncate(amount_get - float(fee), 12), for_token,
-                            got_fee_dev, got_fee_liquidators, got_fee_guild, price_impact_percent,
-                            str(ctx.author.id), SERVER_BOT, 0
+                            ref_log,
+                            liq_pair["pool"]["pool_id"],
+                            "{}->{}".format(sell_token, for_token),
+                            truncate(amount, 12),
+                            sell_token,
+                            truncate(amount_get - float(fee), 12),
+                            for_token,
+                            got_fee_dev,
+                            got_fee_liquidators,
+                            got_fee_guild,
+                            price_impact_percent,
+                            str(ctx.author.id),
+                            SERVER_BOT,
+                            0,
                         )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
@@ -3553,8 +4767,7 @@ class Cexswap(commands.Cog):
                     # Check the value to determine which button was pressed, if any.
                     if view.value is None:
                         await ctx.edit_original_message(
-                            content=msg + "\n🔴 Timeout!",
-                            view=None
+                            content=msg + "\n🔴 Timeout!", view=None
                         )
                         try:
                             del self.bot.tipping_in_progress[str(ctx.author.id)]
@@ -3563,29 +4776,51 @@ class Cexswap(commands.Cog):
                         return
                     elif view.value:
                         # re-check rate
-                        slippage = 1.0 - amount / float(liq_pair['pool']['amount_ticker_1']) - self.bot.config['cexswap_slipage']['reserve']
-                        if sell_token == liq_pair['pool']['ticker_2_name']:
-                            slippage = 1.0 - amount / float(liq_pair['pool']['amount_ticker_2']) - self.bot.config['cexswap_slipage']['reserve']
+                        slippage = (
+                            1.0
+                            - amount / float(liq_pair["pool"]["amount_ticker_1"])
+                            - self.bot.config["cexswap_slipage"]["reserve"]
+                        )
+                        if sell_token == liq_pair["pool"]["ticker_2_name"]:
+                            slippage = (
+                                1.0
+                                - amount / float(liq_pair["pool"]["amount_ticker_2"])
+                                - self.bot.config["cexswap_slipage"]["reserve"]
+                            )
                         # adjust slippage
                         if slippage > 1 or slippage < 0.88:
                             await ctx.edit_original_message(
-                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, internal error with slippage. Try again later!")
+                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, internal error with slippage. Try again later!"
+                            )
                             return
 
-                        new_liq_pair = await cexswap_get_pool_details(sell_token, for_token, None)
-                        new_amount_get = amount * float(new_liq_pair['pool']['amount_ticker_2'] / new_liq_pair['pool']['amount_ticker_1'])
+                        new_liq_pair = await cexswap_get_pool_details(
+                            sell_token, for_token, None
+                        )
+                        new_amount_get = amount * float(
+                            new_liq_pair["pool"]["amount_ticker_2"]
+                            / new_liq_pair["pool"]["amount_ticker_1"]
+                        )
                         new_amount_get = slippage * new_amount_get
-                        pool_amount_get = new_liq_pair['pool']['amount_ticker_2']
-                        pool_amount_sell = new_liq_pair['pool']['amount_ticker_1']
-                        if sell_token == new_liq_pair['pool']['ticker_2_name']:
-                            new_amount_get = amount * float(new_liq_pair['pool']['amount_ticker_1'] / new_liq_pair['pool']['amount_ticker_2'])
+                        pool_amount_get = new_liq_pair["pool"]["amount_ticker_2"]
+                        pool_amount_sell = new_liq_pair["pool"]["amount_ticker_1"]
+                        if sell_token == new_liq_pair["pool"]["ticker_2_name"]:
+                            new_amount_get = amount * float(
+                                new_liq_pair["pool"]["amount_ticker_1"]
+                                / new_liq_pair["pool"]["amount_ticker_2"]
+                            )
                             new_amount_get = slippage * new_amount_get
-                            pool_amount_get = new_liq_pair['pool']['amount_ticker_1']
-                            pool_amount_sell = new_liq_pair['pool']['amount_ticker_2']
-                        if truncate(float(new_amount_get), 8) != truncate(float(amount_get), 8):
+                            pool_amount_get = new_liq_pair["pool"]["amount_ticker_1"]
+                            pool_amount_sell = new_liq_pair["pool"]["amount_ticker_2"]
+                        if truncate(float(new_amount_get), 8) != truncate(
+                            float(amount_get), 8
+                        ):
                             await ctx.edit_original_message(
-                                content=msg.replace("Do you want to trade?", "🔴 CEXSwap rejected!") + "\n**⚠️ Price updated! Please try again!**",
-                                view=None
+                                content=msg.replace(
+                                    "Do you want to trade?", "🔴 CEXSwap rejected!"
+                                )
+                                + "\n**⚠️ Price updated! Please try again!**",
+                                view=None,
                             )
                             try:
                                 del self.bot.tipping_in_progress[str(ctx.author.id)]
@@ -3595,15 +4830,23 @@ class Cexswap(commands.Cog):
                         # end of re-check rate
 
                         # re-check balance
-                        height = await self.wallet_api.get_block_height(type_coin, sell_token, net_name)
-                        userdata_balance = await self.wallet_api.user_balance(
-                            str(ctx.author.id), sell_token, wallet_address, 
-                            type_coin, height, deposit_confirm_depth, SERVER_BOT
+                        height = await self.wallet_api.get_block_height(
+                            type_coin, sell_token, net_name
                         )
-                        actual_balance = float(userdata_balance['adjust'])
+                        userdata_balance = await self.wallet_api.user_balance(
+                            str(ctx.author.id),
+                            sell_token,
+                            wallet_address,
+                            type_coin,
+                            height,
+                            deposit_confirm_depth,
+                            SERVER_BOT,
+                        )
+                        actual_balance = float(userdata_balance["adjust"])
                         if amount <= 0 or actual_balance <= 0:
                             await ctx.edit_original_message(
-                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please get more {token_display}.")
+                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please get more {token_display}."
+                            )
                             try:
                                 del self.bot.tipping_in_progress[str(ctx.author.id)]
                             except Exception:
@@ -3612,7 +4855,8 @@ class Cexswap(commands.Cog):
 
                         if truncate(actual_balance, 8) < truncate(amount, 8):
                             await ctx.edit_original_message(
-                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please re-check balance {token_display}.")
+                                content=f"{EMOJI_RED_NO} {ctx.author.mention}, ⚠️ Please re-check balance {token_display}."
+                            )
                             try:
                                 del self.bot.tipping_in_progress[str(ctx.author.id)]
                             except Exception:
@@ -3623,15 +4867,32 @@ class Cexswap(commands.Cog):
                             del self.bot.tipping_in_progress[str(ctx.author.id)]
                         except Exception:
                             pass
-                        coin_decimal = getattr(getattr(self.bot.coin_list, for_token), "decimal")
+                        coin_decimal = getattr(
+                            getattr(self.bot.coin_list, for_token), "decimal"
+                        )
                         selling = await cexswap_sold(
-                            ref_log, liq_pair['pool']['pool_id'], truncate(amount, 12), sell_token, 
-                            truncate(amount_get, 12), for_token, str(ctx.author.id), SERVER_BOT,
+                            ref_log,
+                            liq_pair["pool"]["pool_id"],
+                            truncate(amount, 12),
+                            sell_token,
+                            truncate(amount_get, 12),
+                            for_token,
+                            str(ctx.author.id),
+                            SERVER_BOT,
                             guild_id,
-                            truncate(got_fee_dev, 12), truncate(got_fee_liquidators, 12), truncate(got_fee_guild, 12),
-                            liq_users, contract, coin_decimal, channel_id, per_unit_sell, per_unit_get,
-                            pool_amount_sell, pool_amount_get,
-                            0, None
+                            truncate(got_fee_dev, 12),
+                            truncate(got_fee_liquidators, 12),
+                            truncate(got_fee_guild, 12),
+                            liq_users,
+                            contract,
+                            coin_decimal,
+                            channel_id,
+                            per_unit_sell,
+                            per_unit_get,
+                            pool_amount_sell,
+                            pool_amount_get,
+                            0,
+                            None,
                         )
                         try:
                             del self.bot.tipping_in_progress[str(ctx.author.id)]
@@ -3640,76 +4901,112 @@ class Cexswap(commands.Cog):
                         if selling is True:
                             # remove /summary cache
                             try:
-                                self.utils.del_cache_kv(self.bot.config['kv_db']['prefix_cexswap'], "summary")
+                                self.utils.del_cache_kv(
+                                    self.bot.config["kv_db"]["prefix_cexswap"],
+                                    "summary",
+                                )
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
                             # fee_str = num_format_coin(fee)
                             # . Fee {fee_str} {for_token}\n
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully traded!\n"\
-                                f"```Get {user_amount_get} {for_token}\n"\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully traded!\n"
+                                f"```Get {user_amount_get} {for_token}\n"
                                 f"From selling {user_amount_sell} {sell_token}{price_impact_text}```✅ Ref: {ref_log}"
+                            )
                             await ctx.edit_original_message(content=msg, view=None)
                             await log_to_channel(
                                 "cexswap",
-                                f"[SOLD]: User {ctx.author.mention} Sold: " \
+                                f"[SOLD]: User {ctx.author.mention} Sold: "
                                 f"{user_amount_sell} {sell_token} Get: {user_amount_get} {for_token}. Ref: {ref_log}",
-                                self.bot.config['discord']['cexswap']
+                                self.bot.config["discord"]["cexswap"],
                             )
                             # check if the amount is more than minimum.
-                            min_got = getattr(getattr(self.bot.coin_list, for_token), "cexswap_min_sold_ann")
-                            min_sold = getattr(getattr(self.bot.coin_list, sell_token), "cexswap_min_sold_ann")
-                            if self.bot.config['cexswap']['ann_sold_limit'] == 2:
+                            min_got = getattr(
+                                getattr(self.bot.coin_list, for_token),
+                                "cexswap_min_sold_ann",
+                            )
+                            min_sold = getattr(
+                                getattr(self.bot.coin_list, sell_token),
+                                "cexswap_min_sold_ann",
+                            )
+                            if self.bot.config["cexswap"]["ann_sold_limit"] == 2:
                                 # continue without announcement
                                 pass
-                            elif self.bot.config['cexswap']['ann_sold_limit'] == 0 or \
-                                (self.bot.config['cexswap']['ann_sold_limit'] == 1 and (min_got is None or min_sold is None or \
-                                (min_sold and amount > min_sold) or (min_got and amount_get > min_got))):
+                            elif self.bot.config["cexswap"]["ann_sold_limit"] == 0 or (
+                                self.bot.config["cexswap"]["ann_sold_limit"] == 1
+                                and (
+                                    min_got is None
+                                    or min_sold is None
+                                    or (min_sold and amount > min_sold)
+                                    or (min_got and amount_get > min_got)
+                                )
+                            ):
                                 get_guilds = await self.utils.get_trade_channel_list()
-                                if len(get_guilds) > 0 and self.bot.config['cexswap']['disable'] == 0:
+                                if (
+                                    len(get_guilds) > 0
+                                    and self.bot.config["cexswap"]["disable"] == 0
+                                ):
                                     list_guild_ids = [i.id for i in self.bot.guilds]
                                     for item in get_guilds:
-                                        if int(item['serverid']) not in list_guild_ids:
+                                        if int(item["serverid"]) not in list_guild_ids:
                                             continue
-                                        get_guild = self.bot.get_guild(int(item['serverid']))
+                                        get_guild = self.bot.get_guild(
+                                            int(item["serverid"])
+                                        )
                                         try:
                                             if get_guild:
-                                                channel = get_guild.get_channel(int(item['trade_channel']))
+                                                channel = get_guild.get_channel(
+                                                    int(item["trade_channel"])
+                                                )
                                                 if channel is None:
                                                     continue
-                                                if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") and channel.id != ctx.channel.id:
+                                                if (
+                                                    hasattr(ctx, "guild")
+                                                    and hasattr(ctx.guild, "id")
+                                                    and channel.id != ctx.channel.id
+                                                ):
                                                     continue
                                                 elif channel is not None:
-                                                    await channel.send(f"{command_mention} A user sold {user_amount_sell} {sell_token} for "\
+                                                    await channel.send(
+                                                        f"{command_mention} A user sold {user_amount_sell} {sell_token} for "
                                                         f"{user_amount_get} {for_token}."
                                                     )
                                         except disnake.errors.Forbidden:
                                             await self.botLogChan.send(
                                                 f"[CEXSwap] failed to message to guild {get_guild.name} / {get_guild.id}."
                                             )
-                                            update = await store.sql_changeinfo_by_server(item['serverid'], 'trade_channel', None)
+                                            update = (
+                                                await store.sql_changeinfo_by_server(
+                                                    item["serverid"],
+                                                    "trade_channel",
+                                                    None,
+                                                )
+                                            )
                                             # re-load guild list
                                             await self.utils.bot_reload_guilds()
                                             if update is True:
-                                                await get_guild.owner.send(f"[CEXSwap] TipBot's failed to send message to <#{str(channel.id)}> "\
-                                                    f"in guild {get_guild.name} / {get_guild.id}. "\
-                                                    f"TipBot unassigned that channel from [CEXSwap]'s trading."\
+                                                await get_guild.owner.send(
+                                                    f"[CEXSwap] TipBot's failed to send message to <#{str(channel.id)}> "
+                                                    f"in guild {get_guild.name} / {get_guild.id}. "
+                                                    f"TipBot unassigned that channel from [CEXSwap]'s trading."
                                                     f"You can set again anytime later!\nYou can ignore this message."
                                                 )
                                                 await self.botLogChan.send(
-                                                    f"[CEXSwap] informed guild owner {get_guild.name} / {get_guild.id} / <@{get_guild.owner.id}> "\
+                                                    f"[CEXSwap] informed guild owner {get_guild.name} / {get_guild.id} / <@{get_guild.owner.id}> "
                                                     f"about failed message and unassigned trade channel."
                                                 )
                                         except Exception:
                                             traceback.print_exc(file=sys.stdout)
                         else:
                             await ctx.edit_original_message(
-                                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, internal error!", view=None
+                                content=f"{EMOJI_INFORMATION} {ctx.author.mention}, internal error!",
+                                view=None,
                             )
                             return
                     else:
                         await ctx.edit_original_message(
-                            content=msg + "\n**🛑 Cancelled!**",
-                            view=None
+                            content=msg + "\n**🛑 Cancelled!**", view=None
                         )
                         try:
                             del self.bot.tipping_in_progress[str(ctx.author.id)]
@@ -3720,12 +5017,16 @@ class Cexswap(commands.Cog):
                 traceback.print_exc(file=sys.stdout)
 
     @cexswap_sell.autocomplete("sell_token")
-    async def cexswap_addliquidity_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_addliquidity_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_coins if string in name.lower()][:12]
 
     @cexswap_sell.autocomplete("for_token")
-    async def cexswap_addliquidity_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_addliquidity_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_coins if string in name.lower()][:12]
 
@@ -3735,7 +5036,7 @@ class Cexswap(commands.Cog):
         options=[
             Option("pool_name", "Choose pool's name", OptionType.string, required=True)
         ],
-        description="Show a pool detail in cexswap."
+        description="Show a pool detail in cexswap.",
     )
     async def cexswap_selectpool(
         self,
@@ -3745,8 +5046,17 @@ class Cexswap(commands.Cog):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap selectpool", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap selectpool",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -3756,14 +5066,22 @@ class Cexswap(commands.Cog):
             pool_name = pool_name.upper()
             if pool_name in self.bot.cexswap_coins:
                 coin_name = pool_name
-                coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
-                testing = self.bot.config['cexswap']['testing_msg']
+                coin_emoji = getattr(
+                    getattr(self.bot.coin_list, coin_name), "coin_emoji_discord"
+                )
+                testing = self.bot.config["cexswap"]["testing_msg"]
                 embed = disnake.Embed(
-                    title="Coin/Token {} {} TipBot's CEXSwap".format(coin_emoji, coin_name),
+                    title="Coin/Token {} {} TipBot's CEXSwap".format(
+                        coin_emoji, coin_name
+                    ),
                     description=f"{ctx.author.mention}, {testing}Summary.",
                     timestamp=datetime.now(),
                 )
-                embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+                embed.set_footer(
+                    text="Requested by: {}#{}".format(
+                        ctx.author.name, ctx.author.discriminator
+                    )
+                )
                 embed.set_thumbnail(url=self.bot.user.display_avatar)
                 # Find pool with
                 find_other_lp = await cexswap_get_pools(coin_name)
@@ -3772,206 +5090,298 @@ class Cexswap(commands.Cog):
                 # lp list of this token, then sort them by amount of coin_name
                 lp_list_token = []
                 if len(find_other_lp) > 0:
-                    items =[i['pairs'] for i in find_other_lp]
+                    items = [i["pairs"] for i in find_other_lp]
                     embed.add_field(
-                        name="LP with {} {} ({})".format(coin_emoji, coin_name, len(items)),
+                        name="LP with {} {} ({})".format(
+                            coin_emoji, coin_name, len(items)
+                        ),
                         value="{}".format(", ".join(items)),
-                        inline=False
+                        inline=False,
                     )
                     # get price of each LP
                     rate_list = []
                     for i in find_other_lp:
                         # get L in LP
-                        if coin_name == i['ticker_1_name']:
-                            total_liq += i['amount_ticker_1']
+                        if coin_name == i["ticker_1_name"]:
+                            total_liq += i["amount_ticker_1"]
                             lp_list_token.append(
                                 {
-                                    "pairs": i['pairs'],
-                                    "amount": i['amount_ticker_1'],
-                                    "other_amount": i['amount_ticker_2'],
-                                    "other_token": i['ticker_2_name']
+                                    "pairs": i["pairs"],
+                                    "amount": i["amount_ticker_1"],
+                                    "other_amount": i["amount_ticker_2"],
+                                    "other_token": i["ticker_2_name"],
                                 }
                             )
-                        elif coin_name == i['ticker_2_name']:
-                            total_liq += i['amount_ticker_2']
+                        elif coin_name == i["ticker_2_name"]:
+                            total_liq += i["amount_ticker_2"]
                             lp_list_token.append(
                                 {
-                                    "pairs": i['pairs'],
-                                    "amount": i['amount_ticker_2'],
-                                    "other_amount": i['amount_ticker_1'],
-                                    "other_token": i['ticker_1_name']
+                                    "pairs": i["pairs"],
+                                    "amount": i["amount_ticker_2"],
+                                    "other_amount": i["amount_ticker_1"],
+                                    "other_token": i["ticker_1_name"],
                                 }
                             )
-                        target_coin = i['ticker_1_name']
-                        rate_1 = i['amount_ticker_1'] / i['amount_ticker_2']
+                        target_coin = i["ticker_1_name"]
+                        rate_1 = i["amount_ticker_1"] / i["amount_ticker_2"]
                         if coin_name == target_coin:
-                            target_coin = i['ticker_2_name']
-                            rate_1 = i['amount_ticker_2'] / i['amount_ticker_1']
-                        coin_emoji_target = getattr(getattr(self.bot.coin_list, target_coin), "coin_emoji_discord")
+                            target_coin = i["ticker_2_name"]
+                            rate_1 = i["amount_ticker_2"] / i["amount_ticker_1"]
+                        coin_emoji_target = getattr(
+                            getattr(self.bot.coin_list, target_coin),
+                            "coin_emoji_discord",
+                        )
                         if truncate(rate_1, 10) > 0:
-                            rate_list.append("{} {} {}".format(
-                                coin_emoji_target,
-                                num_format_coin(rate_1),
-                                target_coin
-                            ))
+                            rate_list.append(
+                                "{} {} {}".format(
+                                    coin_emoji_target,
+                                    num_format_coin(rate_1),
+                                    target_coin,
+                                )
+                            )
                     if len(rate_list) > 0:
                         rate_list_chunks = list(chunks(rate_list, 15))
                         j = 1
                         extra_text = ""
                         for i in rate_list_chunks:
                             if len(rate_list_chunks) > 1:
-                                extra_text = " / [{}/{}]".format(j, len(rate_list_chunks))
+                                extra_text = " / [{}/{}]".format(
+                                    j, len(rate_list_chunks)
+                                )
                             embed.add_field(
-                                name="RATE LIST {} (Active LP{})".format(coin_name, extra_text),
+                                name="RATE LIST {} (Active LP{})".format(
+                                    coin_name, extra_text
+                                ),
                                 value="{}".format("\n".join(i)),
-                                inline=True
+                                inline=True,
                             )
                             j += 1
                     embed.add_field(
                         name="All liquidity {}".format(coin_name),
                         value=num_format_coin(total_liq),
-                        inline=False
+                        inline=False,
                     )
                     # Check volume
                     get_coin_vol = {}
-                    get_coin_vol['1D'] = await get_cexswap_get_coin_sell_logs(coin_name=coin_name, user_id=None, user_server=None, from_time=int(time.time())-1*24*3600)
-                    get_coin_vol['7D'] = await get_cexswap_get_coin_sell_logs(coin_name=coin_name, user_id=None, user_server=None, from_time=int(time.time())-7*24*3600)
-                    get_coin_vol['30D'] = await get_cexswap_get_coin_sell_logs(coin_name=coin_name, user_id=None, user_server=None, from_time=int(time.time())-30*24*3600)
+                    get_coin_vol["1D"] = await get_cexswap_get_coin_sell_logs(
+                        coin_name=coin_name,
+                        user_id=None,
+                        user_server=None,
+                        from_time=int(time.time()) - 1 * 24 * 3600,
+                    )
+                    get_coin_vol["7D"] = await get_cexswap_get_coin_sell_logs(
+                        coin_name=coin_name,
+                        user_id=None,
+                        user_server=None,
+                        from_time=int(time.time()) - 7 * 24 * 3600,
+                    )
+                    get_coin_vol["30D"] = await get_cexswap_get_coin_sell_logs(
+                        coin_name=coin_name,
+                        user_id=None,
+                        user_server=None,
+                        from_time=int(time.time()) - 30 * 24 * 3600,
+                    )
                     per_unit = 0.0
-                    price_with = getattr(getattr(self.bot.coin_list, coin_name), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, coin_name), "price_with"
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(coin_name, price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
+                        per_unit = await self.utils.get_coin_price(
+                            coin_name, price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
                     if len(get_coin_vol) > 0:
                         for k, v in get_coin_vol.items():
                             if len(v) > 0:
                                 sum_amount = Decimal(0)
                                 for i in v:
-                                    if i['got_ticker'] == coin_name:
-                                        sum_amount += i['got']
+                                    if i["got_ticker"] == coin_name:
+                                        sum_amount += i["got"]
                                 if sum_amount > 0:
                                     equi_usd = ""
                                     if per_unit and per_unit > 0:
-                                        sub_total_in_usd = float(Decimal(sum_amount) * Decimal(per_unit))
+                                        sub_total_in_usd = float(
+                                            Decimal(sum_amount) * Decimal(per_unit)
+                                        )
                                         if sub_total_in_usd > 0.01:
-                                            equi_usd = "\n~ {:,.2f}$".format(sub_total_in_usd)
+                                            equi_usd = "\n~ {:,.2f}$".format(
+                                                sub_total_in_usd
+                                            )
                                     embed.add_field(
                                         name="Volume {} {}".format(k, coin_emoji),
                                         value="{}{}".format(
                                             num_format_coin(sum_amount), equi_usd
                                         ),
-                                        inline=True
+                                        inline=True,
                                     )
 
                     # other links
                     other_links = []
-                    if getattr(getattr(self.bot.coin_list, coin_name), "explorer_link") and \
-                        len(getattr(getattr(self.bot.coin_list, coin_name), "explorer_link")) > 0:
+                    if (
+                        getattr(getattr(self.bot.coin_list, coin_name), "explorer_link")
+                        and len(
+                            getattr(
+                                getattr(self.bot.coin_list, coin_name), "explorer_link"
+                            )
+                        )
+                        > 0
+                    ):
                         other_links.append(
-                            "[{}]({})".format("Explorer Link", getattr(getattr(self.bot.coin_list, coin_name), "explorer_link"))
+                            "[{}]({})".format(
+                                "Explorer Link",
+                                getattr(
+                                    getattr(self.bot.coin_list, coin_name),
+                                    "explorer_link",
+                                ),
+                            )
                         )
                     if getattr(getattr(self.bot.coin_list, coin_name), "id_cmc"):
                         other_links.append(
-                            "[{}]({})".format("CoinMarketCap", "https://coinmarketcap.com/currencies/" + getattr(getattr(self.bot.coin_list, coin_name), "id_cmc"))
+                            "[{}]({})".format(
+                                "CoinMarketCap",
+                                "https://coinmarketcap.com/currencies/"
+                                + getattr(
+                                    getattr(self.bot.coin_list, coin_name), "id_cmc"
+                                ),
+                            )
                         )
                     if getattr(getattr(self.bot.coin_list, coin_name), "id_gecko"):
                         other_links.append(
-                            "[{}]({})".format("CoinGecko", "https://www.coingecko.com/en/coins/" + getattr(getattr(self.bot.coin_list, coin_name), "id_gecko"))
+                            "[{}]({})".format(
+                                "CoinGecko",
+                                "https://www.coingecko.com/en/coins/"
+                                + getattr(
+                                    getattr(self.bot.coin_list, coin_name), "id_gecko"
+                                ),
+                            )
                         )
                     if getattr(getattr(self.bot.coin_list, coin_name), "id_paprika"):
                         other_links.append(
-                            "[{}]({})".format("Coinpaprika", "https://coinpaprika.com/coin/" + getattr(getattr(self.bot.coin_list, coin_name), "id_paprika"))
+                            "[{}]({})".format(
+                                "Coinpaprika",
+                                "https://coinpaprika.com/coin/"
+                                + getattr(
+                                    getattr(self.bot.coin_list, coin_name), "id_paprika"
+                                ),
+                            )
                         )
                     if len(other_links) > 0:
                         embed.add_field(
                             name="Other links",
                             value="{}".format(" | ".join(other_links)),
-                            inline=False
+                            inline=False,
                         )
                 else:
                     embed.add_field(
                         name="LP with {} {}".format(coin_emoji, coin_name),
                         value="N/A",
-                        inline=False
+                        inline=False,
                     )
                 # Make a copy and add liqudity of top pool with this token
                 embed_lp = embed.copy()
-                embed_lp.clear_fields() 
+                embed_lp.clear_fields()
                 # get sell logs
-                sell_logs_30d = await get_cexswap_get_sell_logs(user_id=None, user_server=SERVER_BOT, from_time=int(time.time()-30*24*3600), pool_id=None)
-                sell_logs_7d = await get_cexswap_get_sell_logs(user_id=None, user_server=SERVER_BOT, from_time=int(time.time()-7*24*3600), pool_id=None)
+                sell_logs_30d = await get_cexswap_get_sell_logs(
+                    user_id=None,
+                    user_server=SERVER_BOT,
+                    from_time=int(time.time() - 30 * 24 * 3600),
+                    pool_id=None,
+                )
+                sell_logs_7d = await get_cexswap_get_sell_logs(
+                    user_id=None,
+                    user_server=SERVER_BOT,
+                    from_time=int(time.time() - 7 * 24 * 3600),
+                    pool_id=None,
+                )
                 list_sold_30d = []
                 list_sold_7d = []
                 embed_30d = None
                 embed_7d = None
                 if sell_logs_30d and len(sell_logs_30d) > 0:
                     for i in sell_logs_30d:
-                        if i['got_ticker'] == coin_name:
+                        if i["got_ticker"] == coin_name:
                             list_sold_30d.append(
                                 {
-                                    "pairs": i['pairs'],
-                                    "amount": i['got'],
-                                    "other_amount": i['sold'],
-                                    "other_token": i['sold_ticker']
+                                    "pairs": i["pairs"],
+                                    "amount": i["got"],
+                                    "other_amount": i["sold"],
+                                    "other_token": i["sold_ticker"],
                                 }
                             )
-                    list_sold_30d = sorted(list_sold_30d, key=lambda d: d['amount'], reverse=True)
+                    list_sold_30d = sorted(
+                        list_sold_30d, key=lambda d: d["amount"], reverse=True
+                    )
                     if len(list_sold_30d) > 0:
                         embed_30d = embed.copy()
                         embed_30d.clear_fields()
                         for i in list_sold_30d:
                             embed_30d.add_field(
-                                name=i['pairs'] + " - 30d",
+                                name=i["pairs"] + " - 30d",
                                 value="{} {}\n{} {}".format(
-                                    num_format_coin(i['amount']), coin_name,
-                                    num_format_coin(i['other_amount']), i['other_token']
+                                    num_format_coin(i["amount"]),
+                                    coin_name,
+                                    num_format_coin(i["other_amount"]),
+                                    i["other_token"],
                                 ),
-                                inline=True
+                                inline=True,
                             )
                 if sell_logs_7d and len(sell_logs_7d) > 0:
                     for i in sell_logs_7d:
-                        if i['got_ticker'] == coin_name:
+                        if i["got_ticker"] == coin_name:
                             list_sold_7d.append(
                                 {
-                                    "pairs": i['pairs'],
-                                    "amount": i['got'],
-                                    "other_amount": i['sold'],
-                                    "other_token": i['sold_ticker']
+                                    "pairs": i["pairs"],
+                                    "amount": i["got"],
+                                    "other_amount": i["sold"],
+                                    "other_token": i["sold_ticker"],
                                 }
                             )
-                    list_sold_7d = sorted(list_sold_7d, key=lambda d: d['amount'], reverse=True)
+                    list_sold_7d = sorted(
+                        list_sold_7d, key=lambda d: d["amount"], reverse=True
+                    )
                     if len(list_sold_7d) > 0:
                         embed_7d = embed.copy()
                         embed_7d.clear_fields()
                         for i in list_sold_7d:
                             embed_7d.add_field(
-                                name=i['pairs'] + " - 7d",
+                                name=i["pairs"] + " - 7d",
                                 value="{} {}\n{} {}".format(
-                                    num_format_coin(i['amount']), coin_name,
-                                    num_format_coin(i['other_amount']), i['other_token']
+                                    num_format_coin(i["amount"]),
+                                    coin_name,
+                                    num_format_coin(i["other_amount"]),
+                                    i["other_token"],
                                 ),
-                                inline=True
+                                inline=True,
                             )
                 view = None
                 if len(lp_list_token) > 0:
-                    lp_list_token = sorted(lp_list_token, key=lambda d: d['amount'], reverse=True) 
-                    for i in lp_list_token[:15]: # maximum 10
+                    lp_list_token = sorted(
+                        lp_list_token, key=lambda d: d["amount"], reverse=True
+                    )
+                    for i in lp_list_token[:15]:  # maximum 10
                         embed_lp.add_field(
-                            name=i['pairs'],
+                            name=i["pairs"],
                             value="{} {}\n{} {}".format(
-                                num_format_coin(i['amount']), coin_name,
-                                num_format_coin(i['other_amount']), i['other_token']
+                                num_format_coin(i["amount"]),
+                                coin_name,
+                                num_format_coin(i["other_amount"]),
+                                i["other_token"],
                             ),
-                            inline=True
+                            inline=True,
                         )
-                    view = SelectPoolSingle(60, ctx, self.bot, ctx.author.id, embed, embed_lp, embed_30d, embed_7d)
+                    view = SelectPoolSingle(
+                        60,
+                        ctx,
+                        self.bot,
+                        ctx.author.id,
+                        embed,
+                        embed_lp,
+                        embed_30d,
+                        embed_7d,
+                    )
 
-                await ctx.edit_original_message(
-                    content=None,
-                    embed=embed,
-                    view=view
-                )
+                await ctx.edit_original_message(content=None, embed=embed, view=view)
             else:
                 if pool_name not in self.bot.cexswap_pairs:
                     # check if wrong order
@@ -3980,64 +5390,103 @@ class Cexswap(commands.Cog):
                         if len(tickers) == 2:
                             pool_name = "{}/{}".format(tickers[1], tickers[0])
                             if pool_name not in self.bot.cexswap_pairs:
-                                msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                                msg = (
+                                    f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                     f"Invalid given __{pool_name}__."
+                                )
                                 await ctx.edit_original_message(content=msg)
                                 return
                         else:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     except Exception:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         traceback.print_exc(file=sys.stdout)
                     # End checking wrong order
 
                 tickers = pool_name.upper().split("/")
-                coin_emoji_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord")
+                coin_emoji_1 = getattr(
+                    getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord"
+                )
                 coin_emoji_1 = coin_emoji_1 + " " if coin_emoji_1 else ""
-                coin_emoji_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord")
+                coin_emoji_2 = getattr(
+                    getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord"
+                )
                 coin_emoji_2 = coin_emoji_2 + " " if coin_emoji_2 else ""
 
-                min_initialized_liq_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_min_initialized_liq")
-                min_initialized_liq_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_min_initialized_liq")
+                min_initialized_liq_1 = getattr(
+                    getattr(self.bot.coin_list, tickers[0]),
+                    "cexswap_min_initialized_liq",
+                )
+                min_initialized_liq_2 = getattr(
+                    getattr(self.bot.coin_list, tickers[1]),
+                    "cexswap_min_initialized_liq",
+                )
 
-                testing = self.bot.config['cexswap']['testing_msg']
+                testing = self.bot.config["cexswap"]["testing_msg"]
                 embed = disnake.Embed(
-                    title="LP Pool {} - {}/{} TipBot's CEXSwap".format(pool_name, coin_emoji_1, coin_emoji_2),
+                    title="LP Pool {} - {}/{} TipBot's CEXSwap".format(
+                        pool_name, coin_emoji_1, coin_emoji_2
+                    ),
                     description=f"{ctx.author.mention}, {testing}Summary.",
                     timestamp=datetime.now(),
                 )
                 init_liq_text = "{} {}\n{} {}".format(
-                    num_format_coin(min_initialized_liq_1), tickers[0],
-                    num_format_coin(min_initialized_liq_2), tickers[1]
+                    num_format_coin(min_initialized_liq_1),
+                    tickers[0],
+                    num_format_coin(min_initialized_liq_2),
+                    tickers[1],
                 )
-                min_liq_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_min_add_liq")
-                min_liq_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_min_add_liq")
+                min_liq_1 = getattr(
+                    getattr(self.bot.coin_list, tickers[0]), "cexswap_min_add_liq"
+                )
+                min_liq_2 = getattr(
+                    getattr(self.bot.coin_list, tickers[1]), "cexswap_min_add_liq"
+                )
                 add_liq_text = "{} {}\n{} {}".format(
-                    num_format_coin(min_liq_1), tickers[0],
-                    num_format_coin(min_liq_2), tickers[1]
+                    num_format_coin(min_liq_1),
+                    tickers[0],
+                    num_format_coin(min_liq_2),
+                    tickers[1],
                 )
                 embed.add_field(
                     name="Minimum adding (After POOL)",
                     value=f"{add_liq_text}",
-                    inline=False
+                    inline=False,
                 )
-                embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+                embed.set_footer(
+                    text="Requested by: {}#{}".format(
+                        ctx.author.name, ctx.author.discriminator
+                    )
+                )
                 embed.set_thumbnail(url=self.bot.user.display_avatar)
                 liq_pair = await cexswap_get_pool_details(tickers[0], tickers[1], None)
                 if liq_pair is not None:
                     rate_1 = num_format_coin(
-                        liq_pair['pool']['amount_ticker_2']/liq_pair['pool']['amount_ticker_1']
+                        liq_pair["pool"]["amount_ticker_2"]
+                        / liq_pair["pool"]["amount_ticker_1"]
                     )
                     rate_2 = num_format_coin(
-                        liq_pair['pool']['amount_ticker_1']/liq_pair['pool']['amount_ticker_2']
+                        liq_pair["pool"]["amount_ticker_1"]
+                        / liq_pair["pool"]["amount_ticker_2"]
                     )
                     rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
-                        1, tickers[0], rate_1, tickers[1], 1, tickers[1], rate_2, tickers[0]
+                        1,
+                        tickers[0],
+                        rate_1,
+                        tickers[1],
+                        1,
+                        tickers[1],
+                        rate_2,
+                        tickers[0],
                     )
 
                     sub_1 = 0.0
@@ -4045,19 +5494,35 @@ class Cexswap(commands.Cog):
                     single_pair_amount = 0.0
                     pair_amount = 0.0
 
-                    price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool']['ticker_1_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, liq_pair["pool"]["ticker_1_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(liq_pair['pool']['ticker_1_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_1 = float(Decimal(liq_pair['pool']['amount_ticker_1']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            liq_pair["pool"]["ticker_1_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_1 = float(
+                                Decimal(liq_pair["pool"]["amount_ticker_1"])
+                                * Decimal(per_unit)
+                            )
 
-                    price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool']['ticker_2_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, liq_pair["pool"]["ticker_2_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(liq_pair['pool']['ticker_2_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_2 = float(Decimal(liq_pair['pool']['amount_ticker_2']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            liq_pair["pool"]["ticker_2_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_2 = float(
+                                Decimal(liq_pair["pool"]["amount_ticker_2"])
+                                * Decimal(per_unit)
+                            )
                     # check max price
                     if sub_1 >= 0.0 and sub_2 >= 0.0:
                         single_pair_amount = max(sub_1, sub_2)
@@ -4066,22 +5531,38 @@ class Cexswap(commands.Cog):
 
                     # show total liq
                     embed.add_field(
-                        name="Total liquidity (from {} user(s))".format(len(liq_pair['pool_share'])),
-                        value="{} {}\n{} {}{}".format(
-                            num_format_coin(liq_pair['pool']['amount_ticker_1']), liq_pair['pool']['ticker_1_name'],
-                            num_format_coin(liq_pair['pool']['amount_ticker_2']), liq_pair['pool']['ticker_2_name'],
-                            "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
+                        name="Total liquidity (from {} user(s))".format(
+                            len(liq_pair["pool_share"])
                         ),
-                        inline=False
+                        value="{} {}\n{} {}{}".format(
+                            num_format_coin(liq_pair["pool"]["amount_ticker_1"]),
+                            liq_pair["pool"]["ticker_1_name"],
+                            num_format_coin(liq_pair["pool"]["amount_ticker_2"]),
+                            liq_pair["pool"]["ticker_2_name"],
+                            "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                            if pair_amount > 0
+                            else "",
+                        ),
+                        inline=False,
                     )
                     embed.add_field(
                         name="Existing Pool | Rate",
                         value="{}".format(rate_coin_12),
-                        inline=False
+                        inline=False,
                     )
                     volume = {}
-                    volume['7d'] = await get_cexswap_get_sell_logs(user_id=None, user_server=SERVER_BOT, from_time=int(time.time()-7*24*3600), pool_id=liq_pair['pool']['pool_id'])
-                    volume['1d'] = await get_cexswap_get_sell_logs(user_id=None, user_server=SERVER_BOT, from_time=int(time.time()-1*24*3600), pool_id=liq_pair['pool']['pool_id'])
+                    volume["7d"] = await get_cexswap_get_sell_logs(
+                        user_id=None,
+                        user_server=SERVER_BOT,
+                        from_time=int(time.time() - 7 * 24 * 3600),
+                        pool_id=liq_pair["pool"]["pool_id"],
+                    )
+                    volume["1d"] = await get_cexswap_get_sell_logs(
+                        user_id=None,
+                        user_server=SERVER_BOT,
+                        from_time=int(time.time() - 1 * 24 * 3600),
+                        pool_id=liq_pair["pool"]["pool_id"],
+                    )
                     if len(volume) > 0:
                         for k, v in volume.items():
                             if len(v) == 0:
@@ -4091,51 +5572,58 @@ class Cexswap(commands.Cog):
                             # sold
                             coin_emoji = ""
                             try:
-                                coin_emoji = getattr(getattr(self.bot.coin_list, each['sold_ticker']), "coin_emoji_discord")
+                                coin_emoji = getattr(
+                                    getattr(self.bot.coin_list, each["sold_ticker"]),
+                                    "coin_emoji_discord",
+                                )
                                 coin_emoji = coin_emoji + " " if coin_emoji else ""
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
-                            sold_amount = num_format_coin(
-                                each['sold']
+                            sold_amount = num_format_coin(each["sold"])
+                            list_volume.append(
+                                "{}{} {}".format(
+                                    coin_emoji, sold_amount, each["sold_ticker"]
+                                )
                             )
-                            list_volume.append("{}{} {}".format(coin_emoji, sold_amount, each['sold_ticker']))
 
                             # trade with
                             coin_emoji = ""
                             try:
-                                coin_emoji = getattr(getattr(self.bot.coin_list, each['got_ticker']), "coin_emoji_discord")
+                                coin_emoji = getattr(
+                                    getattr(self.bot.coin_list, each["got_ticker"]),
+                                    "coin_emoji_discord",
+                                )
                                 coin_emoji = coin_emoji + " " if coin_emoji else ""
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
-                            traded_amount = num_format_coin(
-                                each['got']
+                            traded_amount = num_format_coin(each["got"])
+                            list_volume.append(
+                                "{}{} {}".format(
+                                    coin_emoji, traded_amount, each["got_ticker"]
+                                )
                             )
-                            list_volume.append("{}{} {}".format(coin_emoji, traded_amount, each['got_ticker']))
                             embed.add_field(
                                 name="Volume [{}]".format(k.upper()),
                                 value="{}".format("\n".join(list_volume)),
-                                inline=False
+                                inline=False,
                             )
                 else:
                     embed.add_field(
                         name="Minimum adding (Init POOL)",
                         value=f"{init_liq_text}",
-                        inline=False
+                        inline=False,
                     )
                     embed.add_field(
-                        name="NOTE",
-                        value="This LP doesn't exist yet!",
-                        inline=False
+                        name="NOTE", value="This LP doesn't exist yet!", inline=False
                     )
-                await ctx.edit_original_message(
-                    content=None,
-                    embed=embed
-                )
+                await ctx.edit_original_message(content=None, embed=embed)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_selectpool.autocomplete("pool_name")
-    async def cexswap_selectpool_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_selectpool_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
 
@@ -4145,31 +5633,44 @@ class Cexswap(commands.Cog):
         options=[
             Option("pool_name", "Choose pool's name", OptionType.string, required=False)
         ],
-        description="Show your liquidated pool detail in cexswap."
+        description="Show your liquidated pool detail in cexswap.",
     )
     async def cexswap_mypool(
         self,
         ctx,
-        pool_name: str=None,
+        pool_name: str = None,
     ):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap mypool loading..."
         await ctx.response.send_message(msg, ephemeral=True)
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap mypool", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap mypool",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
         try:
             if pool_name is None:
-                get_poolshare = await cexswap_get_poolshare(str(ctx.author.id), SERVER_BOT)
+                get_poolshare = await cexswap_get_poolshare(
+                    str(ctx.author.id), SERVER_BOT
+                )
                 if len(get_poolshare) == 0:
                     msg = f"{EMOJI_RED_NO} {ctx.author.mention}, sorry! You don't have any liquidity in any pools."
                     await ctx.edit_original_message(content=msg)
                     return
                 else:
-                    user_ar = await cexswap_get_add_remove_user(str(ctx.author.id), SERVER_BOT, None)
+                    user_ar = await cexswap_get_add_remove_user(
+                        str(ctx.author.id), SERVER_BOT, None
+                    )
                     total_liq = {}
                     your_pool_share = {}
                     your_pool_share_num = {}
@@ -4179,48 +5680,90 @@ class Cexswap(commands.Cog):
                         single_pair_amount = 0.0
                         pair_amount = 0.0
 
-                        price_with = getattr(getattr(self.bot.coin_list, i['ticker_1_name']), "price_with")
+                        price_with = getattr(
+                            getattr(self.bot.coin_list, i["ticker_1_name"]),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(i['ticker_1_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_1 = float(Decimal(i['pool_amount_1']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                i["ticker_1_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_1 = float(
+                                    Decimal(i["pool_amount_1"]) * Decimal(per_unit)
+                                )
 
-                        price_with = getattr(getattr(self.bot.coin_list, i['ticker_2_name']), "price_with")
+                        price_with = getattr(
+                            getattr(self.bot.coin_list, i["ticker_2_name"]),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(i['ticker_2_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_2 = float(Decimal(i['pool_amount_2']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                i["ticker_2_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_2 = float(
+                                    Decimal(i["pool_amount_2"]) * Decimal(per_unit)
+                                )
                         # check max price
                         if sub_1 >= 0.0 and sub_2 >= 0.0:
                             single_pair_amount = max(sub_1, sub_2)
                         if single_pair_amount > 0:
                             pair_amount = 2 * single_pair_amount
-                        total_liq[i['pairs']] = "{} {}\n{} {}{}".format(
-                            num_format_coin(i['pool_amount_1']), i['ticker_1_name'],
-                            num_format_coin(i['pool_amount_2']), i['ticker_2_name'],
-                            "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
+                        total_liq[i["pairs"]] = "{} {}\n{} {}{}".format(
+                            num_format_coin(i["pool_amount_1"]),
+                            i["ticker_1_name"],
+                            num_format_coin(i["pool_amount_2"]),
+                            i["ticker_2_name"],
+                            "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                            if pair_amount > 0
+                            else "",
                         )
-                        if i['amount_ticker_1'] > 0 and i['amount_ticker_2'] > 0:
+                        if i["amount_ticker_1"] > 0 and i["amount_ticker_2"] > 0:
                             # If a user has already some liq
                             sub_1 = 0.0
                             sub_2 = 0.0
                             single_pair_amount = 0.0
                             pair_amount = 0.0
-                            price_with = getattr(getattr(self.bot.coin_list, i['ticker_1_name']), "price_with")
+                            price_with = getattr(
+                                getattr(self.bot.coin_list, i["ticker_1_name"]),
+                                "price_with",
+                            )
                             if price_with:
-                                per_unit = await self.utils.get_coin_price(i['ticker_1_name'], price_with)
-                                if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                    per_unit = per_unit['price']
-                                    sub_1 = float(Decimal(i['amount_ticker_1']) * Decimal(per_unit))
+                                per_unit = await self.utils.get_coin_price(
+                                    i["ticker_1_name"], price_with
+                                )
+                                if (
+                                    per_unit
+                                    and per_unit["price"]
+                                    and per_unit["price"] > 0
+                                ):
+                                    per_unit = per_unit["price"]
+                                    sub_1 = float(
+                                        Decimal(i["amount_ticker_1"])
+                                        * Decimal(per_unit)
+                                    )
 
-                            price_with = getattr(getattr(self.bot.coin_list, i['ticker_2_name']), "price_with")
+                            price_with = getattr(
+                                getattr(self.bot.coin_list, i["ticker_2_name"]),
+                                "price_with",
+                            )
                             if price_with:
-                                per_unit = await self.utils.get_coin_price(i['ticker_2_name'], price_with)
-                                if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                    per_unit = per_unit['price']
-                                    sub_2 = float(Decimal(i['amount_ticker_2']) * Decimal(per_unit))
+                                per_unit = await self.utils.get_coin_price(
+                                    i["ticker_2_name"], price_with
+                                )
+                                if (
+                                    per_unit
+                                    and per_unit["price"]
+                                    and per_unit["price"] > 0
+                                ):
+                                    per_unit = per_unit["price"]
+                                    sub_2 = float(
+                                        Decimal(i["amount_ticker_2"])
+                                        * Decimal(per_unit)
+                                    )
                             # check max price
                             if sub_1 >= 0.0 and sub_2 >= 0.0:
                                 single_pair_amount = max(sub_1, sub_2)
@@ -4230,18 +5773,28 @@ class Cexswap(commands.Cog):
                             percent_1 = ""
                             percent_2 = ""
                             try:
-                                percent_1 = " - {:,.2f} {}".format(i['amount_ticker_1']/ i['pool_amount_1']*100, "%")
-                                percent_2 = " - {:,.2f} {}".format(i['amount_ticker_2']/ i['pool_amount_2']*100, "%")
+                                percent_1 = " - {:,.2f} {}".format(
+                                    i["amount_ticker_1"] / i["pool_amount_1"] * 100, "%"
+                                )
+                                percent_2 = " - {:,.2f} {}".format(
+                                    i["amount_ticker_2"] / i["pool_amount_2"] * 100, "%"
+                                )
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
-                            your_pool_share[i['pairs']] = "{} {}{}\n{} {}{}{}".format(
-                                    num_format_coin(i['amount_ticker_1']), i['ticker_1_name'], percent_1, 
-                                    num_format_coin(i['amount_ticker_2']), i['ticker_2_name'], percent_2,
-                                    "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
-                                )
-                            your_pool_share_num[i['pairs']] = {
-                                i['ticker_1_name']: i['amount_ticker_1'],
-                                i['ticker_2_name']: i['amount_ticker_2'],
+                            your_pool_share[i["pairs"]] = "{} {}{}\n{} {}{}{}".format(
+                                num_format_coin(i["amount_ticker_1"]),
+                                i["ticker_1_name"],
+                                percent_1,
+                                num_format_coin(i["amount_ticker_2"]),
+                                i["ticker_2_name"],
+                                percent_2,
+                                "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                                if pair_amount > 0
+                                else "",
+                            )
+                            your_pool_share_num[i["pairs"]] = {
+                                i["ticker_1_name"]: i["amount_ticker_1"],
+                                i["ticker_2_name"]: i["amount_ticker_2"],
                             }
 
                     add_dict = {}
@@ -4253,15 +5806,15 @@ class Cexswap(commands.Cog):
                     gain_lose = {}
                     if len(user_ar) > 0:
                         for i in user_ar:
-                            if i['pairs'] not in list_add:
-                                list_add[i['pairs']] = {}
-                            if i['pairs'] not in list_remove:
-                                list_remove[i['pairs']] = {}
-                            if i['pairs'] not in adding_list_num:
-                                adding_list_num[i['pairs']] = {}
-                            if i['pairs'] not in remove_list_num:
-                                remove_list_num[i['pairs']] = {}
-                            tickers = i['pairs'].split("/")
+                            if i["pairs"] not in list_add:
+                                list_add[i["pairs"]] = {}
+                            if i["pairs"] not in list_remove:
+                                list_remove[i["pairs"]] = {}
+                            if i["pairs"] not in adding_list_num:
+                                adding_list_num[i["pairs"]] = {}
+                            if i["pairs"] not in remove_list_num:
+                                remove_list_num[i["pairs"]] = {}
+                            tickers = i["pairs"].split("/")
                             coin_1 = tickers[0]
                             coin_2 = tickers[1]
                             sum_add_1 = Decimal(0)
@@ -4269,96 +5822,157 @@ class Cexswap(commands.Cog):
                             sum_add_2 = Decimal(0)
                             sum_remove_2 = Decimal(0)
 
-                            if coin_1 == i['token_name']:
-                                if i['action'] == "add":
-                                    sum_add_1 += i['amount']
-                                elif i['action'] in ['removepool', 'remove']:
-                                    sum_remove_1 += i['amount']
-                            elif coin_2 == i['token_name']:
-                                if i['action'] == "add":
-                                    sum_add_2 += i['amount']
-                                elif i['action'] in ['removepool', 'remove']:
-                                    sum_remove_2 += i['amount']
+                            if coin_1 == i["token_name"]:
+                                if i["action"] == "add":
+                                    sum_add_1 += i["amount"]
+                                elif i["action"] in ["removepool", "remove"]:
+                                    sum_remove_1 += i["amount"]
+                            elif coin_2 == i["token_name"]:
+                                if i["action"] == "add":
+                                    sum_add_2 += i["amount"]
+                                elif i["action"] in ["removepool", "remove"]:
+                                    sum_remove_2 += i["amount"]
                             if sum_add_1 > 0 or sum_add_2 > 0:
-                                if coin_1 not in list_add[i['pairs']]:
-                                    list_add[i['pairs']][coin_1] = []
-                                    adding_list_num[i['pairs']][coin_1] = Decimal(0)
-                                if coin_2 not in list_add[i['pairs']]:
-                                    list_add[i['pairs']][coin_2] = []
-                                    adding_list_num[i['pairs']][coin_2] = Decimal(0)
+                                if coin_1 not in list_add[i["pairs"]]:
+                                    list_add[i["pairs"]][coin_1] = []
+                                    adding_list_num[i["pairs"]][coin_1] = Decimal(0)
+                                if coin_2 not in list_add[i["pairs"]]:
+                                    list_add[i["pairs"]][coin_2] = []
+                                    adding_list_num[i["pairs"]][coin_2] = Decimal(0)
                                 if sum_add_1 > 0:
-                                    list_add[i['pairs']][coin_1].append("+ {} {}".format(num_format_coin(sum_add_1), coin_1))
-                                    adding_list_num[i['pairs']][coin_1] += sum_add_1
+                                    list_add[i["pairs"]][coin_1].append(
+                                        "+ {} {}".format(
+                                            num_format_coin(sum_add_1), coin_1
+                                        )
+                                    )
+                                    adding_list_num[i["pairs"]][coin_1] += sum_add_1
                                 if sum_add_2 > 0:
-                                    list_add[i['pairs']][coin_2].append("+ {} {}".format(num_format_coin(sum_add_2), coin_2))
-                                    adding_list_num[i['pairs']][coin_2] += sum_add_2
+                                    list_add[i["pairs"]][coin_2].append(
+                                        "+ {} {}".format(
+                                            num_format_coin(sum_add_2), coin_2
+                                        )
+                                    )
+                                    adding_list_num[i["pairs"]][coin_2] += sum_add_2
                             if sum_remove_1 > 0 or sum_remove_2 > 0:
-                                if coin_1 not in list_remove[i['pairs']]:
-                                    list_remove[i['pairs']][coin_1] = []
-                                    remove_list_num[i['pairs']][coin_1] = Decimal(0)
-                                if coin_2 not in list_remove[i['pairs']]:
-                                    list_remove[i['pairs']][coin_2] = []
-                                    remove_list_num[i['pairs']][coin_2] = Decimal(0)
+                                if coin_1 not in list_remove[i["pairs"]]:
+                                    list_remove[i["pairs"]][coin_1] = []
+                                    remove_list_num[i["pairs"]][coin_1] = Decimal(0)
+                                if coin_2 not in list_remove[i["pairs"]]:
+                                    list_remove[i["pairs"]][coin_2] = []
+                                    remove_list_num[i["pairs"]][coin_2] = Decimal(0)
                                 if sum_remove_1 > 0:
-                                    list_remove[i['pairs']][coin_1].append("- {} {}".format(num_format_coin(sum_remove_1), coin_1))
-                                    remove_list_num[i['pairs']][coin_1] -= sum_remove_1
+                                    list_remove[i["pairs"]][coin_1].append(
+                                        "- {} {}".format(
+                                            num_format_coin(sum_remove_1), coin_1
+                                        )
+                                    )
+                                    remove_list_num[i["pairs"]][coin_1] -= sum_remove_1
                                 if sum_remove_2 > 0:
-                                    list_remove[i['pairs']][coin_2].append("- {} {}".format(num_format_coin(sum_remove_2), coin_2))
-                                    remove_list_num[i['pairs']][coin_2] -= sum_remove_2
+                                    list_remove[i["pairs"]][coin_2].append(
+                                        "- {} {}".format(
+                                            num_format_coin(sum_remove_2), coin_2
+                                        )
+                                    )
+                                    remove_list_num[i["pairs"]][coin_2] -= sum_remove_2
                     # filter uniq tokens
-                    list_pairs = sorted(list(set([i['pairs'] for i in get_poolshare])))
+                    list_pairs = sorted(list(set([i["pairs"] for i in get_poolshare])))
                     for i in list_pairs:
                         tickers = i.split("/")
                         if i in list_add:
-                            add_dict[i] = "{}".format("\n".join(list_add[i][tickers[0]] + list_add[i][tickers[1]]))
+                            add_dict[i] = "{}".format(
+                                "\n".join(
+                                    list_add[i][tickers[0]] + list_add[i][tickers[1]]
+                                )
+                            )
                         if i in list_remove:
                             if tickers[0] in list_remove[i]:
-                                remove_dict[i] = "{}".format("\n".join(list_remove[i][tickers[0]] + list_remove[i][tickers[1]]))
+                                remove_dict[i] = "{}".format(
+                                    "\n".join(
+                                        list_remove[i][tickers[0]]
+                                        + list_remove[i][tickers[1]]
+                                    )
+                                )
                         if i in remove_list_num or i in your_pool_share_num:
                             for coin_name in tickers:
-                                a_add = adding_list_num[i][coin_name] if coin_name in adding_list_num[i] else Decimal(0)
-                                a_remove = remove_list_num[i][coin_name] if coin_name in remove_list_num[i] else Decimal(0)
-                                a_share = your_pool_share_num[i][coin_name] if coin_name in your_pool_share_num[i] else Decimal(0)
+                                a_add = (
+                                    adding_list_num[i][coin_name]
+                                    if coin_name in adding_list_num[i]
+                                    else Decimal(0)
+                                )
+                                a_remove = (
+                                    remove_list_num[i][coin_name]
+                                    if coin_name in remove_list_num[i]
+                                    else Decimal(0)
+                                )
+                                a_share = (
+                                    your_pool_share_num[i][coin_name]
+                                    if coin_name in your_pool_share_num[i]
+                                    else Decimal(0)
+                                )
                                 tmp_gain_lose = a_share - (a_add - a_remove)
                                 if abs(truncate(tmp_gain_lose, 4)) != 0:
                                     if i not in gain_lose:
                                         gain_lose[i] = []
-                                    gain_lose[i].append("{}{} {}".format(
-                                        "+" if tmp_gain_lose > 0 else "-",
-                                        num_format_coin(abs(tmp_gain_lose)),
-                                        coin_name
-                                    ))
+                                    gain_lose[i].append(
+                                        "{}{} {}".format(
+                                            "+" if tmp_gain_lose > 0 else "-",
+                                            num_format_coin(abs(tmp_gain_lose)),
+                                            coin_name,
+                                        )
+                                    )
 
                     list_earnings = {}
-                    get_user_earning = await get_cexswap_earning(user_id=str(ctx.author.id), from_time=None, pool_id=None, group_pool=True)
+                    get_user_earning = await get_cexswap_earning(
+                        user_id=str(ctx.author.id),
+                        from_time=None,
+                        pool_id=None,
+                        group_pool=True,
+                    )
                     if len(get_user_earning) > 0:
                         for i in get_user_earning:
-                            tickers = i['pairs'].split("/")
-                            if i['pairs'] not in list_earnings:
-                                list_earnings[i['pairs']] = []
-                            if i['got_ticker'] in tickers:
-                                list_earnings[i['pairs']].append("{} {}".format(num_format_coin(i['collected_amount']), i['got_ticker']))
-                            
-                    testing = self.bot.config['cexswap']['testing_msg']
+                            tickers = i["pairs"].split("/")
+                            if i["pairs"] not in list_earnings:
+                                list_earnings[i["pairs"]] = []
+                            if i["got_ticker"] in tickers:
+                                list_earnings[i["pairs"]].append(
+                                    "{} {}".format(
+                                        num_format_coin(i["collected_amount"]),
+                                        i["got_ticker"],
+                                    )
+                                )
+
+                    testing = self.bot.config["cexswap"]["testing_msg"]
                     embed = disnake.Embed(
                         title="Your LP Pool in TipBot's CEXSwap",
                         description=f"{ctx.author.mention}, {testing}Please select from list.",
                         timestamp=datetime.now(),
                     )
-                    embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+                    embed.set_footer(
+                        text="Requested by: {}#{}".format(
+                            ctx.author.name, ctx.author.discriminator
+                        )
+                    )
                     embed.set_thumbnail(url=ctx.author.display_avatar)
 
                     # Create the view containing our dropdown
                     # list_pairs can be more than 25 - limit of Discord
                     view = DropdownViewMyPool(
-                        ctx, self.bot, list_pairs, total_liq, your_pool_share,
-                        add_dict, remove_dict, gain_lose, list_earnings, embed, active_pair=None, is_admin=False
+                        ctx,
+                        self.bot,
+                        list_pairs,
+                        total_liq,
+                        your_pool_share,
+                        add_dict,
+                        remove_dict,
+                        gain_lose,
+                        list_earnings,
+                        embed,
+                        active_pair=None,
+                        is_admin=False,
                     )
 
                     await ctx.edit_original_message(
-                        content=None,
-                        embed=embed,
-                        view=view
+                        content=None, embed=embed, view=view
                     )
             else:
                 # check if the given is a single coin/token
@@ -4370,55 +5984,89 @@ class Cexswap(commands.Cog):
                         if len(tickers) == 2:
                             pool_name = "{}/{}".format(tickers[1], tickers[0])
                             if pool_name not in self.bot.cexswap_pairs:
-                                msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                                msg = (
+                                    f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                     f"Invalid given __{pool_name}__."
+                                )
                                 await ctx.edit_original_message(content=msg)
                                 return
                         else:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     except Exception:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         traceback.print_exc(file=sys.stdout)
                     # End checking wrong order
 
                 tickers = pool_name.upper().split("/")
-                coin_emoji_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord")
+                coin_emoji_1 = getattr(
+                    getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord"
+                )
                 coin_emoji_1 = coin_emoji_1 + " " if coin_emoji_1 else ""
-                coin_emoji_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord")
+                coin_emoji_2 = getattr(
+                    getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord"
+                )
                 coin_emoji_2 = coin_emoji_2 + " " if coin_emoji_2 else ""
 
-                testing = self.bot.config['cexswap']['testing_msg']
+                testing = self.bot.config["cexswap"]["testing_msg"]
                 embed = disnake.Embed(
-                    title="LP Pool {} - {}/{} TipBot's CEXSwap".format(pool_name, coin_emoji_1, coin_emoji_2),
+                    title="LP Pool {} - {}/{} TipBot's CEXSwap".format(
+                        pool_name, coin_emoji_1, coin_emoji_2
+                    ),
                     description=f"{ctx.author.mention}, {testing}Summary.",
                     timestamp=datetime.now(),
                 )
-                embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+                embed.set_footer(
+                    text="Requested by: {}#{}".format(
+                        ctx.author.name, ctx.author.discriminator
+                    )
+                )
                 embed.set_thumbnail(url=ctx.author.display_avatar)
-                liq_pair = await cexswap_get_pool_details(tickers[0], tickers[1], str(ctx.author.id))
+                liq_pair = await cexswap_get_pool_details(
+                    tickers[0], tickers[1], str(ctx.author.id)
+                )
                 if liq_pair is not None:
                     sub_1 = 0.0
                     sub_2 = 0.0
                     single_pair_amount = 0.0
                     pair_amount = 0.0
-                    price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool']['ticker_1_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, liq_pair["pool"]["ticker_1_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(liq_pair['pool']['ticker_1_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_1 = float(Decimal(liq_pair['pool']['amount_ticker_1']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            liq_pair["pool"]["ticker_1_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_1 = float(
+                                Decimal(liq_pair["pool"]["amount_ticker_1"])
+                                * Decimal(per_unit)
+                            )
 
-                    price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool']['ticker_2_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, liq_pair["pool"]["ticker_2_name"]),
+                        "price_with",
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(liq_pair['pool']['ticker_2_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_2 = float(Decimal(liq_pair['pool']['amount_ticker_2']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            liq_pair["pool"]["ticker_2_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_2 = float(
+                                Decimal(liq_pair["pool"]["amount_ticker_2"])
+                                * Decimal(per_unit)
+                            )
                     # check max price
                     if sub_1 >= 0.0 and sub_2 >= 0.0:
                         single_pair_amount = max(sub_1, sub_2)
@@ -4429,15 +6077,21 @@ class Cexswap(commands.Cog):
                     embed.add_field(
                         name="Total liquidity",
                         value="{} {}\n{} {}{}".format(
-                            num_format_coin(liq_pair['pool']['amount_ticker_1']), liq_pair['pool']['ticker_1_name'],
-                            num_format_coin(liq_pair['pool']['amount_ticker_2']), liq_pair['pool']['ticker_2_name'],
-                            "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
+                            num_format_coin(liq_pair["pool"]["amount_ticker_1"]),
+                            liq_pair["pool"]["ticker_1_name"],
+                            num_format_coin(liq_pair["pool"]["amount_ticker_2"]),
+                            liq_pair["pool"]["ticker_2_name"],
+                            "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                            if pair_amount > 0
+                            else "",
                         ),
-                        inline=False
+                        inline=False,
                     )
 
                     # get activities sum
-                    user_ar = await cexswap_get_add_remove_user(str(ctx.author.id), SERVER_BOT, liq_pair['pool']['pool_id'])
+                    user_ar = await cexswap_get_add_remove_user(
+                        str(ctx.author.id), SERVER_BOT, liq_pair["pool"]["pool_id"]
+                    )
                     if len(user_ar) > 0:
                         coin_1 = tickers[0]
                         coin_2 = tickers[1]
@@ -4446,57 +6100,91 @@ class Cexswap(commands.Cog):
                         sum_add_2 = Decimal(0)
                         sum_remove_2 = Decimal(0)
                         for i in user_ar:
-                            if coin_1 == i['token_name']:
-                                if i['action'] == "add":
-                                    sum_add_1 += i['amount']
-                                elif i['action'] in ['removepool', 'remove']:
-                                    sum_remove_1 += i['amount']
-                            elif coin_2 == i['token_name']:
-                                if i['action'] == "add":
-                                    sum_add_2 += i['amount']
-                                elif i['action'] in ['removepool', 'remove']:
-                                    sum_remove_2 += i['amount']
+                            if coin_1 == i["token_name"]:
+                                if i["action"] == "add":
+                                    sum_add_1 += i["amount"]
+                                elif i["action"] in ["removepool", "remove"]:
+                                    sum_remove_1 += i["amount"]
+                            elif coin_2 == i["token_name"]:
+                                if i["action"] == "add":
+                                    sum_add_2 += i["amount"]
+                                elif i["action"] in ["removepool", "remove"]:
+                                    sum_remove_2 += i["amount"]
                         if sum_add_1 > 0 or sum_add_2 > 0:
                             list_act = []
                             if sum_add_1 > 0:
-                                list_act.append("+ {} {}".format(num_format_coin(sum_add_1), coin_1))
+                                list_act.append(
+                                    "+ {} {}".format(num_format_coin(sum_add_1), coin_1)
+                                )
                             if sum_add_2 > 0:
-                                list_act.append("+ {} {}".format(num_format_coin(sum_add_2), coin_2))
+                                list_act.append(
+                                    "+ {} {}".format(num_format_coin(sum_add_2), coin_2)
+                                )
                             embed.add_field(
                                 name="You added (Original)",
                                 value="{}".format("\n".join(list_act)),
-                                inline=False
+                                inline=False,
                             )
                         if sum_remove_1 > 0 or sum_remove_2 > 0:
                             list_act = []
                             if sum_remove_1 > 0:
-                                list_act.append("- {} {}".format(num_format_coin(sum_remove_1), coin_1))
+                                list_act.append(
+                                    "- {} {}".format(
+                                        num_format_coin(sum_remove_1), coin_1
+                                    )
+                                )
                             if sum_remove_2 > 0:
-                                list_act.append("- {} {}".format(num_format_coin(sum_remove_2), coin_2))
+                                list_act.append(
+                                    "- {} {}".format(
+                                        num_format_coin(sum_remove_2), coin_2
+                                    )
+                                )
                             embed.add_field(
                                 name="You removed",
                                 value="{}".format("\n".join(list_act)),
-                                inline=False
+                                inline=False,
                             )
-                    if liq_pair['pool_share'] is not None:
+                    if liq_pair["pool_share"] is not None:
                         # If a user has already some liq
                         sub_1 = 0.0
                         sub_2 = 0.0
                         single_pair_amount = 0.0
                         pair_amount = 0.0
-                        price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool_share']['ticker_1_name']), "price_with")
+                        price_with = getattr(
+                            getattr(
+                                self.bot.coin_list,
+                                liq_pair["pool_share"]["ticker_1_name"],
+                            ),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(liq_pair['pool_share']['ticker_1_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_1 = float(Decimal(liq_pair['pool_share']['amount_ticker_1']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                liq_pair["pool_share"]["ticker_1_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_1 = float(
+                                    Decimal(liq_pair["pool_share"]["amount_ticker_1"])
+                                    * Decimal(per_unit)
+                                )
 
-                        price_with = getattr(getattr(self.bot.coin_list, liq_pair['pool_share']['ticker_2_name']), "price_with")
+                        price_with = getattr(
+                            getattr(
+                                self.bot.coin_list,
+                                liq_pair["pool_share"]["ticker_2_name"],
+                            ),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(liq_pair['pool_share']['ticker_2_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_2 = float(Decimal(liq_pair['pool_share']['amount_ticker_2']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                liq_pair["pool_share"]["ticker_2_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_2 = float(
+                                    Decimal(liq_pair["pool_share"]["amount_ticker_2"])
+                                    * Decimal(per_unit)
+                                )
                         # check max price
                         if sub_1 >= 0.0 and sub_2 >= 0.0:
                             single_pair_amount = max(sub_1, sub_2)
@@ -4505,72 +6193,95 @@ class Cexswap(commands.Cog):
                         percent_1 = ""
                         percent_2 = ""
                         try:
-                            percent_1 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
-                            percent_2 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
+                            percent_1 = " - {:,.2f} {}".format(
+                                liq_pair["pool_share"]["amount_ticker_1"]
+                                / liq_pair["pool"]["amount_ticker_1"]
+                                * 100,
+                                "%",
+                            )
+                            percent_2 = " - {:,.2f} {}".format(
+                                liq_pair["pool_share"]["amount_ticker_1"]
+                                / liq_pair["pool"]["amount_ticker_1"]
+                                * 100,
+                                "%",
+                            )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                         embed.add_field(
                             name="Your current LP (Share %)",
                             value="{} {}{}\n{} {}{}{}".format(
-                                num_format_coin(liq_pair['pool_share']['amount_ticker_1']), liq_pair['pool_share']['ticker_1_name'], percent_1, 
-                                num_format_coin(liq_pair['pool_share']['amount_ticker_2']), liq_pair['pool_share']['ticker_2_name'], percent_2,
-                                "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
+                                num_format_coin(
+                                    liq_pair["pool_share"]["amount_ticker_1"]
+                                ),
+                                liq_pair["pool_share"]["ticker_1_name"],
+                                percent_1,
+                                num_format_coin(
+                                    liq_pair["pool_share"]["amount_ticker_2"]
+                                ),
+                                liq_pair["pool_share"]["ticker_2_name"],
+                                percent_2,
+                                "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                                if pair_amount > 0
+                                else "",
                             ),
-                            inline=False
+                            inline=False,
                         )
                     else:
                         embed.add_field(
-                            name="Your current LP (Share %)",
-                            value="N/A",
-                            inline=False
+                            name="Your current LP (Share %)", value="N/A", inline=False
                         )
                 else:
                     embed.add_field(
-                        name="NOTE",
-                        value="This LP doesn't exist yet!",
-                        inline=False
+                        name="NOTE", value="This LP doesn't exist yet!", inline=False
                     )
-                await ctx.edit_original_message(
-                    content=None,
-                    embed=embed
-                )
+                await ctx.edit_original_message(content=None, embed=embed)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_mypool.autocomplete("pool_name")
-    async def cexswap_mypool_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_mypool_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
-
 
     @cexswap.sub_command(
         name="userpool",
         usage="cexswap userpool",
-        options=[
-            Option("user", "Choose pool's name", OptionType.user, required=True)
-        ],
-        description="Admin to check user's liquidated pool detail in cexswap."
+        options=[Option("user", "Choose pool's name", OptionType.user, required=True)],
+        description="Admin to check user's liquidated pool detail in cexswap.",
     )
     async def cexswap_userpool(
         self,
         ctx,
         user: disnake.User,
     ):
-        if ctx.author.id != self.bot.config['discord']['owner_id']:
+        if ctx.author.id != self.bot.config["discord"]["owner_id"]:
             msg = f"{EMOJI_RED_NO} {ctx.author.mention}, checking other user's LP is restricted to Admin only. Please us `/cexswap mypool` instead."
             await ctx.response.send_message(msg, ephemeral=True)
             await log_to_channel(
                 "cexswap",
                 f"[CEXSWAP]: User {ctx.author.mention} tried /cexswap userpool. Permission denied!",
-                self.bot.config['discord']['cexswap']
+                self.bot.config["discord"]["cexswap"],
             )
             return
 
-        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap user's pool loading..."
+        msg = (
+            f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap user's pool loading..."
+        )
         await ctx.response.send_message(msg, ephemeral=True)
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap userpool", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap userpool",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -4582,7 +6293,9 @@ class Cexswap(commands.Cog):
                 await ctx.edit_original_message(content=msg)
                 return
             else:
-                user_ar = await cexswap_get_add_remove_user(str(user.id), SERVER_BOT, None)
+                user_ar = await cexswap_get_add_remove_user(
+                    str(user.id), SERVER_BOT, None
+                )
                 total_liq = {}
                 your_pool_share = {}
                 your_pool_share_num = {}
@@ -4592,48 +6305,78 @@ class Cexswap(commands.Cog):
                     single_pair_amount = 0.0
                     pair_amount = 0.0
 
-                    price_with = getattr(getattr(self.bot.coin_list, i['ticker_1_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, i["ticker_1_name"]), "price_with"
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(i['ticker_1_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_1 = float(Decimal(i['pool_amount_1']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            i["ticker_1_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_1 = float(
+                                Decimal(i["pool_amount_1"]) * Decimal(per_unit)
+                            )
 
-                    price_with = getattr(getattr(self.bot.coin_list, i['ticker_2_name']), "price_with")
+                    price_with = getattr(
+                        getattr(self.bot.coin_list, i["ticker_2_name"]), "price_with"
+                    )
                     if price_with:
-                        per_unit = await self.utils.get_coin_price(i['ticker_2_name'], price_with)
-                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                            per_unit = per_unit['price']
-                            sub_2 = float(Decimal(i['pool_amount_2']) * Decimal(per_unit))
+                        per_unit = await self.utils.get_coin_price(
+                            i["ticker_2_name"], price_with
+                        )
+                        if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                            per_unit = per_unit["price"]
+                            sub_2 = float(
+                                Decimal(i["pool_amount_2"]) * Decimal(per_unit)
+                            )
                     # check max price
                     if sub_1 >= 0.0 and sub_2 >= 0.0:
                         single_pair_amount = max(sub_1, sub_2)
                     if single_pair_amount > 0:
                         pair_amount = 2 * single_pair_amount
-                    total_liq[i['pairs']] = "{} {}\n{} {}{}".format(
-                        num_format_coin(i['pool_amount_1']), i['ticker_1_name'],
-                        num_format_coin(i['pool_amount_2']), i['ticker_2_name'],
-                        "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
+                    total_liq[i["pairs"]] = "{} {}\n{} {}{}".format(
+                        num_format_coin(i["pool_amount_1"]),
+                        i["ticker_1_name"],
+                        num_format_coin(i["pool_amount_2"]),
+                        i["ticker_2_name"],
+                        "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                        if pair_amount > 0
+                        else "",
                     )
-                    if i['amount_ticker_1'] > 0 and i['amount_ticker_2'] > 0:
+                    if i["amount_ticker_1"] > 0 and i["amount_ticker_2"] > 0:
                         # If a user has already some liq
                         sub_1 = 0.0
                         sub_2 = 0.0
                         single_pair_amount = 0.0
                         pair_amount = 0.0
-                        price_with = getattr(getattr(self.bot.coin_list, i['ticker_1_name']), "price_with")
+                        price_with = getattr(
+                            getattr(self.bot.coin_list, i["ticker_1_name"]),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(i['ticker_1_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_1 = float(Decimal(i['amount_ticker_1']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                i["ticker_1_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_1 = float(
+                                    Decimal(i["amount_ticker_1"]) * Decimal(per_unit)
+                                )
 
-                        price_with = getattr(getattr(self.bot.coin_list, i['ticker_2_name']), "price_with")
+                        price_with = getattr(
+                            getattr(self.bot.coin_list, i["ticker_2_name"]),
+                            "price_with",
+                        )
                         if price_with:
-                            per_unit = await self.utils.get_coin_price(i['ticker_2_name'], price_with)
-                            if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                per_unit = per_unit['price']
-                                sub_2 = float(Decimal(i['amount_ticker_2']) * Decimal(per_unit))
+                            per_unit = await self.utils.get_coin_price(
+                                i["ticker_2_name"], price_with
+                            )
+                            if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                                per_unit = per_unit["price"]
+                                sub_2 = float(
+                                    Decimal(i["amount_ticker_2"]) * Decimal(per_unit)
+                                )
                         # check max price
                         if sub_1 >= 0.0 and sub_2 >= 0.0:
                             single_pair_amount = max(sub_1, sub_2)
@@ -4643,18 +6386,28 @@ class Cexswap(commands.Cog):
                         percent_1 = ""
                         percent_2 = ""
                         try:
-                            percent_1 = " - {:,.2f} {}".format(i['amount_ticker_1']/ i['pool_amount_1']*100, "%")
-                            percent_2 = " - {:,.2f} {}".format(i['amount_ticker_2']/ i['pool_amount_2']*100, "%")
+                            percent_1 = " - {:,.2f} {}".format(
+                                i["amount_ticker_1"] / i["pool_amount_1"] * 100, "%"
+                            )
+                            percent_2 = " - {:,.2f} {}".format(
+                                i["amount_ticker_2"] / i["pool_amount_2"] * 100, "%"
+                            )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
-                        your_pool_share[i['pairs']] = "{} {}{}\n{} {}{}{}".format(
-                                num_format_coin(i['amount_ticker_1']), i['ticker_1_name'], percent_1, 
-                                num_format_coin(i['amount_ticker_2']), i['ticker_2_name'], percent_2,
-                                "\n~{} {}".format(truncate(pair_amount, 2), "USD") if pair_amount > 0 else ""
-                            )
-                        your_pool_share_num[i['pairs']] = {
-                            i['ticker_1_name']: i['amount_ticker_1'],
-                            i['ticker_2_name']: i['amount_ticker_2'],
+                        your_pool_share[i["pairs"]] = "{} {}{}\n{} {}{}{}".format(
+                            num_format_coin(i["amount_ticker_1"]),
+                            i["ticker_1_name"],
+                            percent_1,
+                            num_format_coin(i["amount_ticker_2"]),
+                            i["ticker_2_name"],
+                            percent_2,
+                            "\n~{} {}".format(truncate(pair_amount, 2), "USD")
+                            if pair_amount > 0
+                            else "",
+                        )
+                        your_pool_share_num[i["pairs"]] = {
+                            i["ticker_1_name"]: i["amount_ticker_1"],
+                            i["ticker_2_name"]: i["amount_ticker_2"],
                         }
 
                 add_dict = {}
@@ -4666,15 +6419,15 @@ class Cexswap(commands.Cog):
                 gain_lose = {}
                 if len(user_ar) > 0:
                     for i in user_ar:
-                        if i['pairs'] not in list_add:
-                            list_add[i['pairs']] = {}
-                        if i['pairs'] not in list_remove:
-                            list_remove[i['pairs']] = {}
-                        if i['pairs'] not in adding_list_num:
-                            adding_list_num[i['pairs']] = {}
-                        if i['pairs'] not in remove_list_num:
-                            remove_list_num[i['pairs']] = {}
-                        tickers = i['pairs'].split("/")
+                        if i["pairs"] not in list_add:
+                            list_add[i["pairs"]] = {}
+                        if i["pairs"] not in list_remove:
+                            list_remove[i["pairs"]] = {}
+                        if i["pairs"] not in adding_list_num:
+                            adding_list_num[i["pairs"]] = {}
+                        if i["pairs"] not in remove_list_num:
+                            remove_list_num[i["pairs"]] = {}
+                        tickers = i["pairs"].split("/")
                         coin_1 = tickers[0]
                         coin_2 = tickers[1]
                         sum_add_1 = Decimal(0)
@@ -4682,96 +6435,144 @@ class Cexswap(commands.Cog):
                         sum_add_2 = Decimal(0)
                         sum_remove_2 = Decimal(0)
 
-                        if coin_1 == i['token_name']:
-                            if i['action'] == "add":
-                                sum_add_1 += i['amount']
-                            elif i['action'] in ['removepool', 'remove']:
-                                sum_remove_1 += i['amount']
-                        elif coin_2 == i['token_name']:
-                            if i['action'] == "add":
-                                sum_add_2 += i['amount']
-                            elif i['action'] in ['removepool', 'remove']:
-                                sum_remove_2 += i['amount']
+                        if coin_1 == i["token_name"]:
+                            if i["action"] == "add":
+                                sum_add_1 += i["amount"]
+                            elif i["action"] in ["removepool", "remove"]:
+                                sum_remove_1 += i["amount"]
+                        elif coin_2 == i["token_name"]:
+                            if i["action"] == "add":
+                                sum_add_2 += i["amount"]
+                            elif i["action"] in ["removepool", "remove"]:
+                                sum_remove_2 += i["amount"]
                         if sum_add_1 > 0 or sum_add_2 > 0:
-                            if coin_1 not in list_add[i['pairs']]:
-                                list_add[i['pairs']][coin_1] = []
-                                adding_list_num[i['pairs']][coin_1] = Decimal(0)
-                            if coin_2 not in list_add[i['pairs']]:
-                                list_add[i['pairs']][coin_2] = []
-                                adding_list_num[i['pairs']][coin_2] = Decimal(0)
+                            if coin_1 not in list_add[i["pairs"]]:
+                                list_add[i["pairs"]][coin_1] = []
+                                adding_list_num[i["pairs"]][coin_1] = Decimal(0)
+                            if coin_2 not in list_add[i["pairs"]]:
+                                list_add[i["pairs"]][coin_2] = []
+                                adding_list_num[i["pairs"]][coin_2] = Decimal(0)
                             if sum_add_1 > 0:
-                                list_add[i['pairs']][coin_1].append("+ {} {}".format(num_format_coin(sum_add_1), coin_1))
-                                adding_list_num[i['pairs']][coin_1] += sum_add_1
+                                list_add[i["pairs"]][coin_1].append(
+                                    "+ {} {}".format(num_format_coin(sum_add_1), coin_1)
+                                )
+                                adding_list_num[i["pairs"]][coin_1] += sum_add_1
                             if sum_add_2 > 0:
-                                list_add[i['pairs']][coin_2].append("+ {} {}".format(num_format_coin(sum_add_2), coin_2))
-                                adding_list_num[i['pairs']][coin_2] += sum_add_2
+                                list_add[i["pairs"]][coin_2].append(
+                                    "+ {} {}".format(num_format_coin(sum_add_2), coin_2)
+                                )
+                                adding_list_num[i["pairs"]][coin_2] += sum_add_2
                         if sum_remove_1 > 0 or sum_remove_2 > 0:
-                            if coin_1 not in list_remove[i['pairs']]:
-                                list_remove[i['pairs']][coin_1] = []
-                                remove_list_num[i['pairs']][coin_1] = Decimal(0)
-                            if coin_2 not in list_remove[i['pairs']]:
-                                list_remove[i['pairs']][coin_2] = []
-                                remove_list_num[i['pairs']][coin_2] = Decimal(0)
+                            if coin_1 not in list_remove[i["pairs"]]:
+                                list_remove[i["pairs"]][coin_1] = []
+                                remove_list_num[i["pairs"]][coin_1] = Decimal(0)
+                            if coin_2 not in list_remove[i["pairs"]]:
+                                list_remove[i["pairs"]][coin_2] = []
+                                remove_list_num[i["pairs"]][coin_2] = Decimal(0)
                             if sum_remove_1 > 0:
-                                list_remove[i['pairs']][coin_1].append("- {} {}".format(num_format_coin(sum_remove_1), coin_1))
-                                remove_list_num[i['pairs']][coin_1] -= sum_remove_1
+                                list_remove[i["pairs"]][coin_1].append(
+                                    "- {} {}".format(
+                                        num_format_coin(sum_remove_1), coin_1
+                                    )
+                                )
+                                remove_list_num[i["pairs"]][coin_1] -= sum_remove_1
                             if sum_remove_2 > 0:
-                                list_remove[i['pairs']][coin_2].append("- {} {}".format(num_format_coin(sum_remove_2), coin_2))
-                                remove_list_num[i['pairs']][coin_2] -= sum_remove_2
+                                list_remove[i["pairs"]][coin_2].append(
+                                    "- {} {}".format(
+                                        num_format_coin(sum_remove_2), coin_2
+                                    )
+                                )
+                                remove_list_num[i["pairs"]][coin_2] -= sum_remove_2
                 # filter uniq tokens
-                list_pairs = sorted(list(set([i['pairs'] for i in get_poolshare])))
+                list_pairs = sorted(list(set([i["pairs"] for i in get_poolshare])))
                 for i in list_pairs:
                     tickers = i.split("/")
                     if i in list_add:
-                        add_dict[i] = "{}".format("\n".join(list_add[i][tickers[0]] + list_add[i][tickers[1]]))
+                        add_dict[i] = "{}".format(
+                            "\n".join(list_add[i][tickers[0]] + list_add[i][tickers[1]])
+                        )
                     if i in list_remove:
                         if tickers[0] in list_remove[i]:
-                            remove_dict[i] = "{}".format("\n".join(list_remove[i][tickers[0]] + list_remove[i][tickers[1]]))
+                            remove_dict[i] = "{}".format(
+                                "\n".join(
+                                    list_remove[i][tickers[0]]
+                                    + list_remove[i][tickers[1]]
+                                )
+                            )
                     if i in remove_list_num or i in your_pool_share_num:
                         for coin_name in tickers:
-                            a_add = adding_list_num[i][coin_name] if coin_name in adding_list_num[i] else Decimal(0)
-                            a_remove = remove_list_num[i][coin_name] if coin_name in remove_list_num[i] else Decimal(0)
-                            a_share = your_pool_share_num[i][coin_name] if coin_name in your_pool_share_num[i] else Decimal(0)
+                            a_add = (
+                                adding_list_num[i][coin_name]
+                                if coin_name in adding_list_num[i]
+                                else Decimal(0)
+                            )
+                            a_remove = (
+                                remove_list_num[i][coin_name]
+                                if coin_name in remove_list_num[i]
+                                else Decimal(0)
+                            )
+                            a_share = (
+                                your_pool_share_num[i][coin_name]
+                                if coin_name in your_pool_share_num[i]
+                                else Decimal(0)
+                            )
                             tmp_gain_lose = a_share - (a_add - a_remove)
                             if abs(truncate(tmp_gain_lose, 4)) != 0:
                                 if i not in gain_lose:
                                     gain_lose[i] = []
-                                gain_lose[i].append("{}{} {}".format(
-                                    "+" if tmp_gain_lose > 0 else "-",
-                                    num_format_coin(abs(tmp_gain_lose)),
-                                    coin_name
-                                ))
+                                gain_lose[i].append(
+                                    "{}{} {}".format(
+                                        "+" if tmp_gain_lose > 0 else "-",
+                                        num_format_coin(abs(tmp_gain_lose)),
+                                        coin_name,
+                                    )
+                                )
 
                 list_earnings = {}
-                get_user_earning = await get_cexswap_earning(user_id=str(user.id), from_time=None, pool_id=None, group_pool=True)
+                get_user_earning = await get_cexswap_earning(
+                    user_id=str(user.id), from_time=None, pool_id=None, group_pool=True
+                )
                 if len(get_user_earning) > 0:
                     for i in get_user_earning:
-                        tickers = i['pairs'].split("/")
-                        if i['pairs'] not in list_earnings:
-                            list_earnings[i['pairs']] = []
-                        if i['got_ticker'] in tickers:
-                            list_earnings[i['pairs']].append("{} {}".format(num_format_coin(i['collected_amount']), i['got_ticker']))
-                        
+                        tickers = i["pairs"].split("/")
+                        if i["pairs"] not in list_earnings:
+                            list_earnings[i["pairs"]] = []
+                        if i["got_ticker"] in tickers:
+                            list_earnings[i["pairs"]].append(
+                                "{} {}".format(
+                                    num_format_coin(i["collected_amount"]),
+                                    i["got_ticker"],
+                                )
+                            )
+
                 embed = disnake.Embed(
                     title="User LP Pool in TipBot's CEXSwap",
                     description=f"{ctx.author.mention}, LP of user {user.mention}.",
                     timestamp=datetime.now(),
                 )
-                embed.set_footer(text="LP User {}#{}".format(user.name, user.discriminator))
+                embed.set_footer(
+                    text="LP User {}#{}".format(user.name, user.discriminator)
+                )
                 embed.set_thumbnail(url=user.display_avatar)
 
                 # Create the view containing our dropdown
                 # list_pairs can be more than 25 - limit of Discord
                 view = DropdownViewMyPool(
-                    ctx, self.bot, list_pairs, total_liq, your_pool_share,
-                    add_dict, remove_dict, gain_lose, list_earnings, embed, active_pair=None, is_admin=True
+                    ctx,
+                    self.bot,
+                    list_pairs,
+                    total_liq,
+                    your_pool_share,
+                    add_dict,
+                    remove_dict,
+                    gain_lose,
+                    list_earnings,
+                    embed,
+                    active_pair=None,
+                    is_admin=True,
                 )
 
-                await ctx.edit_original_message(
-                    content=None,
-                    embed=embed,
-                    view=view
-                )
+                await ctx.edit_original_message(content=None, embed=embed, view=view)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -4781,7 +6582,7 @@ class Cexswap(commands.Cog):
         options=[
             Option("pool_name", "Choose pool's name", OptionType.string, required=True)
         ],
-        description="Add a liquidity pool in cexswap."
+        description="Add a liquidity pool in cexswap.",
     )
     async def cexswap_addliquidity(
         self,
@@ -4791,28 +6592,42 @@ class Cexswap(commands.Cog):
         cmd_name = ctx.application_command.qualified_name
         command_mention = f"__/{cmd_name}__"
         try:
-            if self.bot.config['discord']['enable_command_mention'] == 1:
+            if self.bot.config["discord"]["enable_command_mention"] == 1:
                 cmd = self.bot.get_global_command_named(cmd_name.split()[0])
-                command_mention = f"</{ctx.application_command.qualified_name}:{cmd.id}>"
+                command_mention = (
+                    f"</{ctx.application_command.qualified_name}:{cmd.id}>"
+                )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap addliquidity", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap addliquidity",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
-        if self.bot.config['cexswap']['enable_add_liq'] != 1 and ctx.author.id != self.bot.config['discord']['owner_id']:
+        if (
+            self.bot.config["cexswap"]["enable_add_liq"] != 1
+            and ctx.author.id != self.bot.config["discord"]["owner_id"]
+        ):
             msg = f"{EMOJI_RED_NO} {ctx.author.mention}, CEXSwap's adding liquidity is temporarily offline! Check again soon."
             await ctx.response.send_message(msg)
             return
 
         try:
-            testing = self.bot.config['cexswap']['testing_msg']
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="Add Liquidity to TipBot's CEXSwap",
                 description=f"{ctx.author.mention}, {testing}Please click on add liquidity and confirm later.",
@@ -4826,148 +6641,207 @@ class Cexswap(commands.Cog):
                     if len(tickers) == 2:
                         pool_name = "{}/{}".format(tickers[1], tickers[0])
                         if pool_name not in self.bot.cexswap_pairs:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     else:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         return
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                         f"Invalid given __{pool_name}__."
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
                 # End checking wrong order
 
             tickers = pool_name.upper().split("/")
 
-            coin_emoji_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord")
+            coin_emoji_1 = getattr(
+                getattr(self.bot.coin_list, tickers[0]), "coin_emoji_discord"
+            )
             coin_emoji_1 = coin_emoji_1 + " " if coin_emoji_1 else ""
-            coin_emoji_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord")
+            coin_emoji_2 = getattr(
+                getattr(self.bot.coin_list, tickers[1]), "coin_emoji_discord"
+            )
             coin_emoji_2 = coin_emoji_2 + " " if coin_emoji_2 else ""
 
-            min_initialized_liq_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_min_initialized_liq")
-            min_initialized_liq_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_min_initialized_liq")
-
-            init_liq_text = "{} {} and {} {}".format(
-                num_format_coin(min_initialized_liq_1), tickers[0],
-                num_format_coin(min_initialized_liq_2), tickers[1]
+            min_initialized_liq_1 = getattr(
+                getattr(self.bot.coin_list, tickers[0]), "cexswap_min_initialized_liq"
+            )
+            min_initialized_liq_2 = getattr(
+                getattr(self.bot.coin_list, tickers[1]), "cexswap_min_initialized_liq"
             )
 
-            liq_pair = await cexswap_get_pool_details(tickers[0], tickers[1], str(ctx.author.id))
+            init_liq_text = "{} {} and {} {}".format(
+                num_format_coin(min_initialized_liq_1),
+                tickers[0],
+                num_format_coin(min_initialized_liq_2),
+                tickers[1],
+            )
+
+            liq_pair = await cexswap_get_pool_details(
+                tickers[0], tickers[1], str(ctx.author.id)
+            )
             if liq_pair is None:
                 # check number of pools with these two tokens
                 can_init_lp = True
                 cant_init_reason = ""
                 get_pools = await cexswap_get_pools(tickers[0])
-                get_max_pair_allow = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_max_pairs")
+                get_max_pair_allow = getattr(
+                    getattr(self.bot.coin_list, tickers[0]), "cexswap_max_pairs"
+                )
                 max_lp = min(len(get_pools), get_max_pair_allow)
-                if len(get_pools) >= get_max_pair_allow or len(get_pools) >= self.bot.config['cexswap']['max_pair_with']:
+                if (
+                    len(get_pools) >= get_max_pair_allow
+                    or len(get_pools) >= self.bot.config["cexswap"]["max_pair_with"]
+                ):
                     can_init_lp = False
-                    cant_init_reason = "{} already reached max. number of LP: **{}**. Contact Bot dev if you would like more.".format(tickers[0], max_lp)
+                    cant_init_reason = "{} already reached max. number of LP: **{}**. Contact Bot dev if you would like more.".format(
+                        tickers[0], max_lp
+                    )
 
                 get_pools = await cexswap_get_pools(tickers[1])
-                get_max_pair_allow = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_max_pairs")
+                get_max_pair_allow = getattr(
+                    getattr(self.bot.coin_list, tickers[1]), "cexswap_max_pairs"
+                )
                 max_lp = min(len(get_pools), get_max_pair_allow)
-                if len(get_pools) >= get_max_pair_allow or len(get_pools) >= self.bot.config['cexswap']['max_pair_with']:
+                if (
+                    len(get_pools) >= get_max_pair_allow
+                    or len(get_pools) >= self.bot.config["cexswap"]["max_pair_with"]
+                ):
                     if can_init_lp is True:
                         can_init_lp = False
-                        cant_init_reason = "{} already reached max. number of LP: **{}**. Contact Bot dev if you would like more.".format(tickers[1], max_lp)
+                        cant_init_reason = "{} already reached max. number of LP: **{}**. Contact Bot dev if you would like more.".format(
+                            tickers[1], max_lp
+                        )
 
                 if can_init_lp is False:
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, {cant_init_reason}"
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, {cant_init_reason}"
+                    )
                     await ctx.edit_original_message(content=msg)
                     await log_to_channel(
                         "cexswap",
-                        f"[REJECT ADDING LIQUIDITY]: User {ctx.author.mention} try to add LP to pool __{pool_name}__!"\
+                        f"[REJECT ADDING LIQUIDITY]: User {ctx.author.mention} try to add LP to pool __{pool_name}__!"
                         f" but rejected with reason: {cant_init_reason}",
-                        self.bot.config['discord']['cexswap']
+                        self.bot.config["discord"]["cexswap"],
                     )
                     return
                 embed.add_field(
                     name="New Pool",
                     value="This is a new pair and a start price will be based on yours.",
-                    inline=False
+                    inline=False,
                 )
             else:
-                if int(time.time()) - liq_pair['pool']['initialized_date'] < 90:
+                if int(time.time()) - liq_pair["pool"]["initialized_date"] < 90:
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, this pool is very new, please wait a bit!"
                     await ctx.edit_original_message(content=msg)
                     return
 
                 rate_1 = num_format_coin(
-                    liq_pair['pool']['amount_ticker_2']/liq_pair['pool']['amount_ticker_1']
+                    liq_pair["pool"]["amount_ticker_2"]
+                    / liq_pair["pool"]["amount_ticker_1"]
                 )
                 rate_2 = num_format_coin(
-                    liq_pair['pool']['amount_ticker_1']/liq_pair['pool']['amount_ticker_2']
+                    liq_pair["pool"]["amount_ticker_1"]
+                    / liq_pair["pool"]["amount_ticker_2"]
                 )
                 rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
                     1, tickers[0], rate_1, tickers[1], 1, tickers[1], rate_2, tickers[0]
                 )
-                
+
                 # show total liq
                 embed.add_field(
                     name="Total liquidity",
                     value="{} {}\n{} {}".format(
-                        num_format_coin(liq_pair['pool']['amount_ticker_1']), liq_pair['pool']['ticker_1_name'],
-                        num_format_coin(liq_pair['pool']['amount_ticker_2']), liq_pair['pool']['ticker_2_name']
+                        num_format_coin(liq_pair["pool"]["amount_ticker_1"]),
+                        liq_pair["pool"]["ticker_1_name"],
+                        num_format_coin(liq_pair["pool"]["amount_ticker_2"]),
+                        liq_pair["pool"]["ticker_2_name"],
                     ),
-                    inline=False
+                    inline=False,
                 )
                 embed.add_field(
                     name="Existing Pool | Rate",
                     value="{}".format(rate_coin_12),
-                    inline=False
+                    inline=False,
                 )
                 # If a user has already some liq
                 percent_1 = ""
                 percent_2 = ""
 
-                if liq_pair['pool_share'] is not None:
+                if liq_pair["pool_share"] is not None:
                     try:
-                        percent_1 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
-                        percent_2 = " - {:,.2f} {}".format(liq_pair['pool_share']['amount_ticker_1']/ liq_pair['pool']['amount_ticker_1']*100, "%")
+                        percent_1 = " - {:,.2f} {}".format(
+                            liq_pair["pool_share"]["amount_ticker_1"]
+                            / liq_pair["pool"]["amount_ticker_1"]
+                            * 100,
+                            "%",
+                        )
+                        percent_2 = " - {:,.2f} {}".format(
+                            liq_pair["pool_share"]["amount_ticker_1"]
+                            / liq_pair["pool"]["amount_ticker_1"]
+                            * 100,
+                            "%",
+                        )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
                     embed.add_field(
                         name="Your existing liquidity",
                         value="{} {}{}\n{} {}{}".format(
-                            num_format_coin(liq_pair['pool_share']['amount_ticker_1']), liq_pair['pool_share']['ticker_1_name'], percent_1, 
-                            num_format_coin(liq_pair['pool_share']['amount_ticker_2']), liq_pair['pool_share']['ticker_2_name'], percent_2
+                            num_format_coin(liq_pair["pool_share"]["amount_ticker_1"]),
+                            liq_pair["pool_share"]["ticker_1_name"],
+                            percent_1,
+                            num_format_coin(liq_pair["pool_share"]["amount_ticker_2"]),
+                            liq_pair["pool_share"]["ticker_2_name"],
+                            percent_2,
                         ),
-                        inline=False
+                        inline=False,
                     )
 
-                min_liq_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_min_add_liq")
-                min_liq_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_min_add_liq")
+                min_liq_1 = getattr(
+                    getattr(self.bot.coin_list, tickers[0]), "cexswap_min_add_liq"
+                )
+                min_liq_2 = getattr(
+                    getattr(self.bot.coin_list, tickers[1]), "cexswap_min_add_liq"
+                )
                 init_liq_text = "{} {}\n{} {}".format(
-                    num_format_coin(min_liq_1), tickers[0],
-                    num_format_coin(min_liq_2), tickers[1]
+                    num_format_coin(min_liq_1),
+                    tickers[0],
+                    num_format_coin(min_liq_2),
+                    tickers[1],
                 )
             embed.add_field(
-                name="Minimum adding",
-                value=f"{init_liq_text}",
-                inline=False
+                name="Minimum adding", value=f"{init_liq_text}", inline=False
             )
 
             embed.add_field(
                 name="Adding Ticker {}".format(tickers[0]),
                 value="Amount: .. {}{}".format(coin_emoji_1, tickers[0]),
-                inline=False
+                inline=False,
             )
             embed.add_field(
                 name="Adding Ticker {}".format(tickers[1]),
                 value="Amount: .. {}{}".format(coin_emoji_2, tickers[1]),
-                inline=False
+                inline=False,
             )
 
             # Check if tx in progress
-            if str(ctx.author.id) in self.bot.tipping_in_progress and \
-                int(time.time()) - self.bot.tipping_in_progress[str(ctx.author.id)] < 42:
+            if (
+                str(ctx.author.id) in self.bot.tipping_in_progress
+                and int(time.time()) - self.bot.tipping_in_progress[str(ctx.author.id)]
+                < 42
+            ):
                 msg = f"{EMOJI_ERROR} {ctx.author.mention}, you have another transaction in progress."
                 await ctx.edit_original_message(content=msg)
                 return
@@ -4980,59 +6854,89 @@ class Cexswap(commands.Cog):
             for coin_name in tickers:
                 net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
                 type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-                deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
-                token_display = getattr(getattr(self.bot.coin_list, coin_name), "display_name")
+                deposit_confirm_depth = getattr(
+                    getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth"
+                )
+                getattr(getattr(self.bot.coin_list, coin_name), "display_name")
                 get_deposit = await self.wallet_api.sql_get_userwallet(
                     str(ctx.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(ctx.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(ctx.author.id),
+                        coin_name,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                wallet_address = get_deposit['balance_wallet_address']
+                wallet_address = get_deposit["balance_wallet_address"]
                 if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                    wallet_address = get_deposit['paymentid']
+                    wallet_address = get_deposit["paymentid"]
                 elif type_coin in ["XRP"]:
-                    wallet_address = get_deposit['destination_tag']
+                    wallet_address = get_deposit["destination_tag"]
 
-                height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
+                height = await self.wallet_api.get_block_height(
+                    type_coin, coin_name, net_name
+                )
                 get_deposit = await self.wallet_api.sql_get_userwallet(
                     str(ctx.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0
                 )
                 if get_deposit is None:
                     get_deposit = await self.wallet_api.sql_register_user(
-                        str(ctx.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
+                        str(ctx.author.id),
+                        coin_name,
+                        net_name,
+                        type_coin,
+                        SERVER_BOT,
+                        0,
+                        0,
                     )
 
-                height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-                userdata_balance = await self.wallet_api.user_balance(
-                    str(ctx.author.id), coin_name, wallet_address, 
-                    type_coin, height, deposit_confirm_depth, SERVER_BOT
+                height = await self.wallet_api.get_block_height(
+                    type_coin, coin_name, net_name
                 )
-                if float(userdata_balance['adjust']) <= 0:
+                userdata_balance = await self.wallet_api.user_balance(
+                    str(ctx.author.id),
+                    coin_name,
+                    wallet_address,
+                    type_coin,
+                    height,
+                    deposit_confirm_depth,
+                    SERVER_BOT,
+                )
+                if float(userdata_balance["adjust"]) <= 0:
                     msg = f"{EMOJI_ERROR} {ctx.author.mention}, please check your {coin_name}'s balance!"
                     await ctx.edit_original_message(content=msg)
                     return
 
-                balances.append(float(userdata_balance['adjust']))
-                balances_str.append(
-                    num_format_coin(float(userdata_balance['adjust']))
-                )
+                balances.append(float(userdata_balance["adjust"]))
+                balances_str.append(num_format_coin(float(userdata_balance["adjust"])))
             # ticker 1
             await ctx.edit_original_message(
                 content=None,
                 embed=embed,
                 view=add_liquidity_btn(
-                    ctx, self.bot, str(ctx.author.id), pool_name, balances_str, command_mention, accepted=False,
-                    amount_1=None, amount_2=None
-                )
+                    ctx,
+                    self.bot,
+                    str(ctx.author.id),
+                    pool_name,
+                    balances_str,
+                    command_mention,
+                    accepted=False,
+                    amount_1=None,
+                    amount_2=None,
+                ),
             )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_addliquidity.autocomplete("pool_name")
-    async def cexswap_addliquidity_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_addliquidity_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
 
@@ -5042,28 +6946,35 @@ class Cexswap(commands.Cog):
         options=[
             Option("pool_name", "Choose pool's name", OptionType.string, required=True),
         ],
-        description="Admin to remove pools and return all balance to liquidators."
+        description="Admin to remove pools and return all balance to liquidators.",
     )
-    async def cexswap_removepools(
-        self,
-        ctx,
-        pool_name: str
-    ):
+    async def cexswap_removepools(self, ctx, pool_name: str):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg, ephemeral=True)
 
-        if ctx.author.id != self.bot.config['discord']['owner']:
-            await ctx.edit_original_message(content=f"{ctx.author.mention}, you don't have permission! Did you mean `removeliquidity`?")
+        if ctx.author.id != self.bot.config["discord"]["owner"]:
+            await ctx.edit_original_message(
+                content=f"{ctx.author.mention}, you don't have permission! Did you mean `removeliquidity`?"
+            )
             await log_to_channel(
                 "cexswap",
                 f"[REMOVEPOOL]: User {ctx.author.mention} tried /cexswap removepools. Permission denied!",
-                self.bot.config['discord']['cexswap']
+                self.bot.config["discord"]["cexswap"],
             )
             return
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap removepools", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap removepools",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -5077,19 +6988,25 @@ class Cexswap(commands.Cog):
                     if len(tickers) == 2:
                         pool_name = "{}/{}".format(tickers[1], tickers[0])
                         if pool_name not in self.bot.cexswap_pairs:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     else:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         return
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                         f"Invalid given __{pool_name}__."
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
                 # End checking wrong order
@@ -5103,49 +7020,65 @@ class Cexswap(commands.Cog):
             else:
                 liq_users = []
                 notifying_u = []
-                if len(liq_pair['pool_share']) > 0:
+                if len(liq_pair["pool_share"]) > 0:
                     balance_user = {}
-                    for each_s in liq_pair['pool_share']:
+                    for each_s in liq_pair["pool_share"]:
                         try:
-                            if truncate(float(each_s['amount_ticker_1']), 12) > 0:
+                            if truncate(float(each_s["amount_ticker_1"]), 12) > 0:
                                 liq_users += [
-                                    float(each_s['amount_ticker_1']), int(time.time()),
-                                    each_s['user_id'], each_s['ticker_1_name'], each_s['user_server']
+                                    float(each_s["amount_ticker_1"]),
+                                    int(time.time()),
+                                    each_s["user_id"],
+                                    each_s["ticker_1_name"],
+                                    each_s["user_server"],
                                 ]
-                                if each_s['user_server'] == SERVER_BOT:
-                                    notifying_u.append(int(each_s['user_id']))
-                            if truncate(float(each_s['amount_ticker_2']), 12) > 0:
+                                if each_s["user_server"] == SERVER_BOT:
+                                    notifying_u.append(int(each_s["user_id"]))
+                            if truncate(float(each_s["amount_ticker_2"]), 12) > 0:
                                 liq_users += [
-                                    float(each_s['amount_ticker_2']), int(time.time()),
-                                    each_s['user_id'], each_s['ticker_2_name'], each_s['user_server']
+                                    float(each_s["amount_ticker_2"]),
+                                    int(time.time()),
+                                    each_s["user_id"],
+                                    each_s["ticker_2_name"],
+                                    each_s["user_server"],
                                 ]
-                                if int(each_s['user_id']) not in notifying_u:
-                                    notifying_u.append(int(each_s['user_id']))
-                            amount_1_str = num_format_coin(each_s['amount_ticker_1'])
-                            amount_2_str = num_format_coin(each_s['amount_ticker_2'])
-                            balance_user[each_s['user_id']] = "{} {} and {} {}".format(
-                                amount_1_str, each_s['ticker_1_name'],
-                                amount_2_str, each_s['ticker_2_name']
+                                if int(each_s["user_id"]) not in notifying_u:
+                                    notifying_u.append(int(each_s["user_id"]))
+                            amount_1_str = num_format_coin(each_s["amount_ticker_1"])
+                            amount_2_str = num_format_coin(each_s["amount_ticker_2"])
+                            balance_user[each_s["user_id"]] = "{} {} and {} {}".format(
+                                amount_1_str,
+                                each_s["ticker_1_name"],
+                                amount_2_str,
+                                each_s["ticker_2_name"],
                             )
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                 removing = await cexswap_admin_remove_pool(
-                    liq_pair['pool']['pool_id'], str(ctx.author.id), SERVER_BOT,
-                    liq_pair['pool']['amount_ticker_1'], liq_pair['pool']['ticker_1_name'],
-                    liq_pair['pool']['amount_ticker_2'], liq_pair['pool']['ticker_2_name'],
-                    liq_users
+                    liq_pair["pool"]["pool_id"],
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    liq_pair["pool"]["amount_ticker_1"],
+                    liq_pair["pool"]["ticker_1_name"],
+                    liq_pair["pool"]["amount_ticker_2"],
+                    liq_pair["pool"]["ticker_2_name"],
+                    liq_users,
                 )
                 if removing is True:
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully removed pool:" \
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully removed pool:"
                         f"__{pool_name}__"
+                    )
                     num_notifying = 0
                     for liq_u in notifying_u:
                         try:
                             member = self.bot.get_user(liq_u)
                             if member is not None:
                                 try:
-                                    msg_sending = f"Admin removed pool __{pool_name}__. You pool shared return to your balance:"\
+                                    msg_sending = (
+                                        f"Admin removed pool __{pool_name}__. You pool shared return to your balance:"
                                         f"```{balance_user[str(liq_u)]}```"
+                                    )
                                     await member.send(msg_sending)
                                     num_notifying += 1
                                 except Exception:
@@ -5157,7 +7090,7 @@ class Cexswap(commands.Cog):
                     await log_to_channel(
                         "cexswap",
                         f"[REMOVEPOOL]: User {ctx.author.mention} removed pools __{pool_name}__!",
-                        self.bot.config['discord']['cexswap']
+                        self.bot.config["discord"]["cexswap"],
                     )
                 else:
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, internal error."
@@ -5166,7 +7099,9 @@ class Cexswap(commands.Cog):
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_removepools.autocomplete("pool_name")
-    async def cexswap_removepools_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_removepools_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
 
@@ -5175,34 +7110,47 @@ class Cexswap(commands.Cog):
         usage="cexswap removeliquidity",
         options=[
             Option("pool_name", "Choose pool's name", OptionType.string, required=True),
-            Option('percentage', 'percentage', OptionType.string, required=True, choices=[
-                OptionChoice("10%", "10%"),
-                OptionChoice("25%", "25%"),
-                OptionChoice("50%", "50%"),
-                OptionChoice("75%", "75%"),
-                OptionChoice("100%", "100%")
-            ])
+            Option(
+                "percentage",
+                "percentage",
+                OptionType.string,
+                required=True,
+                choices=[
+                    OptionChoice("10%", "10%"),
+                    OptionChoice("25%", "25%"),
+                    OptionChoice("50%", "50%"),
+                    OptionChoice("75%", "75%"),
+                    OptionChoice("100%", "100%"),
+                ],
+            ),
         ],
-        description="Remove your liquidity pool from cexswap."
+        description="Remove your liquidity pool from cexswap.",
     )
-    async def cexswap_removeliquidity(
-        self,
-        ctx,
-        pool_name: str,
-        percentage: str
-    ):
+    async def cexswap_removeliquidity(self, ctx, pool_name: str, percentage: str):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading..."
         await ctx.response.send_message(msg)
 
-        if self.bot.config['cexswap']['enable_remove_liq'] != 1 and ctx.author.id != self.bot.config['discord']['owner_id']:
+        if (
+            self.bot.config["cexswap"]["enable_remove_liq"] != 1
+            and ctx.author.id != self.bot.config["discord"]["owner_id"]
+        ):
             msg = f"{EMOJI_RED_NO} {ctx.author.mention}, CEXSwap's removing liquidity is temporarily offline! Check again soon."
             await ctx.response.send_message(msg)
             return
 
         percentage = int(percentage.replace("%", ""))
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap removeliquidity", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap removeliquidity",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -5220,77 +7168,116 @@ class Cexswap(commands.Cog):
                     if len(tickers) == 2:
                         pool_name = "{}/{}".format(tickers[1], tickers[0])
                         if pool_name not in self.bot.cexswap_pairs:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     else:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         return
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                         f"Invalid given __{pool_name}__."
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
                 # End checking wrong order
             try:
                 tickers = pool_name.split("/")
-                liq_pair = await cexswap_get_pool_details(tickers[0], tickers[1], str(ctx.author.id))
+                liq_pair = await cexswap_get_pool_details(
+                    tickers[0], tickers[1], str(ctx.author.id)
+                )
                 if liq_pair is None:
                     msg = f"{EMOJI_ERROR}, {ctx.author.mention}, there is no liquidity for that pool __{pool_name}__. "
                     await ctx.edit_original_message(content=msg)
                     return
-                elif liq_pair and liq_pair['pool_share'] is None:
+                elif liq_pair and liq_pair["pool_share"] is None:
                     msg = f"{EMOJI_ERROR}, {ctx.author.mention}, you own nothing for that pool __{pool_name}__. "
                     await ctx.edit_original_message(content=msg)
                     return
-                elif liq_pair and liq_pair['pool_share'] is not None:
-                    amount_remove_1 = percentage / 100 * float(liq_pair['pool_share']['amount_ticker_1'])
-                    ticker_1 = liq_pair['pool_share']['ticker_1_name']
-                    amount_remove_2 = percentage / 100 * float(liq_pair['pool_share']['amount_ticker_2'])
-                    ticker_2 = liq_pair['pool_share']['ticker_2_name']
+                elif liq_pair and liq_pair["pool_share"] is not None:
+                    amount_remove_1 = (
+                        percentage
+                        / 100
+                        * float(liq_pair["pool_share"]["amount_ticker_1"])
+                    )
+                    ticker_1 = liq_pair["pool_share"]["ticker_1_name"]
+                    amount_remove_2 = (
+                        percentage
+                        / 100
+                        * float(liq_pair["pool_share"]["amount_ticker_2"])
+                    )
+                    ticker_2 = liq_pair["pool_share"]["ticker_2_name"]
                     complete_remove = False
                     delete_pool = False
                     if percentage == 100:
                         complete_remove = True
-                        amount_remove_1 = liq_pair['pool_share']['amount_ticker_1']
-                        amount_remove_2 = liq_pair['pool_share']['amount_ticker_2']
+                        amount_remove_1 = liq_pair["pool_share"]["amount_ticker_1"]
+                        amount_remove_2 = liq_pair["pool_share"]["amount_ticker_2"]
                     else:
                         # if the liquidity is too low
                         try:
-                            cexswap_min_add_liq_1 = getattr(getattr(self.bot.coin_list, tickers[0]), "cexswap_min")
-                            cexswap_min_add_liq_2 = getattr(getattr(self.bot.coin_list, tickers[1]), "cexswap_min")
-                            if float(amount_remove_1) < float(cexswap_min_add_liq_1) or float(amount_remove_2) < float(cexswap_min_add_liq_2):
-                                msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, your current LP is too low. "\
+                            cexswap_min_add_liq_1 = getattr(
+                                getattr(self.bot.coin_list, tickers[0]), "cexswap_min"
+                            )
+                            cexswap_min_add_liq_2 = getattr(
+                                getattr(self.bot.coin_list, tickers[1]), "cexswap_min"
+                            )
+                            if float(amount_remove_1) < float(
+                                cexswap_min_add_liq_1
+                            ) or float(amount_remove_2) < float(cexswap_min_add_liq_2):
+                                msg = (
+                                    f"{EMOJI_INFORMATION} {ctx.author.mention}, your current LP is too low. "
                                     "Please consider to remove 100%."
+                                )
                                 await ctx.edit_original_message(content=msg)
                                 return
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
                     # if you own all pair and amout remove is all.
-                    if truncate(float(amount_remove_1), 8) == \
-                        truncate(float(liq_pair['pool']['amount_ticker_1']), 8):
+                    if truncate(float(amount_remove_1), 8) == truncate(
+                        float(liq_pair["pool"]["amount_ticker_1"]), 8
+                    ):
                         delete_pool = True
-                    if truncate(float(amount_remove_2), 8) == \
-                        truncate(float(liq_pair['pool']['amount_ticker_2']), 8):
+                    if truncate(float(amount_remove_2), 8) == truncate(
+                        float(liq_pair["pool"]["amount_ticker_2"]), 8
+                    ):
                         delete_pool = True
 
                     # Check if tx in progress
-                    if str(ctx.author.id) in self.bot.tipping_in_progress and \
-                        int(time.time()) - self.bot.tipping_in_progress[str(ctx.author.id)] < 42:
+                    if (
+                        str(ctx.author.id) in self.bot.tipping_in_progress
+                        and int(time.time())
+                        - self.bot.tipping_in_progress[str(ctx.author.id)]
+                        < 42
+                    ):
                         msg = f"{EMOJI_ERROR} {ctx.author.mention}, you have another transaction in progress."
                         await ctx.edit_original_message(content=msg)
                         return
                     if str(ctx.author.id) not in self.bot.tipping_in_progress:
-                        self.bot.tipping_in_progress[str(ctx.author.id)] = int(time.time())
+                        self.bot.tipping_in_progress[str(ctx.author.id)] = int(
+                            time.time()
+                        )
                     # end checking tx in progress
 
                     removing = await cexswap_remove_pool_share(
-                        liq_pair['pool']['pool_id'], amount_remove_1, ticker_1, amount_remove_2, ticker_2,
-                        str(ctx.author.id), SERVER_BOT, complete_remove, delete_pool
+                        liq_pair["pool"]["pool_id"],
+                        amount_remove_1,
+                        ticker_1,
+                        amount_remove_2,
+                        ticker_2,
+                        str(ctx.author.id),
+                        SERVER_BOT,
+                        complete_remove,
+                        delete_pool,
                     )
                     amount_1_str = num_format_coin(amount_remove_1)
                     amount_2_str = num_format_coin(amount_remove_2)
@@ -5302,48 +7289,67 @@ class Cexswap(commands.Cog):
                     if removing is True:
                         # remove /summary cache
                         try:
-                            self.utils.del_cache_kv(self.bot.config['kv_db']['prefix_cexswap'], "summary")
+                            self.utils.del_cache_kv(
+                                self.bot.config["kv_db"]["prefix_cexswap"], "summary"
+                            )
                         except Exception:
                             pass
                         # End of del key
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully removed liquidity:" \
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully removed liquidity:"
                             f"```{amount_1_str} {ticker_1}\n{amount_2_str} {ticker_2}```"
+                        )
                         await ctx.edit_original_message(content=msg)
                         await log_to_channel(
                             "cexswap",
-                            f"[REMOVING LIQUIDITY]: User {ctx.author.mention} removed liquidity from __{pool_name}__!" \
+                            f"[REMOVING LIQUIDITY]: User {ctx.author.mention} removed liquidity from __{pool_name}__!"
                             f"{amount_1_str} {ticker_1} and {amount_2_str} {ticker_2}",
-                            self.bot.config['discord']['cexswap']
+                            self.bot.config["discord"]["cexswap"],
                         )
                         get_guilds = await self.utils.get_trade_channel_list()
-                        if len(get_guilds) > 0 and self.bot.config['cexswap']['disable'] == 0:
+                        if (
+                            len(get_guilds) > 0
+                            and self.bot.config["cexswap"]["disable"] == 0
+                        ):
                             list_guild_ids = [i.id for i in self.bot.guilds]
                             for item in get_guilds:
-                                if int(item['serverid']) not in list_guild_ids:
+                                if int(item["serverid"]) not in list_guild_ids:
                                     continue
                                 try:
-                                    get_guild = self.bot.get_guild(int(item['serverid']))
+                                    get_guild = self.bot.get_guild(
+                                        int(item["serverid"])
+                                    )
                                     if get_guild:
-                                        channel = get_guild.get_channel(int(item['trade_channel']))
+                                        channel = get_guild.get_channel(
+                                            int(item["trade_channel"])
+                                        )
                                         if channel is None:
                                             continue
-                                        if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") and channel.id != ctx.channel.id:
+                                        if (
+                                            hasattr(ctx, "guild")
+                                            and hasattr(ctx.guild, "id")
+                                            and channel.id != ctx.channel.id
+                                        ):
                                             continue
                                         else:
                                             await channel.send(
-                                                f"[CEXSWAP]: A user removed liquidity from __{pool_name}__. "\
+                                                f"[CEXSWAP]: A user removed liquidity from __{pool_name}__. "
                                                 f"{amount_1_str} {ticker_1} and {amount_2_str} {ticker_2}"
                                             )
                                 except Exception:
                                     traceback.print_exc(file=sys.stdout)
                     else:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, internal error."
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, internal error."
+                        )
                         await ctx.edit_original_message(content=msg)
             except Exception:
                 traceback.print_exc(file=sys.stdout)
 
     @cexswap_removeliquidity.autocomplete("pool_name")
-    async def cexswap_removeliquidity_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_removeliquidity_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
 
@@ -5354,13 +7360,24 @@ class Cexswap(commands.Cog):
             Option("pool_name", "Choose pool's name", OptionType.string, required=True),
             Option("amount", "Choose amount", OptionType.string, required=True),
             Option("token", "Choose token/coin name", OptionType.string, required=True),
-            Option("max_alert", "Number of max notification", OptionType.integer, required=True),
-            Option('testing', 'If testing or real', OptionType.string, required=False, choices=[
-                OptionChoice("Testing Only", "YES"),
-                OptionChoice("Do airdrop", "NO")
-            ])
+            Option(
+                "max_alert",
+                "Number of max notification",
+                OptionType.integer,
+                required=True,
+            ),
+            Option(
+                "testing",
+                "If testing or real",
+                OptionType.string,
+                required=False,
+                choices=[
+                    OptionChoice("Testing Only", "YES"),
+                    OptionChoice("Do airdrop", "NO"),
+                ],
+            ),
         ],
-        description="Admin to airdrop to all liquidators."
+        description="Admin to airdrop to all liquidators.",
     )
     async def cexswap_airdrop(
         self,
@@ -5369,81 +7386,104 @@ class Cexswap(commands.Cog):
         amount: str,
         token: str,
         max_alert: int,
-        testing: str="NO"
+        testing: str = "NO",
     ):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /cexswap loading aidrop..."
         await ctx.response.send_message(msg, ephemeral=False)
 
         # check if he's op and own that pool
-        check_op = await cexswap_airdrop_check_op(str(ctx.author.id), SERVER_BOT, pool_name)
-        if ctx.author.id != self.bot.config['discord']['owner'] and check_op is None:
-            await ctx.edit_original_message(content=f"{ctx.author.mention}, you don't have permission with __{pool_name}__ or invalid!")
+        check_op = await cexswap_airdrop_check_op(
+            str(ctx.author.id), SERVER_BOT, pool_name
+        )
+        if ctx.author.id != self.bot.config["discord"]["owner"] and check_op is None:
+            await ctx.edit_original_message(
+                content=f"{ctx.author.mention}, you don't have permission with __{pool_name}__ or invalid!"
+            )
             await log_to_channel(
                 "cexswap",
                 f"[AIRDROP]: User {ctx.author.mention} tried /cexswap airdrop __{pool_name}__. Permission denied!",
-                self.bot.config['discord']['cexswap']
+                self.bot.config["discord"]["cexswap"],
             )
             return
-        if ctx.author.id != self.bot.config['discord']['owner'] and check_op is not None:
+        if (
+            ctx.author.id != self.bot.config["discord"]["owner"]
+            and check_op is not None
+        ):
             # Check number he done airdrop
-            max_aidrop = check_op['limit_drop_per_week']
-            count_airdrop = await cexswap_airdrop_count(str(ctx.author.id), SERVER_BOT, pool_name, 7*24*3600) # 1 week
+            max_aidrop = check_op["limit_drop_per_week"]
+            count_airdrop = await cexswap_airdrop_count(
+                str(ctx.author.id), SERVER_BOT, pool_name, 7 * 24 * 3600
+            )  # 1 week
             if count_airdrop >= max_aidrop:
                 await ctx.edit_original_message(
-                    content=f"{ctx.author.mention}, you reached maximum airdrop per week for __{pool_name}__ max. **{str(max_aidrop)}**!")
+                    content=f"{ctx.author.mention}, you reached maximum airdrop per week for __{pool_name}__ max. **{str(max_aidrop)}**!"
+                )
                 await log_to_channel(
                     "cexswap",
                     f"[AIRDROP]: User {ctx.author.mention} tried /cexswap reach maximum airdrop __{pool_name}__ max. **{str(max_aidrop)}**!",
-                    self.bot.config['discord']['cexswap']
+                    self.bot.config["discord"]["cexswap"],
                 )
                 return
-        elif ctx.author.id != self.bot.config['discord']['owner']:
-            await ctx.edit_original_message(content=f"{ctx.author.mention}, you don't have permission!")
+        elif ctx.author.id != self.bot.config["discord"]["owner"]:
+            await ctx.edit_original_message(
+                content=f"{ctx.author.mention}, you don't have permission!"
+            )
             await log_to_channel(
                 "cexswap",
                 f"[AIRDROP]: User {ctx.author.mention} tried /cexswap airdrop __{pool_name}__. Permission denied!",
-                self.bot.config['discord']['cexswap']
+                self.bot.config["discord"]["cexswap"],
             )
             return
         try:
             coin_name = token.upper()
-            if len(self.bot.coin_alias_names) > 0 and coin_name in self.bot.coin_alias_names:
+            if (
+                len(self.bot.coin_alias_names) > 0
+                and coin_name in self.bot.coin_alias_names
+            ):
                 coin_name = self.bot.coin_alias_names[coin_name]
             # Token name check
             if not hasattr(self.bot.coin_list, coin_name):
-                msg = f'{ctx.author.mention}, **{coin_name}** does not exist with us.'
+                msg = f"{ctx.author.mention}, **{coin_name}** does not exist with us."
                 await ctx.edit_original_message(content=msg)
                 return
             else:
                 if getattr(getattr(self.bot.coin_list, coin_name), "enable_tip") != 1:
-                    msg = f'{ctx.author.mention}, **{coin_name}** tipping is disable.'
+                    msg = f"{ctx.author.mention}, **{coin_name}** tipping is disable."
                     await ctx.edit_original_message(content=msg)
                     return
             # End token name check
 
             net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
             type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-            deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
+            deposit_confirm_depth = getattr(
+                getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth"
+            )
             min_tip = getattr(getattr(self.bot.coin_list, coin_name), "real_min_tip")
             max_tip = getattr(getattr(self.bot.coin_list, coin_name), "real_max_tip")
-            token_display = getattr(getattr(self.bot.coin_list, coin_name), "display_name")
+            token_display = getattr(
+                getattr(self.bot.coin_list, coin_name), "display_name"
+            )
 
             if "$" in amount[-1] or "$" in amount[0]:  # last is $
                 # Check if conversion is allowed for this coin.
                 amount = amount.replace(",", "").replace("$", "")
-                price_with = getattr(getattr(self.bot.coin_list, coin_name), "price_with")
+                price_with = getattr(
+                    getattr(self.bot.coin_list, coin_name), "price_with"
+                )
                 if price_with is None:
                     msg = f"{EMOJI_RED_NO} {ctx.author.mention}, dollar conversion is not enabled for this __{coin_name}__."
                     await ctx.edit_original_message(content=msg)
                     return
                 else:
                     per_unit = await self.utils.get_coin_price(coin_name, price_with)
-                    if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                        per_unit = per_unit['price']
+                    if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                        per_unit = per_unit["price"]
                         amount = float(Decimal(amount) / Decimal(per_unit))
                     else:
-                        msg = f"{EMOJI_RED_NO} {ctx.author.mention}, I cannot fetch equivalent price. "\
+                        msg = (
+                            f"{EMOJI_RED_NO} {ctx.author.mention}, I cannot fetch equivalent price. "
                             "Try with different method."
+                        )
                         await ctx.edit_original_message(content=msg)
                         return
             else:
@@ -5463,9 +7503,15 @@ class Cexswap(commands.Cog):
             balance_user = {}
 
             # owner
-            balance_rows.append((
-                str(ctx.author.id), coin_name, SERVER_BOT, -float(truncate(amount, 8)), int(time.time())
-            ))
+            balance_rows.append(
+                (
+                    str(ctx.author.id),
+                    coin_name,
+                    SERVER_BOT,
+                    -float(truncate(amount, 8)),
+                    int(time.time()),
+                )
+            )
 
             pool_name = pool_name.upper()
             # check if the given is a single coin/token
@@ -5474,7 +7520,9 @@ class Cexswap(commands.Cog):
                 single_coin = True
                 # that is one coin only
                 # Find pool with
-                find_other_lp = await cexswap_get_all_poolshares(user_id=None, ticker=pool_name)
+                find_other_lp = await cexswap_get_all_poolshares(
+                    user_id=None, ticker=pool_name
+                )
                 # We'll get a list of that
                 if len(find_other_lp) == 0:
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, there's not any pool share with __{pool_name}__."
@@ -5485,40 +7533,72 @@ class Cexswap(commands.Cog):
                     total_amount = 0
                     server_user_list = {}
                     for i in find_other_lp:
-                        if i['user_id'] not in server_user_list:
-                            server_user_list[i['user_id']] = i['user_server']
-                        if i['ticker_1_name'] == pool_name:
-                            if i['user_id'] not in list_user_with_amount:
-                                list_user_with_amount[i['user_id'] ] = i['amount_ticker_1']
+                        if i["user_id"] not in server_user_list:
+                            server_user_list[i["user_id"]] = i["user_server"]
+                        if i["ticker_1_name"] == pool_name:
+                            if i["user_id"] not in list_user_with_amount:
+                                list_user_with_amount[i["user_id"]] = i[
+                                    "amount_ticker_1"
+                                ]
                             else:
-                                list_user_with_amount[i['user_id'] ] += i['amount_ticker_1']
-                            total_amount += i['amount_ticker_1']
-                        elif i['ticker_2_name'] == pool_name:
-                            if i['user_id'] not in list_user_with_amount:
-                                list_user_with_amount[i['user_id'] ] = i['amount_ticker_2']
+                                list_user_with_amount[i["user_id"]] += i[
+                                    "amount_ticker_1"
+                                ]
+                            total_amount += i["amount_ticker_1"]
+                        elif i["ticker_2_name"] == pool_name:
+                            if i["user_id"] not in list_user_with_amount:
+                                list_user_with_amount[i["user_id"]] = i[
+                                    "amount_ticker_2"
+                                ]
                             else:
-                                list_user_with_amount[i['user_id'] ] += i['amount_ticker_2']
-                            total_amount += i['amount_ticker_2']
+                                list_user_with_amount[i["user_id"]] += i[
+                                    "amount_ticker_2"
+                                ]
+                            total_amount += i["amount_ticker_2"]
                     for k, v in list_user_with_amount.items():
                         distributed_amount = truncate(
-                            float(v) / float(total_amount) * float(truncate(amount, 12)), 8
+                            float(v)
+                            / float(total_amount)
+                            * float(truncate(amount, 12)),
+                            8,
                         )
                         if distributed_amount > 0:
-                            liq_users.append([float(distributed_amount), k, server_user_list[k]])
+                            liq_users.append(
+                                [float(distributed_amount), k, server_user_list[k]]
+                            )
                             if float(distributed_amount) / float(amount) * 100 > 0.01:
-                                liq_user_percentages[k] = "{:,.2f} {}".format(float(distributed_amount) / float(amount)*100, "%")
-                                balance_rows.append((
-                                    k, coin_name, server_user_list[k], float(truncate(distributed_amount, 8)), int(time.time())
-                                ))
-                                lp_details.append((
-                                    None, pool_name, str(ctx.author.id), k, coin_name,
-                                    float(truncate(amount, 8)), float(truncate(distributed_amount, 8)),
-                                    float(truncate(distributed_amount, 8)) / float(truncate(amount, 8)) * 100,
-                                    int(time.time())
-                                ))
+                                liq_user_percentages[k] = "{:,.2f} {}".format(
+                                    float(distributed_amount) / float(amount) * 100, "%"
+                                )
+                                balance_rows.append(
+                                    (
+                                        k,
+                                        coin_name,
+                                        server_user_list[k],
+                                        float(truncate(distributed_amount, 8)),
+                                        int(time.time()),
+                                    )
+                                )
+                                lp_details.append(
+                                    (
+                                        None,
+                                        pool_name,
+                                        str(ctx.author.id),
+                                        k,
+                                        coin_name,
+                                        float(truncate(amount, 8)),
+                                        float(truncate(distributed_amount, 8)),
+                                        float(truncate(distributed_amount, 8))
+                                        / float(truncate(amount, 8))
+                                        * 100,
+                                        int(time.time()),
+                                    )
+                                )
                                 if server_user_list[k] == SERVER_BOT:
                                     lp_discord_users.append(k)
-                                    balance_user[k] = num_format_coin(distributed_amount)
+                                    balance_user[k] = num_format_coin(
+                                        distributed_amount
+                                    )
 
             elif pool_name not in self.bot.cexswap_pairs:
                 # check if wrong order
@@ -5527,26 +7607,34 @@ class Cexswap(commands.Cog):
                     if len(tickers) == 2:
                         pool_name = "{}/{}".format(tickers[1], tickers[0])
                         if pool_name not in self.bot.cexswap_pairs:
-                            msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                            msg = (
+                                f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                                 f"Invalid given __{pool_name}__."
+                            )
                             await ctx.edit_original_message(content=msg)
                             return
                     else:
-                        msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                        msg = (
+                            f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                             f"Invalid given __{pool_name}__."
+                        )
                         await ctx.edit_original_message(content=msg)
                         return
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                         f"Invalid given __{pool_name}__."
+                    )
                     await ctx.edit_original_message(content=msg)
                     return
                 # End checking wrong order
 
             if pool_name not in self.bot.cexswap_pairs and single_coin is False:
-                msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "\
+                msg = (
+                    f"{EMOJI_INFORMATION} {ctx.author.mention}, please select from pair list!  "
                     f"Invalid given __{pool_name}__."
+                )
                 await ctx.edit_original_message(content=msg)
                 return
             elif pool_name in self.bot.cexswap_pairs and single_coin is False:
@@ -5557,17 +7645,35 @@ class Cexswap(commands.Cog):
                     await ctx.edit_original_message(content=msg)
                     return
                 else:
-                    if len(liq_pair['pool_share']) > 0:
-                        for each_s in liq_pair['pool_share']:
+                    if len(liq_pair["pool_share"]) > 0:
+                        for each_s in liq_pair["pool_share"]:
                             distributed_amount = truncate(
-                                float(each_s['amount_ticker_1']) / float(liq_pair['pool']['amount_ticker_1']) * \
-                                float(truncate(amount, 12)), 8
+                                float(each_s["amount_ticker_1"])
+                                / float(liq_pair["pool"]["amount_ticker_1"])
+                                * float(truncate(amount, 12)),
+                                8,
                             )
                             if distributed_amount > 0:
-                                liq_users.append([float(distributed_amount), each_s['user_id'], each_s['user_server']])
-                                if float(each_s['amount_ticker_1']) / float(liq_pair['pool']['amount_ticker_1']) * 100 > 0.01:
-                                    liq_user_percentages[each_s['user_id']] = "{:,.2f} {}".format(
-                                        float(each_s['amount_ticker_1']) / float(liq_pair['pool']['amount_ticker_1'])*100, "%"
+                                liq_users.append(
+                                    [
+                                        float(distributed_amount),
+                                        each_s["user_id"],
+                                        each_s["user_server"],
+                                    ]
+                                )
+                                if (
+                                    float(each_s["amount_ticker_1"])
+                                    / float(liq_pair["pool"]["amount_ticker_1"])
+                                    * 100
+                                    > 0.01
+                                ):
+                                    liq_user_percentages[
+                                        each_s["user_id"]
+                                    ] = "{:,.2f} {}".format(
+                                        float(each_s["amount_ticker_1"])
+                                        / float(liq_pair["pool"]["amount_ticker_1"])
+                                        * 100,
+                                        "%",
                                     )
                     if len(liq_users) == 0:
                         msg = f"{EMOJI_RED_NO} {ctx.author.mention} internal error, found 0 liquidator."
@@ -5578,15 +7684,30 @@ class Cexswap(commands.Cog):
                         for i in liq_users:
                             try:
                                 if float(truncate(amount, 8)) > 0.0:
-                                    balance_rows.append((
-                                        i[1], coin_name, i[2], float(truncate(i[0], 8)), int(time.time())
-                                    ))
-                                    lp_details.append((
-                                        liq_pair['pool']['pool_id'], pool_name, str(ctx.author.id), i[1], coin_name,
-                                        float(truncate(amount, 8)), float(truncate(i[0], 8)),
-                                        float(truncate(i[0], 8)) / float(truncate(amount, 8)) * 100,
-                                        int(time.time())
-                                    ))
+                                    balance_rows.append(
+                                        (
+                                            i[1],
+                                            coin_name,
+                                            i[2],
+                                            float(truncate(i[0], 8)),
+                                            int(time.time()),
+                                        )
+                                    )
+                                    lp_details.append(
+                                        (
+                                            liq_pair["pool"]["pool_id"],
+                                            pool_name,
+                                            str(ctx.author.id),
+                                            i[1],
+                                            coin_name,
+                                            float(truncate(amount, 8)),
+                                            float(truncate(i[0], 8)),
+                                            float(truncate(i[0], 8))
+                                            / float(truncate(amount, 8))
+                                            * 100,
+                                            int(time.time()),
+                                        )
+                                    )
                                     if i[2] == SERVER_BOT:
                                         lp_discord_users.append(i[1])
                                         balance_user[str(i[1])] = num_format_coin(i[0])
@@ -5597,9 +7718,11 @@ class Cexswap(commands.Cog):
                 msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, `max_alert` must be bigger than 0."
                 await ctx.edit_original_message(content=msg)
                 return
-            elif max_alert > self.bot.config['cexswap']['max_airdrop_lp']:
-                msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, `max_alert` must be smaller than "\
+            elif max_alert > self.bot.config["cexswap"]["max_airdrop_lp"]:
+                msg = (
+                    f"{EMOJI_INFORMATION} {ctx.author.mention}, `max_alert` must be smaller than "
                     f"{self.bot.config['cexswap']['max_airdrop_lp']}."
+                )
                 await ctx.edit_original_message(content=msg)
                 return
 
@@ -5612,40 +7735,56 @@ class Cexswap(commands.Cog):
                     str(ctx.author.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
                 )
 
-            wallet_address = get_deposit['balance_wallet_address']
+            wallet_address = get_deposit["balance_wallet_address"]
             if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                wallet_address = get_deposit['paymentid']
+                wallet_address = get_deposit["paymentid"]
             elif type_coin in ["XRP"]:
-                wallet_address = get_deposit['destination_tag']
+                wallet_address = get_deposit["destination_tag"]
 
-            height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-            userdata_balance = await self.wallet_api.user_balance(
-                str(ctx.author.id), coin_name, wallet_address, type_coin,
-                height, deposit_confirm_depth, SERVER_BOT
+            height = await self.wallet_api.get_block_height(
+                type_coin, coin_name, net_name
             )
-            actual_balance = float(userdata_balance['adjust'])
+            userdata_balance = await self.wallet_api.user_balance(
+                str(ctx.author.id),
+                coin_name,
+                wallet_address,
+                type_coin,
+                height,
+                deposit_confirm_depth,
+                SERVER_BOT,
+            )
+            actual_balance = float(userdata_balance["adjust"])
             if amount <= 0 or actual_balance <= 0:
-                msg = f'{EMOJI_RED_NO} {ctx.author.mention}, please get more {token_display}.'
+                msg = f"{EMOJI_RED_NO} {ctx.author.mention}, please get more {token_display}."
                 await ctx.edit_original_message(content=msg)
                 return
 
             if amount > max_tip or amount < min_tip:
-                msg = f"{EMOJI_RED_NO} {ctx.author.mention}, transactions cannot be bigger than "\
-                    f"**{num_format_coin(max_tip)} {token_display}** or smaller than "\
+                msg = (
+                    f"{EMOJI_RED_NO} {ctx.author.mention}, transactions cannot be bigger than "
+                    f"**{num_format_coin(max_tip)} {token_display}** or smaller than "
                     f"**{num_format_coin(min_tip)} {token_display}**."
+                )
                 await ctx.edit_original_message(content=msg)
                 return
             elif amount > actual_balance:
-                msg = f"{EMOJI_RED_NO} {ctx.author.mention}, insufficient balance to do a airdrop LP of "\
+                msg = (
+                    f"{EMOJI_RED_NO} {ctx.author.mention}, insufficient balance to do a airdrop LP of "
                     f"**{num_format_coin(amount)} {token_display}**."
+                )
                 await ctx.edit_original_message(content=msg)
                 return
 
             if len(liq_users) > 0:
                 if testing == "NO":
                     airdroping = await cexswap_airdrop_lp_detail(
-                        balance_rows, lp_details,
-                        str(ctx.author.id), SERVER_BOT, amount, coin_name, pool_name
+                        balance_rows,
+                        lp_details,
+                        str(ctx.author.id),
+                        SERVER_BOT,
+                        amount,
+                        coin_name,
+                        pool_name,
                     )
                 else:
                     airdroping = True
@@ -5656,16 +7795,25 @@ class Cexswap(commands.Cog):
                     lp_discord_users = lp_discord_users[0:max_alert]
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, successfully airdrop for pool: __{pool_name}__. Testing: __{testing}__"
                     for c, each_u in enumerate(lp_discord_users, start=1):
-                        list_receivers_str.append("{}) UserID {}: {} {}".format(c, each_u, balance_user[str(each_u)], coin_name))
+                        list_receivers_str.append(
+                            "{}) UserID {}: {} {}".format(
+                                c, each_u, balance_user[str(each_u)], coin_name
+                            )
+                        )
                         if testing == "NO":
                             try:
                                 member = self.bot.get_user(int(each_u))
-                                if member is not None and each_u in liq_user_percentages:
+                                if (
+                                    member is not None
+                                    and each_u in liq_user_percentages
+                                ):
                                     try:
-                                        msg_sending = f"[Admin/Pool OP] did an airdrop for pool __{pool_name}__. "\
-                                            f"You have **{liq_user_percentages[each_u]}** in that pool. "\
-                                            f"Airdrop delivered to your balance:"\
+                                        msg_sending = (
+                                            f"[Admin/Pool OP] did an airdrop for pool __{pool_name}__. "
+                                            f"You have **{liq_user_percentages[each_u]}** in that pool. "
+                                            f"Airdrop delivered to your balance:"
                                             f"```{balance_user[str(each_u)]} {coin_name}```Thank you!"
+                                        )
                                         await member.send(msg_sending)
                                         num_notifying += 1
                                     except Exception:
@@ -5679,59 +7827,73 @@ class Cexswap(commands.Cog):
                     await ctx.edit_original_message(content=msg)
                 else:
                     await ctx.edit_original_message(content=msg)
-                    temp_lines =[]
+                    temp_lines = []
                     for c, i in enumerate(list_receivers_str, start=1):
                         temp_lines.append(i)
                         if c % number_lines == 0:
-                            await ctx.followup.send("```" + "\n".join(temp_lines) + "```")
+                            await ctx.followup.send(
+                                "```" + "\n".join(temp_lines) + "```"
+                            )
                             temp_lines = []
                     if len(temp_lines) > 0:
                         await ctx.followup.send("```" + "\n".join(temp_lines) + "```")
                 await log_to_channel(
                     "cexswap",
                     f"[AIRDROP LP]: User {ctx.author.mention} did airdrop LP for pools __{pool_name}__. Testing: {testing}!",
-                    self.bot.config['discord']['cexswap']
+                    self.bot.config["discord"]["cexswap"],
                 )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_airdrop.autocomplete("pool_name")
-    async def cexswap_airdrop_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_airdrop_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_pairs if string in name.lower()][:12]
 
     @cexswap_airdrop.autocomplete("token")
-    async def cexswap_airdrop_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_airdrop_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.coin_name_list if string in name.lower()][:10]
 
     @cexswap.sub_command(
         name="apikey",
-        usage="cexswap apikey [resetkey]", 
+        usage="cexswap apikey [resetkey]",
         options=[
-            Option('resetkey', 'resetkey', OptionType.string, required=False, choices=[
-                OptionChoice("YES", "YES"),
-                OptionChoice("NO", "NO")
-            ])
+            Option(
+                "resetkey",
+                "resetkey",
+                OptionType.string,
+                required=False,
+                choices=[OptionChoice("YES", "YES"), OptionChoice("NO", "NO")],
+            )
         ],
-        description="Get token key for CEXSwap API call."
+        description="Get token key for CEXSwap API call.",
     )
-    async def cexswap_apikey(
-        self,
-        ctx,
-        resetkey: str=None
-    ):
+    async def cexswap_apikey(self, ctx, resetkey: str = None):
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, loading..."
         await ctx.response.send_message(msg, ephemeral=True)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap apikey", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap apikey",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
-        if self.bot.config['cexswap_api']['api_private_key_enable'] != 1:
+        if self.bot.config["cexswap_api"]["api_private_key_enable"] != 1:
             await ctx.edit_original_message(
                 content=f"{ctx.author.mention}, private API is currently disable! Check again later!"
             )
@@ -5739,7 +7901,9 @@ class Cexswap(commands.Cog):
 
         # Check if user not in main guild
         try:
-            main_guild = self.bot.get_guild(self.bot.config['cexswap_api']['main_guild_id'])
+            main_guild = self.bot.get_guild(
+                self.bot.config["cexswap_api"]["main_guild_id"]
+            )
             if main_guild is not None:
                 get_user = main_guild.get_member(ctx.author.id)
                 if get_user is None:
@@ -5754,11 +7918,16 @@ class Cexswap(commands.Cog):
             if resetkey is None:
                 resetkey = "NO"
             get_user = await find_user_by_id(str(ctx.author.id), SERVER_BOT)
-            link_help = self.bot.config['cexswap_api']['link_help']
+            link_help = self.bot.config["cexswap_api"]["link_help"]
             if get_user is None:
                 random_string = str(uuid.uuid4())
                 hash_key = sha256(random_string.encode()).hexdigest()
-                insert_key = await bot_user_add(str(ctx.author.id), SERVER_BOT, encrypt_string(random_string), hash_key)
+                insert_key = await bot_user_add(
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    encrypt_string(random_string),
+                    hash_key,
+                )
                 if insert_key is True:
                     await ctx.edit_original_message(
                         content=f"{ctx.author.mention}, your CEXSwap API key:```{random_string}```Keep it in a secret place!{link_help}"
@@ -5766,12 +7935,10 @@ class Cexswap(commands.Cog):
                     await log_to_channel(
                         "cexswap",
                         f"[API CREATE]: User {ctx.author.mention} / {ctx.author.id} create a new API key!",
-                        self.bot.config['discord']['cexswap']
+                        self.bot.config["discord"]["cexswap"],
                     )
                 else:
-                    await ctx.edit_original_message(
-                        content=f"Internal error!"
-                    )
+                    await ctx.edit_original_message(content=f"Internal error!")
             else:
                 if resetkey == "NO":
                     await ctx.edit_original_message(
@@ -5780,13 +7947,18 @@ class Cexswap(commands.Cog):
                     await log_to_channel(
                         "cexswap",
                         f"[API SHOW]: User {ctx.author.mention} / {ctx.author.id} asked to show API key!",
-                        self.bot.config['discord']['cexswap']
+                        self.bot.config["discord"]["cexswap"],
                     )
                 else:
                     # he reset
                     random_string = str(uuid.uuid4())
                     hash_key = sha256(random_string.encode()).hexdigest()
-                    insert_key = await bot_user_add(str(ctx.author.id), SERVER_BOT, encrypt_string(random_string), hash_key)
+                    insert_key = await bot_user_add(
+                        str(ctx.author.id),
+                        SERVER_BOT,
+                        encrypt_string(random_string),
+                        hash_key,
+                    )
                     if insert_key is True:
                         await ctx.edit_original_message(
                             content=f"{ctx.author.mention}, you reset CEXSwap API key to:```{random_string}```Keep it in a secret place!{link_help}"
@@ -5794,12 +7966,10 @@ class Cexswap(commands.Cog):
                         await log_to_channel(
                             "cexswap",
                             f"[API RESET]: User {ctx.author.mention} / {ctx.author.id} reset a new API key!",
-                            self.bot.config['discord']['cexswap']
+                            self.bot.config["discord"]["cexswap"],
                         )
                     else:
-                        await ctx.edit_original_message(
-                            content=f"Internal error!"
-                        )
+                        await ctx.edit_original_message(content=f"Internal error!")
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -5807,20 +7977,26 @@ class Cexswap(commands.Cog):
         name="earning",
         usage="cexswap earning",
         options=[
-            Option('option', 'option', OptionType.string, required=False, choices=[
-                OptionChoice("show public", "public"),
-                OptionChoice("show private", "private")
-            ]),
-            Option("token", "Show only this token/coin name", OptionType.string, required=False),
+            Option(
+                "option",
+                "option",
+                OptionType.string,
+                required=False,
+                choices=[
+                    OptionChoice("show public", "public"),
+                    OptionChoice("show private", "private"),
+                ],
+            ),
+            Option(
+                "token",
+                "Show only this token/coin name",
+                OptionType.string,
+                required=False,
+            ),
         ],
-        description="Show some earning from cexswap."
+        description="Show some earning from cexswap.",
     )
-    async def cexswap_earning(
-        self,
-        ctx,
-        option: str="private",
-        token: str=None
-    ):
+    async def cexswap_earning(self, ctx, option: str = "private", token: str = None):
         eph = True
         if option.lower() == "public":
             eph = False
@@ -5831,63 +8007,83 @@ class Cexswap(commands.Cog):
         await ctx.response.send_message(msg, ephemeral=eph)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cexswap earning", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cexswap earning",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
         try:
-            testing = self.bot.config['cexswap']['testing_msg']
+            testing = self.bot.config["cexswap"]["testing_msg"]
             embed = disnake.Embed(
                 title="Your LP earning from TipBot's CEXSwap",
                 description=f"{ctx.author.mention}, {testing}List of distributed earning from Liquidity Pools.",
                 timestamp=datetime.now(),
             )
-            embed.set_footer(text="Requested by: {}#{}".format(ctx.author.name, ctx.author.discriminator))
+            embed.set_footer(
+                text="Requested by: {}#{}".format(
+                    ctx.author.name, ctx.author.discriminator
+                )
+            )
             embed.set_thumbnail(url=ctx.author.display_avatar)
 
             embed_earning = embed.copy()
             embed_lp = embed.copy()
             embed_sell_logs = embed.copy()
-            get_sell_logs = await get_cexswap_get_coin_sell_logs(coin_name=None, user_id=str(ctx.author.id), user_server=SERVER_BOT, from_time=None)
+            get_sell_logs = await get_cexswap_get_coin_sell_logs(
+                coin_name=None,
+                user_id=str(ctx.author.id),
+                user_server=SERVER_BOT,
+                from_time=None,
+            )
             if len(get_sell_logs) > 0:
                 record_list = {"sold": {}, "bought": {}}
                 for i in get_sell_logs:
-                    if i['sold_ticker'] not in record_list['sold']:
-                        record_list['sold'][i['sold_ticker']] = Decimal(0)
-                    if i['got_ticker'] not in record_list['bought']:
-                        record_list['bought'][i['got_ticker']] = Decimal(0)
-                    record_list['sold'][i['sold_ticker']] += i['sold']
-                    record_list['bought'][i['got_ticker']] += i['got']
-                key_sold = list(sorted(record_list['sold'].keys()))
-                key_bought = list(sorted(record_list['bought'].keys()))
+                    if i["sold_ticker"] not in record_list["sold"]:
+                        record_list["sold"][i["sold_ticker"]] = Decimal(0)
+                    if i["got_ticker"] not in record_list["bought"]:
+                        record_list["bought"][i["got_ticker"]] = Decimal(0)
+                    record_list["sold"][i["sold_ticker"]] += i["sold"]
+                    record_list["bought"][i["got_ticker"]] += i["got"]
+                key_sold = list(sorted(record_list["sold"].keys()))
+                key_bought = list(sorted(record_list["bought"].keys()))
                 list_sold_sum = []
                 list_bought_sum = []
                 for i in key_sold:
-                    list_sold_sum.append("{} {}".format(
-                        num_format_coin(record_list['sold'][i]), i
-                    ))
+                    list_sold_sum.append(
+                        "{} {}".format(num_format_coin(record_list["sold"][i]), i)
+                    )
                 for i in key_bought:
-                    list_bought_sum.append("{} {}".format(
-                        num_format_coin(record_list['bought'][i]), i
-                    ))
+                    list_bought_sum.append(
+                        "{} {}".format(num_format_coin(record_list["bought"][i]), i)
+                    )
                 list_sold_sum_chunks = list(chunks(list_sold_sum, 20))
                 list_bought_sum_chunks = list(chunks(list_bought_sum, 20))
                 for c, i in enumerate(list_sold_sum_chunks, start=1):
                     embed_sell_logs.add_field(
                         name="➡️ Total sold [{}]".format(c),
                         value="{}".format(", ".join(i)),
-                        inline=False
+                        inline=False,
                     )
                 for c, i in enumerate(list_bought_sum_chunks, start=1):
                     embed_sell_logs.add_field(
                         name="⬅️ Total bought [{}]".format(c),
                         value="{}".format(", ".join(i)),
-                        inline=False
+                        inline=False,
                     )
 
             # check earning
-            get_user_earning = await get_cexswap_earning(user_id=str(ctx.author.id), from_time=None, pool_id=None)
+            get_user_earning = await get_cexswap_earning(
+                user_id=str(ctx.author.id), from_time=None, pool_id=None
+            )
             if len(get_user_earning) == 0 and token is None:
                 msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, you don't have any earning from LP yet."
                 await ctx.edit_original_message(content=msg)
@@ -5895,23 +8091,39 @@ class Cexswap(commands.Cog):
             elif len(get_user_earning) > 0:
                 list_earning = []
                 for each in get_user_earning:
-                    if token is not None and token != each['got_ticker']:
+                    if token is not None and token != each["got_ticker"]:
                         continue
                     coin_emoji = ""
                     try:
                         if hasattr(ctx, "guild") and hasattr(ctx.guild, "id"):
-                            if ctx.guild.get_member(int(self.bot.user.id)).guild_permissions.external_emojis is True:
-                                coin_emoji = getattr(getattr(self.bot.coin_list, each['got_ticker']), "coin_emoji_discord")
+                            if (
+                                ctx.guild.get_member(
+                                    int(self.bot.user.id)
+                                ).guild_permissions.external_emojis
+                                is True
+                            ):
+                                coin_emoji = getattr(
+                                    getattr(self.bot.coin_list, each["got_ticker"]),
+                                    "coin_emoji_discord",
+                                )
                                 coin_emoji = coin_emoji + " " if coin_emoji else ""
                         else:
-                            coin_emoji = getattr(getattr(self.bot.coin_list, each['got_ticker']), "coin_emoji_discord")
+                            coin_emoji = getattr(
+                                getattr(self.bot.coin_list, each["got_ticker"]),
+                                "coin_emoji_discord",
+                            )
                             coin_emoji = coin_emoji + " " if coin_emoji else ""
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
-                    earning_amount = num_format_coin(
-                        each['collected_amount']
+                    earning_amount = num_format_coin(each["collected_amount"])
+                    list_earning.append(
+                        "{}{} {} - {:,.0f} trade(s)".format(
+                            coin_emoji,
+                            earning_amount,
+                            each["got_ticker"],
+                            each["total_swap"],
+                        )
                     )
-                    list_earning.append("{}{} {} - {:,.0f} trade(s)".format(coin_emoji, earning_amount, each['got_ticker'], each['total_swap']))
                 if len(list_earning) > 0:
                     list_earning_split = list(chunks(list_earning, 15))
                     j = 1
@@ -5922,37 +8134,56 @@ class Cexswap(commands.Cog):
                         embed_earning.add_field(
                             name="Your earning{}".format(extra_text),
                             value="{}".format("\n".join(i)),
-                            inline=False
+                            inline=False,
                         )
                         j += 1
             if token is None:
                 # check current LP user has
-                get_poolshare = await cexswap_get_poolshare(str(ctx.author.id), SERVER_BOT)
+                get_poolshare = await cexswap_get_poolshare(
+                    str(ctx.author.id), SERVER_BOT
+                )
                 if len(get_poolshare) > 0:
-                    get_poolshare = sorted(get_poolshare, key=lambda k: k['pairs'], reverse=False)
+                    get_poolshare = sorted(
+                        get_poolshare, key=lambda k: k["pairs"], reverse=False
+                    )
                     list_coin_lp_user = []
                     for p in get_poolshare:
                         # amount_1 = num_format_coin(p['amount_ticker_1'])
-                        amount_1 = human_format(p['amount_ticker_1'])
+                        amount_1 = human_format(p["amount_ticker_1"])
                         # amount_2 = num_format_coin(p['amount_ticker_2'])
-                        amount_2 = human_format(p['amount_ticker_2'])
-                        coin_1 = p['ticker_1_name'][:4] + ".." if len(p['ticker_1_name']) > 5 else p['ticker_1_name']
-                        coin_2 = p['ticker_2_name'][:4] + ".." if len(p['ticker_2_name']) > 5 else p['ticker_2_name']
-                        list_coin_lp_user.append("⚆ {}/{} :\n---{} {}\n---{} {}\n".format(
-                            coin_1, coin_2,
-                            amount_1, p['ticker_1_name'],
-                            amount_2, p['ticker_2_name']
-                        ))
+                        amount_2 = human_format(p["amount_ticker_2"])
+                        coin_1 = (
+                            p["ticker_1_name"][:4] + ".."
+                            if len(p["ticker_1_name"]) > 5
+                            else p["ticker_1_name"]
+                        )
+                        coin_2 = (
+                            p["ticker_2_name"][:4] + ".."
+                            if len(p["ticker_2_name"]) > 5
+                            else p["ticker_2_name"]
+                        )
+                        list_coin_lp_user.append(
+                            "⚆ {}/{} :\n---{} {}\n---{} {}\n".format(
+                                coin_1,
+                                coin_2,
+                                amount_1,
+                                p["ticker_1_name"],
+                                amount_2,
+                                p["ticker_2_name"],
+                            )
+                        )
                     list_coin_lp_user_chunks = list(chunks(list_coin_lp_user, 4))
                     j = 1
                     extra_text = ""
                     for i in list_coin_lp_user_chunks:
                         if len(list_coin_lp_user_chunks) > 1:
-                            extra_text = " [{}/{}]".format(j, len(list_coin_lp_user_chunks))
+                            extra_text = " [{}/{}]".format(
+                                j, len(list_coin_lp_user_chunks)
+                            )
                         embed_lp.add_field(
                             name="Your LP{}".format(extra_text),
                             value="{}".format("\n".join(i)),
-                            inline=True
+                            inline=True,
                         )
                         j += 1
             else:
@@ -5962,7 +8193,9 @@ class Cexswap(commands.Cog):
                     await ctx.edit_original_message(content=msg)
                     return
                 # check pool share of a coin by user
-                find_other_lp = await cexswap_get_all_poolshares(user_id=None, ticker=token)
+                find_other_lp = await cexswap_get_all_poolshares(
+                    user_id=None, ticker=token
+                )
                 # We'll get a list of that
                 if len(find_other_lp) == 0:
                     msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, you currently don't have any pool share with __{token}__."
@@ -5971,120 +8204,156 @@ class Cexswap(commands.Cog):
                 else:
                     user_amount = 0
                     total_pool_coin = 0
-                    user_pools = [i for i in find_other_lp if i['user_id']==str(ctx.author.id)]
+                    user_pools = [
+                        i for i in find_other_lp if i["user_id"] == str(ctx.author.id)
+                    ]
                     for i in find_other_lp:
-                        if i['user_id'] != str(ctx.author.id):
-                            if i['ticker_1_name'] == token:
-                                total_pool_coin += i['amount_ticker_1']
-                            elif i['ticker_2_name'] == token:
-                                total_pool_coin += i['amount_ticker_2']
+                        if i["user_id"] != str(ctx.author.id):
+                            if i["ticker_1_name"] == token:
+                                total_pool_coin += i["amount_ticker_1"]
+                            elif i["ticker_2_name"] == token:
+                                total_pool_coin += i["amount_ticker_2"]
                         else:
-                            if i['ticker_1_name'] == token:
-                                user_amount += i['amount_ticker_1']
-                                total_pool_coin += i['amount_ticker_1']
-                            elif i['ticker_2_name'] == token:
-                                user_amount += i['amount_ticker_2']
-                                total_pool_coin += i['amount_ticker_2']
+                            if i["ticker_1_name"] == token:
+                                user_amount += i["amount_ticker_1"]
+                                total_pool_coin += i["amount_ticker_1"]
+                            elif i["ticker_2_name"] == token:
+                                user_amount += i["amount_ticker_2"]
+                                total_pool_coin += i["amount_ticker_2"]
                     embed.add_field(
                         name="Your have {} LP with {}".format(len(user_pools), token),
                         value="Amount: {} {}\n({:,.2f} {})".format(
-                            num_format_coin(user_amount), token, user_amount/total_pool_coin*100,"%"
+                            num_format_coin(user_amount),
+                            token,
+                            user_amount / total_pool_coin * 100,
+                            "%",
                         ),
-                        inline=False
+                        inline=False,
                     )
                     embed.add_field(
                         name="Your LP with {}".format(token),
-                        value="{}".format(", ".join(list(set([i['pairs'] for i in user_pools])))),
-                        inline=False
+                        value="{}".format(
+                            ", ".join(list(set([i["pairs"] for i in user_pools])))
+                        ),
+                        inline=False,
                     )
 
             # last emebed to add
             embed_earning.add_field(
                 name="NOTE",
-                value="You can check your balance by `/balance` or `/balances`. "\
-                    "From every trade, you will always receive fee {} x amount liquidated pools.\n\n"\
-                    "You can check recent earning also with `/recent cexswaplp <token>`.".format("0.50%"),
-                inline=False
+                value="You can check your balance by `/balance` or `/balances`. "
+                "From every trade, you will always receive fee {} x amount liquidated pools.\n\n"
+                "You can check recent earning also with `/recent cexswaplp <token>`.".format(
+                    "0.50%"
+                ),
+                inline=False,
             )
             view = EarningMenu(
-                self.bot, ctx, ctx.author.id,
-                embed_lp, embed_earning, embed_sell_logs
+                self.bot, ctx, ctx.author.id, embed_lp, embed_earning, embed_sell_logs
             )
             if token is not None:
                 view = None
             else:
-                embed.add_field(
-                    name="INFORMATION",
-                    value="Use menu.",
-                    inline=False
-                )
+                embed.add_field(name="INFORMATION", value="Use menu.", inline=False)
             await ctx.edit_original_message(content=None, embed=embed, view=view)
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
     @cexswap_earning.autocomplete("token")
-    async def cexswap_earning_token_autocomp(self, inter: disnake.CommandInteraction, string: str):
+    async def cexswap_earning_token_autocomp(
+        self, inter: disnake.CommandInteraction, string: str
+    ):
         string = string.lower()
         return [name for name in self.bot.cexswap_coins if string in name.lower()][:10]
 
     async def webserver(self):
         async def handler_get(request):
-            if 'Authorization' in request.headers:
+            if "Authorization" in request.headers:
                 try:
                     # find user by key
-                    key = request.headers['Authorization']
+                    key = request.headers["Authorization"]
                     hash_key = sha256(key.encode()).hexdigest()
                     find_user = await find_user_by_apikey(hash_key)
                     if find_user is None:
                         result = {
                             "success": False,
                             "error": "Invalid Authorization API Key!",
-                            "time": int(time.time())
+                            "time": int(time.time()),
                         }
                         return web.json_response(result, status=500)
                     else:
                         if str(request.rel_url).startswith("/get_address/"):
-                            coin_name = str(request.rel_url).replace("/get_address/", "").replace("/", "").upper().strip()
+                            coin_name = (
+                                str(request.rel_url)
+                                .replace("/get_address/", "")
+                                .replace("/", "")
+                                .upper()
+                                .strip()
+                            )
                             if len(coin_name) == 0:
                                 result = {
                                     "success": False,
                                     "error": "Invalid coin name!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             if not hasattr(self.bot.coin_list, coin_name):
                                 result = {
                                     "success": False,
                                     "error": f"{coin_name} doesn't exist with us!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             else:
-                                enable_deposit = getattr(getattr(self.bot.coin_list, coin_name), "enable_deposit")
+                                enable_deposit = getattr(
+                                    getattr(self.bot.coin_list, coin_name),
+                                    "enable_deposit",
+                                )
                                 if enable_deposit == 0:
                                     result = {
                                         "success": False,
                                         "error": f"{coin_name} deposit is currently disable!",
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=400)
 
-                                user_id = find_user['user_id']
-                                user_server = find_user['user_server']
-                                net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
-                                type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
+                                user_id = find_user["user_id"]
+                                user_server = find_user["user_server"]
+                                net_name = getattr(
+                                    getattr(self.bot.coin_list, coin_name), "net_name"
+                                )
+                                type_coin = getattr(
+                                    getattr(self.bot.coin_list, coin_name), "type"
+                                )
                                 get_deposit = await self.wallet_api.sql_get_userwallet(
-                                    user_id, coin_name, net_name, type_coin, user_server, 0)
+                                    user_id,
+                                    coin_name,
+                                    net_name,
+                                    type_coin,
+                                    user_server,
+                                    0,
+                                )
                                 if get_deposit is None:
-                                    get_deposit = await self.wallet_api.sql_register_user(
-                                        user_id, coin_name, net_name, type_coin, user_server, 0, 0
+                                    get_deposit = (
+                                        await self.wallet_api.sql_register_user(
+                                            user_id,
+                                            coin_name,
+                                            net_name,
+                                            type_coin,
+                                            user_server,
+                                            0,
+                                            0,
+                                        )
                                     )
 
-                                wallet_address = get_deposit['balance_wallet_address']
+                                wallet_address = get_deposit["balance_wallet_address"]
                                 plain_address = wallet_address
                                 if type_coin in ["XLM", "VITE", "COSMOS"]:
                                     address_memo = wallet_address.split()
-                                    plain_address = address_memo[0] + f" MEMO/TAG: {address_memo[2]}"
+                                    plain_address = (
+                                        address_memo[0]
+                                        + f" MEMO/TAG: {address_memo[2]}"
+                                    )
                                 if plain_address is not None:
                                     result = {
                                         "success": True,
@@ -6092,20 +8361,20 @@ class Cexswap(commands.Cog):
                                         "coin_name": coin_name,
                                         "user_id": user_id,
                                         "address": plain_address,
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=200)
                                 else:
                                     result = {
                                         "success": False,
                                         "error": f"{coin_name} internal error!",
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=500)
                         elif str(request.rel_url).startswith("/get_balances"):
                             # show all balances
-                            user_id = find_user['user_id']
-                            user_server = find_user['user_server']
+                            user_id = find_user["user_id"]
+                            user_server = find_user["user_server"]
                             userdata_balances = await self.wallet_api.all_user_balance(
                                 user_id, user_server, self.bot.coin_name_list
                             )
@@ -6113,7 +8382,7 @@ class Cexswap(commands.Cog):
                                 result = {
                                     "success": True,
                                     "error": "You don't have any balance",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=200)
                             else:
@@ -6122,112 +8391,182 @@ class Cexswap(commands.Cog):
                                     if k not in self.bot.coin_name_list:
                                         continue
                                     value_usd = None
-                                    price_with = getattr(getattr(self.bot.coin_list, k), "price_with")
+                                    price_with = getattr(
+                                        getattr(self.bot.coin_list, k), "price_with"
+                                    )
                                     if price_with:
-                                        per_unit = await self.utils.get_coin_price(k, price_with)
-                                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                            per_unit = per_unit['price']
+                                        per_unit = await self.utils.get_coin_price(
+                                            k, price_with
+                                        )
+                                        if (
+                                            per_unit
+                                            and per_unit["price"]
+                                            and per_unit["price"] > 0
+                                        ):
+                                            per_unit = per_unit["price"]
                                             if per_unit > 0.00001:
-                                                value_usd = float(Decimal(v) * Decimal(per_unit))
+                                                value_usd = float(
+                                                    Decimal(v) * Decimal(per_unit)
+                                                )
                                     list_balance.append(
                                         {
                                             "coin_name": k,
                                             "balance": num_format_coin(v),
-                                            "value_usd": value_usd
+                                            "value_usd": value_usd,
                                         }
                                     )
                                 result = {
                                     "success": True,
                                     "data": list_balance,
                                     "error": None,
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=200)
                         elif str(request.rel_url).startswith("/get_balance/"):
-                            coin_name = str(request.rel_url).replace("/get_balance/", "").replace("/", "").upper().strip()
+                            coin_name = (
+                                str(request.rel_url)
+                                .replace("/get_balance/", "")
+                                .replace("/", "")
+                                .upper()
+                                .strip()
+                            )
                             if len(coin_name) == 0:
                                 result = {
                                     "success": False,
                                     "error": "Invalid coin name!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             if not hasattr(self.bot.coin_list, coin_name):
                                 result = {
                                     "success": False,
                                     "error": f"{coin_name} doesn't exist with us!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             else:
-                                user_id = find_user['user_id']
-                                user_server = find_user['user_server']
-                                net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
-                                type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-                                deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
-                                coin_decimal = getattr(getattr(self.bot.coin_list, coin_name), "decimal")
+                                user_id = find_user["user_id"]
+                                user_server = find_user["user_server"]
+                                net_name = getattr(
+                                    getattr(self.bot.coin_list, coin_name), "net_name"
+                                )
+                                type_coin = getattr(
+                                    getattr(self.bot.coin_list, coin_name), "type"
+                                )
+                                deposit_confirm_depth = getattr(
+                                    getattr(self.bot.coin_list, coin_name),
+                                    "deposit_confirm_depth",
+                                )
+                                getattr(
+                                    getattr(self.bot.coin_list, coin_name), "decimal"
+                                )
 
                                 get_deposit = await self.wallet_api.sql_get_userwallet(
-                                    user_id, coin_name, net_name, type_coin, user_server, 0)
+                                    user_id,
+                                    coin_name,
+                                    net_name,
+                                    type_coin,
+                                    user_server,
+                                    0,
+                                )
                                 if get_deposit is None:
-                                    get_deposit = await self.wallet_api.sql_register_user(
-                                        user_id, coin_name, net_name, type_coin, user_server, 0, 0
+                                    get_deposit = (
+                                        await self.wallet_api.sql_register_user(
+                                            user_id,
+                                            coin_name,
+                                            net_name,
+                                            type_coin,
+                                            user_server,
+                                            0,
+                                            0,
+                                        )
                                     )
 
-                                wallet_address = get_deposit['balance_wallet_address']
-                                if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                                    wallet_address = get_deposit['paymentid']
+                                wallet_address = get_deposit["balance_wallet_address"]
+                                if type_coin in [
+                                    "TRTL-API",
+                                    "TRTL-SERVICE",
+                                    "BCN",
+                                    "XMR",
+                                ]:
+                                    wallet_address = get_deposit["paymentid"]
                                 elif type_coin in ["XRP"]:
-                                    wallet_address = get_deposit['destination_tag']
+                                    wallet_address = get_deposit["destination_tag"]
 
-                                height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-                                userdata_balance = await self.wallet_api.user_balance(
-                                    user_id, coin_name, wallet_address, type_coin,
-                                    height, deposit_confirm_depth, user_server
+                                height = await self.wallet_api.get_block_height(
+                                    type_coin, coin_name, net_name
                                 )
-                                total_balance = userdata_balance['adjust']
+                                userdata_balance = await self.wallet_api.user_balance(
+                                    user_id,
+                                    coin_name,
+                                    wallet_address,
+                                    type_coin,
+                                    height,
+                                    deposit_confirm_depth,
+                                    user_server,
+                                )
+                                total_balance = userdata_balance["adjust"]
                                 result = {
                                     "success": True,
                                     "error": None,
                                     "coin_name": coin_name,
                                     "balance": total_balance,
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=200)
                         if str(request.rel_url).startswith("/coininfo/"):
-                            coin_name = str(request.rel_url).replace("/coininfo/", "").replace("/", "").upper().strip()
+                            coin_name = (
+                                str(request.rel_url)
+                                .replace("/coininfo/", "")
+                                .replace("/", "")
+                                .upper()
+                                .strip()
+                            )
                             if len(coin_name) == 0:
                                 result = {
                                     "success": False,
                                     "error": "Invalid coin name!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             if not hasattr(self.bot.coin_list, coin_name):
                                 result = {
                                     "success": False,
                                     "error": f"{coin_name} doesn't exist with us!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=400)
                             else:
-                                min_swap = str(truncate(getattr(getattr(self.bot.coin_list, coin_name), "cexswap_min"), 8))
-                                cexswap_enable = getattr(getattr(self.bot.coin_list, coin_name), "cexswap_enable")
+                                min_swap = str(
+                                    truncate(
+                                        getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "cexswap_min",
+                                        ),
+                                        8,
+                                    )
+                                )
+                                cexswap_enable = getattr(
+                                    getattr(self.bot.coin_list, coin_name),
+                                    "cexswap_enable",
+                                )
                                 result = {
                                     "success": True,
                                     "data": {
-                                        "cexswap_enable": True if cexswap_enable==1 else False,
+                                        "cexswap_enable": True
+                                        if cexswap_enable == 1
+                                        else False,
                                         "minimum_swap": min_swap,
                                     },
                                     "error": None,
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=200)
                         else:
                             result = {
                                 "success": False,
                                 "error": "Invalid call",
-                                "time": int(time.time())
+                                "time": int(time.time()),
                             }
                             return web.json_response(result, status=404)
                 except Exception:
@@ -6236,7 +8575,7 @@ class Cexswap(commands.Cog):
                 result = {
                     "success": False,
                     "error": "Missing Authorization API key!",
-                    "time": int(time.time())
+                    "time": int(time.time()),
                 }
                 return web.json_response(result, status=404)
             return web.Response(text="Hello, world")
@@ -6246,94 +8585,114 @@ class Cexswap(commands.Cog):
                 payload = None
                 if request.body_exists:
                     # check if api is ready only
-                    api_readonly = self.bot.config['cexswap_api']['api_readonly']
+                    api_readonly = self.bot.config["cexswap_api"]["api_readonly"]
                     if api_readonly == 1:
                         result = {
                             "success": False,
                             "error": "API is currently read-only mode!",
-                            "time": int(time.time())
+                            "time": int(time.time()),
                         }
                         return web.json_response(result, status=400)
 
                     payload = await request.read()
-                    headers = request.headers
+                    request.headers
                     full_payload = json.loads(payload)
-                    if 'method' not in full_payload:
+                    if "method" not in full_payload:
                         result = {
                             "success": False,
                             "error": "Unknown method!",
-                            "time": int(time.time())
+                            "time": int(time.time()),
                         }
                         return web.json_response(result, status=404)
-                    if 'params' not in full_payload:
+                    if "params" not in full_payload:
                         result = {
                             "success": False,
                             "error": "Missing params!",
-                            "time": int(time.time())
+                            "time": int(time.time()),
                         }
                         return web.json_response(result, status=400)
-                    method = full_payload['method']
-                    params = full_payload['params']
+                    method = full_payload["method"]
+                    params = full_payload["params"]
                     id_call = 0
-                    if 'id' in full_payload:
-                        id_call = full_payload['id']
+                    if "id" in full_payload:
+                        id_call = full_payload["id"]
 
-                    if 'Authorization' in request.headers:
+                    if "Authorization" in request.headers:
                         # find user by key
-                        key = request.headers['Authorization']
+                        key = request.headers["Authorization"]
                         hash_key = sha256(key.encode()).hexdigest()
                         find_user = await find_user_by_apikey(hash_key)
                         if find_user is None:
                             result = {
                                 "success": False,
                                 "error": "Invalid Authorization API Key!",
-                                "time": int(time.time())
+                                "time": int(time.time()),
                             }
                             return web.json_response(result, status=500)
                         else:
                             # Check if user not in main guild
                             try:
-                                main_guild = self.bot.get_guild(self.bot.config['cexswap_api']['main_guild_id'])
-                                if main_guild is not None and find_user['user_server'] == SERVER_BOT:
-                                    get_user = main_guild.get_member(int(find_user['user_id']))
+                                main_guild = self.bot.get_guild(
+                                    self.bot.config["cexswap_api"]["main_guild_id"]
+                                )
+                                if (
+                                    main_guild is not None
+                                    and find_user["user_server"] == SERVER_BOT
+                                ):
+                                    get_user = main_guild.get_member(
+                                        int(find_user["user_id"])
+                                    )
                                     if get_user is None:
                                         result = {
                                             "success": False,
                                             "data": None,
                                             "error": "Your Discord Account needs to be in our main Discord Guild to execute this!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         await log_to_channel(
                                             "cexswap",
                                             f"[API REJECT]: User <@{find_user['user_id']}> / {find_user['user_id']} not in our Discord Guild!",
-                                            self.bot.config['discord']['cexswap']
+                                            self.bot.config["discord"]["cexswap"],
                                         )
                                         return web.json_response(result, status=200)
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
                             # Update API calls
                             try:
-                                await call_cexswap_api(find_user['user_id'], find_user['user_server'], method, json.dumps(full_payload))
+                                await call_cexswap_api(
+                                    find_user["user_id"],
+                                    find_user["user_server"],
+                                    method,
+                                    json.dumps(full_payload),
+                                )
                             except Exception:
                                 traceback.print_exc(file=sys.stdout)
                             if method == "withdraw":
                                 # tipping_in_progress
-                                if find_user['user_id'] in self.bot.tipping_in_progress and \
-                                    int(time.time()) - self.bot.tipping_in_progress[find_user['user_id']] < 30:
+                                if (
+                                    find_user["user_id"] in self.bot.tipping_in_progress
+                                    and int(time.time())
+                                    - self.bot.tipping_in_progress[find_user["user_id"]]
+                                    < 30
+                                ):
                                     result = {
                                         "success": False,
                                         "error": "You have another transaction in progress!",
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=500)
                                 # tx_in_progress
-                                if find_user['user_id'] in self.bot.tx_in_progress and \
-                                    int(time.time()) - self.bot.tx_in_progress[find_user['user_id']] < 30:
+                                if (
+                                    find_user["user_id"] in self.bot.tx_in_progress
+                                    and int(time.time())
+                                    - self.bot.tx_in_progress[find_user["user_id"]]
+                                    < 30
+                                ):
                                     result = {
                                         "success": False,
                                         "error": "You have another transaction in progress!",
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=500)
                                 if len(params) > 1:
@@ -6342,17 +8701,17 @@ class Cexswap(commands.Cog):
                                         "data": None,
                                         "error": "Currently, only one coin is allow!",
                                         "id": id_call,
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=200)
                                 elif len(params) == 1:
                                     w_param = params[0]
-                                    coin_name = w_param['coin'].upper()
-                                    address = w_param['address']
+                                    coin_name = w_param["coin"].upper()
+                                    address = w_param["address"]
                                     extra = ""
                                     extra_option = ""
                                     try:
-                                        extra = w_param['extra']
+                                        extra = w_param["extra"]
                                         extra_option = extra
                                     except Exception:
                                         pass
@@ -6362,21 +8721,27 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"{coin_name} doesn't exist with us!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
 
-                                    if getattr(getattr(self.bot.coin_list, coin_name), "enable_withdraw") != 1:
+                                    if (
+                                        getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "enable_withdraw",
+                                        )
+                                        != 1
+                                    ):
                                         result = {
                                             "success": False,
                                             "data": None,
                                             "error": f"{coin_name}: withdraw is currently disable.",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
-            
-                                    amount = w_param['amount'].replace(",", "")
+
+                                    amount = w_param["amount"].replace(",", "")
                                     amount = text_to_num(amount)
                                     if amount is None or amount <= 0:
                                         result = {
@@ -6384,25 +8749,66 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": "Invalid given amount!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
-                                    deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
-                                    net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
-                                    type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-                                    is_withdraw = getattr(getattr(self.bot.coin_list, coin_name), "cexswap_withdraw")
-                                    min_tx = getattr(getattr(self.bot.coin_list, coin_name), "real_min_tx")
-                                    max_tx = getattr(getattr(self.bot.coin_list, coin_name), "real_max_tx")
+                                    deposit_confirm_depth = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "deposit_confirm_depth",
+                                    )
+                                    net_name = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "net_name",
+                                    )
+                                    type_coin = getattr(
+                                        getattr(self.bot.coin_list, coin_name), "type"
+                                    )
+                                    is_withdraw = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "cexswap_withdraw",
+                                    )
+                                    min_tx = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "real_min_tx",
+                                    )
+                                    max_tx = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "real_max_tx",
+                                    )
 
-                                    NetFee = getattr(getattr(self.bot.coin_list, coin_name), "real_withdraw_fee")
-                                    tx_fee = getattr(getattr(self.bot.coin_list, coin_name), "tx_fee")
-                                    coin_decimal = getattr(getattr(self.bot.coin_list, coin_name), "decimal")
+                                    NetFee = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "real_withdraw_fee",
+                                    )
+                                    tx_fee = getattr(
+                                        getattr(self.bot.coin_list, coin_name), "tx_fee"
+                                    )
+                                    coin_decimal = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "decimal",
+                                    )
 
-                                    token_display = getattr(getattr(self.bot.coin_list, coin_name), "display_name")
-                                    contract = getattr(getattr(self.bot.coin_list, coin_name), "contract")
-                                    fee_limit = getattr(getattr(self.bot.coin_list, coin_name), "fee_limit")
-                                    get_deposit = await self.wallet_api.sql_get_userwallet(
-                                        find_user['user_id'], coin_name, net_name, type_coin, SERVER_BOT, 0
+                                    token_display = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "display_name",
+                                    )
+                                    getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "contract",
+                                    )
+                                    getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "fee_limit",
+                                    )
+                                    get_deposit = (
+                                        await self.wallet_api.sql_get_userwallet(
+                                            find_user["user_id"],
+                                            coin_name,
+                                            net_name,
+                                            type_coin,
+                                            SERVER_BOT,
+                                            0,
+                                        )
                                     )
                                     if get_deposit is None:
                                         result = {
@@ -6410,15 +8816,22 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": "Internal error during getting account information!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
 
-                                    wallet_address = get_deposit['balance_wallet_address']
-                                    if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                                        wallet_address = get_deposit['paymentid']
+                                    wallet_address = get_deposit[
+                                        "balance_wallet_address"
+                                    ]
+                                    if type_coin in [
+                                        "TRTL-API",
+                                        "TRTL-SERVICE",
+                                        "BCN",
+                                        "XMR",
+                                    ]:
+                                        wallet_address = get_deposit["paymentid"]
                                     elif type_coin in ["XRP"]:
-                                        wallet_address = get_deposit['destination_tag']
+                                        wallet_address = get_deposit["destination_tag"]
                                     if tx_fee is None:
                                         tx_fee = NetFee
 
@@ -6428,7 +8841,7 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"{coin_name} is not enable for API withdraw!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     if amount < min_tx or min_tx > max_tx:
@@ -6437,26 +8850,35 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"Amount withdraw not in range minimum {str(min_tx)} and maximum {str(max_tx)}.",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
 
-                                    height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
+                                    height = await self.wallet_api.get_block_height(
+                                        type_coin, coin_name, net_name
+                                    )
                                     if height is None:
                                         result = {
                                             "success": False,
                                             "data": None,
                                             "error": f"Error getting blockchain information (height).",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     amount = float(amount)
-                                    userdata_balance = await self.wallet_api.user_balance(
-                                        find_user['user_id'], coin_name, wallet_address, type_coin,
-                                        height, deposit_confirm_depth, SERVER_BOT
+                                    userdata_balance = (
+                                        await self.wallet_api.user_balance(
+                                            find_user["user_id"],
+                                            coin_name,
+                                            wallet_address,
+                                            type_coin,
+                                            height,
+                                            deposit_confirm_depth,
+                                            SERVER_BOT,
+                                        )
                                     )
-                                    actual_balance = float(userdata_balance['adjust'])
+                                    actual_balance = float(userdata_balance["adjust"])
                                     # If balance 0, no need to check anything
                                     if actual_balance <= 0:
                                         result = {
@@ -6464,7 +8886,7 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"Insufficient balance to do such withdrw.",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     elif amount > actual_balance:
@@ -6473,7 +8895,7 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"Insufficient balance to do such withdrw.",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     elif amount + NetFee > actual_balance:
@@ -6482,109 +8904,174 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"Insufficient balance to do such withdrw (with fee).",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     # Ok withdraw
                                     try:
-                                        key_withdraw = find_user['user_id'] + "_" + coin_name
-                                        if key_withdraw in self.withdraw_tx and \
-                                            int(time.time()) - self.withdraw_tx[key_withdraw] < 60:
+                                        key_withdraw = (
+                                            find_user["user_id"] + "_" + coin_name
+                                        )
+                                        if (
+                                            key_withdraw in self.withdraw_tx
+                                            and int(time.time())
+                                            - self.withdraw_tx[key_withdraw]
+                                            < 60
+                                        ):
                                             result = {
                                                 "success": False,
                                                 "data": None,
                                                 "error": f"You have too recent withdraw of {coin_name}.",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             return web.json_response(result, status=500)
                                         else:
-                                            self.withdraw_tx[key_withdraw] = int(time.time())
+                                            self.withdraw_tx[key_withdraw] = int(
+                                                time.time()
+                                            )
                                     except Exception:
                                         traceback.print_exc(file=sys.stdout)
                                     equivalent_usd = ""
                                     amount_in_usd = 0.0
-                                    price_with = getattr(getattr(self.bot.coin_list, coin_name), "price_with")
+                                    price_with = getattr(
+                                        getattr(self.bot.coin_list, coin_name),
+                                        "price_with",
+                                    )
                                     if price_with:
-                                        per_unit = await self.utils.get_coin_price(coin_name, price_with)
-                                        if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                                            per_unit = per_unit['price']
-                                            amount_in_usd = float(Decimal(amount) * Decimal(per_unit))
+                                        per_unit = await self.utils.get_coin_price(
+                                            coin_name, price_with
+                                        )
+                                        if (
+                                            per_unit
+                                            and per_unit["price"]
+                                            and per_unit["price"] > 0
+                                        ):
+                                            per_unit = per_unit["price"]
+                                            amount_in_usd = float(
+                                                Decimal(amount) * Decimal(per_unit)
+                                            )
                                             if amount_in_usd >= 0.01:
-                                                equivalent_usd = " ~ {:,.2f}$".format(amount_in_usd)
+                                                equivalent_usd = " ~ {:,.2f}$".format(
+                                                    amount_in_usd
+                                                )
                                             elif amount_in_usd >= 0.0001:
-                                                equivalent_usd = " ~ {:,.4f}$".format(amount_in_usd)
+                                                equivalent_usd = " ~ {:,.4f}$".format(
+                                                    amount_in_usd
+                                                )
                                     # add time tag
-                                    self.bot.tx_in_progress[find_user['user_id']] = int(time.time())
+                                    self.bot.tx_in_progress[find_user["user_id"]] = int(
+                                        time.time()
+                                    )
                                     if type_coin == "NANO":
-                                        valid_address = await self.wallet_api.nano_validate_address(coin_name, address)
+                                        valid_address = (
+                                            await self.wallet_api.nano_validate_address(
+                                                coin_name, address
+                                            )
+                                        )
                                         if not valid_address is True:
                                             result = {
                                                 "success": False,
                                                 "data": None,
                                                 "error": f"Invalid address {address}.",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=500)
                                         else:
-                                            main_address = getattr(getattr(self.bot.coin_list, coin_name), "MainAddress")
+                                            main_address = getattr(
+                                                getattr(self.bot.coin_list, coin_name),
+                                                "MainAddress",
+                                            )
                                             send_tx = await self.wallet_api.send_external_nano(
-                                                main_address, find_user['user_id'], amount, address, coin_name, coin_decimal
+                                                main_address,
+                                                find_user["user_id"],
+                                                amount,
+                                                address,
+                                                coin_name,
+                                                coin_decimal,
                                             )
                                             if send_tx:
-                                                tx_hash = send_tx['block']
-                                                explorer_link = self.utils.get_explorer_link(coin_name, tx_hash)
+                                                tx_hash = send_tx["block"]
+                                                explorer_link = (
+                                                    self.utils.get_explorer_link(
+                                                        coin_name, tx_hash
+                                                    )
+                                                )
                                                 result = {
                                                     "success": True,
                                                     "data": {"hash": tx_hash},
                                                     "error": None,
                                                     "id": id_call,
-                                                    "time": int(time.time())
+                                                    "time": int(time.time()),
                                                 }
                                                 await log_to_channel(
                                                     "withdraw",
-                                                    f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "\
-                                                    f"successfully withdrew {num_format_coin(amount)} "\
-                                                    f"{token_display}{equivalent_usd}.{explorer_link}"
+                                                    f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "
+                                                    f"successfully withdrew {num_format_coin(amount)} "
+                                                    f"{token_display}{equivalent_usd}.{explorer_link}",
                                                 )
                                                 try:
-                                                    del self.bot.tx_in_progress[find_user['user_id']]
-                                                    get_user = self.bot.get_user(int(find_user['user_id']))
+                                                    del self.bot.tx_in_progress[
+                                                        find_user["user_id"]
+                                                    ]
+                                                    get_user = self.bot.get_user(
+                                                        int(find_user["user_id"])
+                                                    )
                                                     if get_user is not None:
-                                                        await get_user.send("You executed API/withdraw amount {} {}{} to {}.{} "\
-                                                                            "If you haven't done that, please change your API immediately and report to us.".format(
-                                                                                num_format_coin(amount), token_display, equivalent_usd, address, explorer_link
-                                                                            ))
+                                                        await get_user.send(
+                                                            "You executed API/withdraw amount {} {}{} to {}.{} "
+                                                            "If you haven't done that, please change your API immediately and report to us.".format(
+                                                                num_format_coin(amount),
+                                                                token_display,
+                                                                equivalent_usd,
+                                                                address,
+                                                                explorer_link,
+                                                            )
+                                                        )
                                                 except Exception:
                                                     pass
-                                                return web.json_response(result, status=200)
+                                                return web.json_response(
+                                                    result, status=200
+                                                )
                                             else:
                                                 result = {
                                                     "success": False,
                                                     "data": None,
                                                     "error": f"Internal error!",
                                                     "id": id_call,
-                                                    "time": int(time.time())
+                                                    "time": int(time.time()),
                                                 }
                                                 await log_to_channel(
                                                     "withdraw",
-                                                    f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "\
-                                                    f"{num_format_coin(amount)} "\
-                                                    f"{token_display}{equivalent_usd} to address {address}."
+                                                    f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "
+                                                    f"{num_format_coin(amount)} "
+                                                    f"{token_display}{equivalent_usd} to address {address}.",
                                                 )
                                                 try:
-                                                    del self.bot.tx_in_progress[find_user['user_id']]
+                                                    del self.bot.tx_in_progress[
+                                                        find_user["user_id"]
+                                                    ]
                                                 except Exception:
                                                     pass
-                                                return web.json_response(result, status=500)
+                                                return web.json_response(
+                                                    result, status=500
+                                                )
                                     elif type_coin == "XLM":
-                                        url = getattr(getattr(self.bot.coin_list, coin_name), "http_address")
-                                        main_address = getattr(getattr(self.bot.coin_list, coin_name), "MainAddress")
+                                        url = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "http_address",
+                                        )
+                                        main_address = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "MainAddress",
+                                        )
                                         if address == main_address:
                                             # can not send
                                             result = {
@@ -6592,14 +9079,27 @@ class Cexswap(commands.Cog):
                                                 "data": None,
                                                 "error": f"You can't send to this address {address}!",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             return web.json_response(result, status=500)
                                         if coin_name != "XLM":  # in case of asset
-                                            issuer = getattr(getattr(self.bot.coin_list, coin_name), "contract")
-                                            asset_code = getattr(getattr(self.bot.coin_list, coin_name), "header")
-                                            check_asset = await self.wallet_api.check_xlm_asset(
-                                                url, asset_code, issuer, address, find_user['user_id'], SERVER_BOT
+                                            issuer = getattr(
+                                                getattr(self.bot.coin_list, coin_name),
+                                                "contract",
+                                            )
+                                            asset_code = getattr(
+                                                getattr(self.bot.coin_list, coin_name),
+                                                "header",
+                                            )
+                                            check_asset = (
+                                                await self.wallet_api.check_xlm_asset(
+                                                    url,
+                                                    asset_code,
+                                                    issuer,
+                                                    address,
+                                                    find_user["user_id"],
+                                                    SERVER_BOT,
+                                                )
                                             )
                                             if check_asset is False:
                                                 result = {
@@ -6607,44 +9107,90 @@ class Cexswap(commands.Cog):
                                                     "data": None,
                                                     "error": f"You can't send to this address {address}!",
                                                     "id": id_call,
-                                                    "time": int(time.time())
+                                                    "time": int(time.time()),
                                                 }
-                                                return web.json_response(result, status=500)
-                                        self.bot.tx_in_progress[find_user['user_id']] = int(time.time())
-                                        wallet_host = getattr(getattr(self.bot.coin_list, coin_name), "wallet_address")
-                                        coin_decimal = getattr(getattr(self.bot.coin_list, coin_name), "decimal")
-                                        withdraw_keypair = decrypt_string(getattr(getattr(self.bot.coin_list, coin_name), "walletkey"))
-                                        asset_ticker = getattr(getattr(self.bot.coin_list, coin_name), "header")
-                                        asset_issuer = getattr(getattr(self.bot.coin_list, coin_name), "contract")
-                                        send_tx = await self.wallet_api.send_external_xlm(
-                                            url, withdraw_keypair, find_user['user_id'],
-                                            amount, address, coin_decimal, SERVER_BOT,
-                                            coin_name, NetFee, asset_ticker, asset_issuer,
-                                            90, extra_option
+                                                return web.json_response(
+                                                    result, status=500
+                                                )
+                                        self.bot.tx_in_progress[
+                                            find_user["user_id"]
+                                        ] = int(time.time())
+                                        getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "wallet_address",
+                                        )
+                                        coin_decimal = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "decimal",
+                                        )
+                                        withdraw_keypair = decrypt_string(
+                                            getattr(
+                                                getattr(self.bot.coin_list, coin_name),
+                                                "walletkey",
+                                            )
+                                        )
+                                        asset_ticker = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "header",
+                                        )
+                                        asset_issuer = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "contract",
+                                        )
+                                        send_tx = (
+                                            await self.wallet_api.send_external_xlm(
+                                                url,
+                                                withdraw_keypair,
+                                                find_user["user_id"],
+                                                amount,
+                                                address,
+                                                coin_decimal,
+                                                SERVER_BOT,
+                                                coin_name,
+                                                NetFee,
+                                                asset_ticker,
+                                                asset_issuer,
+                                                90,
+                                                extra_option,
+                                            )
                                         )
                                         if send_tx:
-                                            explorer_link = self.utils.get_explorer_link(coin_name, send_tx)
+                                            explorer_link = (
+                                                self.utils.get_explorer_link(
+                                                    coin_name, send_tx
+                                                )
+                                            )
                                             result = {
                                                 "success": True,
                                                 "data": {"hash": send_tx},
                                                 "error": None,
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "\
-                                                f"successfully withdrew {num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd}.{explorer_link}"
+                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "
+                                                f"successfully withdrew {num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd}.{explorer_link}",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
-                                                get_user = self.bot.get_user(int(find_user['user_id']))
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
+                                                get_user = self.bot.get_user(
+                                                    int(find_user["user_id"])
+                                                )
                                                 if get_user is not None:
-                                                    await get_user.send("You executed API/withdraw amount {} {}{} to {}.{} "\
-                                                                        "If you haven't done that, please change your API immediately and report to us.".format(
-                                                                            num_format_coin(amount), token_display, equivalent_usd, address, explorer_link
-                                                                        ))
+                                                    await get_user.send(
+                                                        "You executed API/withdraw amount {} {}{} to {}.{} "
+                                                        "If you haven't done that, please change your API immediately and report to us.".format(
+                                                            num_format_coin(amount),
+                                                            token_display,
+                                                            equivalent_usd,
+                                                            address,
+                                                            explorer_link,
+                                                        )
+                                                    )
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=200)
@@ -6654,46 +9200,70 @@ class Cexswap(commands.Cog):
                                                 "data": None,
                                                 "error": f"Internal error!",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "\
-                                                f"{num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd} to address {address}."
+                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "
+                                                f"{num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd} to address {address}.",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=500)
                                     elif type_coin == "BTC":
-                                        send_tx = await self.wallet_api.send_external_doge(
-                                            find_user['user_id'], amount, address, coin_name, 0, NetFee, SERVER_BOT
+                                        send_tx = (
+                                            await self.wallet_api.send_external_doge(
+                                                find_user["user_id"],
+                                                amount,
+                                                address,
+                                                coin_name,
+                                                0,
+                                                NetFee,
+                                                SERVER_BOT,
+                                            )
                                         )  # tx_fee=0
                                         if send_tx:
-                                            explorer_link = self.utils.get_explorer_link(coin_name, send_tx)
+                                            explorer_link = (
+                                                self.utils.get_explorer_link(
+                                                    coin_name, send_tx
+                                                )
+                                            )
                                             result = {
                                                 "success": True,
                                                 "data": {"hash": send_tx},
                                                 "error": None,
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "\
-                                                f"successfully withdrew {num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd}.{explorer_link}"
+                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "
+                                                f"successfully withdrew {num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd}.{explorer_link}",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
-                                                get_user = self.bot.get_user(int(find_user['user_id']))
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
+                                                get_user = self.bot.get_user(
+                                                    int(find_user["user_id"])
+                                                )
                                                 if get_user is not None:
-                                                    await get_user.send("You executed API/withdraw amount {} {}{} to {}.{} "\
-                                                                        "If you haven't done that, please change your API immediately and report to us.".format(
-                                                                            num_format_coin(amount), token_display, equivalent_usd, address, explorer_link
-                                                                        ))
+                                                    await get_user.send(
+                                                        "You executed API/withdraw amount {} {}{} to {}.{} "
+                                                        "If you haven't done that, please change your API immediately and report to us.".format(
+                                                            num_format_coin(amount),
+                                                            token_display,
+                                                            equivalent_usd,
+                                                            address,
+                                                            explorer_link,
+                                                        )
+                                                    )
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=200)
@@ -6703,55 +9273,103 @@ class Cexswap(commands.Cog):
                                                 "data": None,
                                                 "error": f"Internal error!",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "\
-                                                f"{num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd} to address {address}."
+                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "
+                                                f"{num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd} to address {address}.",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=500)
-                                    elif type_coin == "XMR" or type_coin == "TRTL-API" or type_coin == "TRTL-SERVICE" or type_coin == "BCN":
-                                        main_address = getattr(getattr(self.bot.coin_list, coin_name), "MainAddress")
-                                        mixin = getattr(getattr(self.bot.coin_list, coin_name), "mixin")
-                                        wallet_address = getattr(getattr(self.bot.coin_list, coin_name), "wallet_address")
-                                        header = getattr(getattr(self.bot.coin_list, coin_name), "header")
-                                        is_fee_per_byte = getattr(getattr(self.bot.coin_list, coin_name), "is_fee_per_byte")
-                                        send_tx = await self.wallet_api.send_external_xmr(
-                                            type_coin, main_address, find_user['user_id'],
-                                            amount, address, coin_name, coin_decimal,
-                                            tx_fee, NetFee, is_fee_per_byte, mixin,
-                                            SERVER_BOT, wallet_address, header,
-                                            None
+                                    elif (
+                                        type_coin == "XMR"
+                                        or type_coin == "TRTL-API"
+                                        or type_coin == "TRTL-SERVICE"
+                                        or type_coin == "BCN"
+                                    ):
+                                        main_address = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "MainAddress",
+                                        )
+                                        mixin = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "mixin",
+                                        )
+                                        wallet_address = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "wallet_address",
+                                        )
+                                        header = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "header",
+                                        )
+                                        is_fee_per_byte = getattr(
+                                            getattr(self.bot.coin_list, coin_name),
+                                            "is_fee_per_byte",
+                                        )
+                                        send_tx = (
+                                            await self.wallet_api.send_external_xmr(
+                                                type_coin,
+                                                main_address,
+                                                find_user["user_id"],
+                                                amount,
+                                                address,
+                                                coin_name,
+                                                coin_decimal,
+                                                tx_fee,
+                                                NetFee,
+                                                is_fee_per_byte,
+                                                mixin,
+                                                SERVER_BOT,
+                                                wallet_address,
+                                                header,
+                                                None,
+                                            )
                                         )  # paymentId: None (end)
                                         if send_tx:
-                                            explorer_link = self.utils.get_explorer_link(coin_name, send_tx)
+                                            explorer_link = (
+                                                self.utils.get_explorer_link(
+                                                    coin_name, send_tx
+                                                )
+                                            )
                                             result = {
                                                 "success": True,
                                                 "data": {"hash": send_tx},
                                                 "error": None,
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "\
-                                                f"successfully withdrew {num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd}.{explorer_link}"
+                                                f"[{SERVER_BOT}/API] <@{find_user['user_id']}> "
+                                                f"successfully withdrew {num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd}.{explorer_link}",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
-                                                get_user = self.bot.get_user(int(find_user['user_id']))
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
+                                                get_user = self.bot.get_user(
+                                                    int(find_user["user_id"])
+                                                )
                                                 if get_user is not None:
-                                                    await get_user.send("You executed API/withdraw amount {} {}{} to {}.{} "\
-                                                                        "If you haven't done that, please change your API immediately and report to us.".format(
-                                                                            num_format_coin(amount), token_display, equivalent_usd, address, explorer_link
-                                                                        ))
+                                                    await get_user.send(
+                                                        "You executed API/withdraw amount {} {}{} to {}.{} "
+                                                        "If you haven't done that, please change your API immediately and report to us.".format(
+                                                            num_format_coin(amount),
+                                                            token_display,
+                                                            equivalent_usd,
+                                                            address,
+                                                            explorer_link,
+                                                        )
+                                                    )
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=200)
@@ -6761,16 +9379,18 @@ class Cexswap(commands.Cog):
                                                 "data": None,
                                                 "error": f"Internal error!",
                                                 "id": id_call,
-                                                "time": int(time.time())
+                                                "time": int(time.time()),
                                             }
                                             await log_to_channel(
                                                 "withdraw",
-                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "\
-                                                f"{num_format_coin(amount)} "\
-                                                f"{token_display}{equivalent_usd} to address {address}."
+                                                f"[{SERVER_BOT}/API] 🔴 User <@{find_user['user_id']}> failed to withdraw "
+                                                f"{num_format_coin(amount)} "
+                                                f"{token_display}{equivalent_usd} to address {address}.",
                                             )
                                             try:
-                                                del self.bot.tx_in_progress[find_user['user_id']]
+                                                del self.bot.tx_in_progress[
+                                                    find_user["user_id"]
+                                                ]
                                             except Exception:
                                                 pass
                                             return web.json_response(result, status=500)
@@ -6780,21 +9400,27 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": f"Coin name/type is currently not supported yet.",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         try:
-                                            del self.bot.tx_in_progress[find_user['user_id']]
+                                            del self.bot.tx_in_progress[
+                                                find_user["user_id"]
+                                            ]
                                         except Exception:
                                             pass
                                         return web.json_response(result, status=500)
                             elif method == "sell":
                                 # stop it first here.
-                                if find_user['user_id'] in self.bot.tipping_in_progress and \
-                                    int(time.time()) - self.bot.tipping_in_progress[find_user['user_id']] < 30:
+                                if (
+                                    find_user["user_id"] in self.bot.tipping_in_progress
+                                    and int(time.time())
+                                    - self.bot.tipping_in_progress[find_user["user_id"]]
+                                    < 30
+                                ):
                                     result = {
                                         "success": False,
                                         "error": "You have another transaction in progress!",
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
 
                                 if len(params) > 1:
@@ -6803,24 +9429,32 @@ class Cexswap(commands.Cog):
                                         "data": None,
                                         "error": "Currently, only one trade is allow!",
                                         "id": id_call,
-                                        "time": int(time.time())
+                                        "time": int(time.time()),
                                     }
                                     return web.json_response(result, status=200)
                                 elif len(params) == 1:
                                     sell_param = params[0]
-                                    if 'amount' not in sell_param or 'sell_token' not in sell_param or 'for_token' not in sell_param:
+                                    if (
+                                        "amount" not in sell_param
+                                        or "sell_token" not in sell_param
+                                        or "for_token" not in sell_param
+                                    ):
                                         result = {
                                             "success": False,
                                             "data": None,
                                             "error": "Missing or wrong parameters!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
 
-                                    sell_param['sell_token'] = sell_param['sell_token'].upper()
-                                    sell_param['for_token'] = sell_param['for_token'].upper()
-                                    amount = sell_param['amount'].replace(",", "")
+                                    sell_param["sell_token"] = sell_param[
+                                        "sell_token"
+                                    ].upper()
+                                    sell_param["for_token"] = sell_param[
+                                        "for_token"
+                                    ].upper()
+                                    amount = sell_param["amount"].replace(",", "")
                                     amount = text_to_num(amount)
                                     if amount is None or amount <= 0:
                                         result = {
@@ -6828,170 +9462,302 @@ class Cexswap(commands.Cog):
                                             "data": None,
                                             "error": "Invalid given amount!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
-                                    if sell_param['sell_token'] not in self.bot.cexswap_coins or \
-                                        sell_param['for_token'] not in self.bot.cexswap_coins:
+                                    if (
+                                        sell_param["sell_token"]
+                                        not in self.bot.cexswap_coins
+                                        or sell_param["for_token"]
+                                        not in self.bot.cexswap_coins
+                                    ):
                                         result = {
                                             "success": False,
                                             "data": None,
                                             "error": "Invalid given coin/token or they are not in CEXSwap!",
                                             "id": id_call,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
-                                    ref_log = ''.join(random.choice(ascii_uppercase) for i in range(16))
-                                    net_name = getattr(getattr(self.bot.coin_list, sell_param['sell_token']), "net_name")
-                                    type_coin = getattr(getattr(self.bot.coin_list, sell_param['sell_token']), "type")
-                                    height = await self.wallet_api.get_block_height(type_coin, sell_param['sell_token'], net_name)
-                                    deposit_confirm_depth = getattr(getattr(self.bot.coin_list, sell_param['sell_token']), "deposit_confirm_depth")
-                                    get_deposit = await self.wallet_api.sql_get_userwallet(
-                                        find_user['user_id'], sell_param['sell_token'], net_name, type_coin, find_user['user_server'], 0
+                                    ref_log = "".join(
+                                        random.choice(ascii_uppercase)
+                                        for i in range(16)
+                                    )
+                                    net_name = getattr(
+                                        getattr(
+                                            self.bot.coin_list, sell_param["sell_token"]
+                                        ),
+                                        "net_name",
+                                    )
+                                    type_coin = getattr(
+                                        getattr(
+                                            self.bot.coin_list, sell_param["sell_token"]
+                                        ),
+                                        "type",
+                                    )
+                                    height = await self.wallet_api.get_block_height(
+                                        type_coin, sell_param["sell_token"], net_name
+                                    )
+                                    deposit_confirm_depth = getattr(
+                                        getattr(
+                                            self.bot.coin_list, sell_param["sell_token"]
+                                        ),
+                                        "deposit_confirm_depth",
+                                    )
+                                    get_deposit = (
+                                        await self.wallet_api.sql_get_userwallet(
+                                            find_user["user_id"],
+                                            sell_param["sell_token"],
+                                            net_name,
+                                            type_coin,
+                                            find_user["user_server"],
+                                            0,
+                                        )
                                     )
                                     if get_deposit is None:
-                                        get_deposit = await self.wallet_api.sql_register_user(
-                                            find_user['user_id'], sell_param['sell_token'], net_name, type_coin, find_user['user_server'], 0, 0
+                                        get_deposit = (
+                                            await self.wallet_api.sql_register_user(
+                                                find_user["user_id"],
+                                                sell_param["sell_token"],
+                                                net_name,
+                                                type_coin,
+                                                find_user["user_server"],
+                                                0,
+                                                0,
+                                            )
                                         )
 
-                                    wallet_address = get_deposit['balance_wallet_address']
-                                    if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                                        wallet_address = get_deposit['paymentid']
+                                    wallet_address = get_deposit[
+                                        "balance_wallet_address"
+                                    ]
+                                    if type_coin in [
+                                        "TRTL-API",
+                                        "TRTL-SERVICE",
+                                        "BCN",
+                                        "XMR",
+                                    ]:
+                                        wallet_address = get_deposit["paymentid"]
                                     elif type_coin in ["XRP"]:
-                                        wallet_address = get_deposit['destination_tag']
+                                        wallet_address = get_deposit["destination_tag"]
 
-                                    userdata_balance = await self.wallet_api.user_balance(
-                                        find_user['user_id'], sell_param['sell_token'], wallet_address, 
-                                        type_coin, height, deposit_confirm_depth, find_user['user_server']
+                                    userdata_balance = (
+                                        await self.wallet_api.user_balance(
+                                            find_user["user_id"],
+                                            sell_param["sell_token"],
+                                            wallet_address,
+                                            type_coin,
+                                            height,
+                                            deposit_confirm_depth,
+                                            find_user["user_server"],
+                                        )
                                     )
-                                    actual_balance = float(userdata_balance['adjust'])
-                                    if actual_balance < 0 or truncate(actual_balance, 8) < truncate(amount, 8):
+                                    actual_balance = float(userdata_balance["adjust"])
+                                    if actual_balance < 0 or truncate(
+                                        actual_balance, 8
+                                    ) < truncate(amount, 8):
                                         result = {
                                             "success": False,
                                             "error": "Not sufficient balance!",
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                                     if amount < 0:
                                         result = {
                                             "success": False,
                                             "error": "Invalid given amount!",
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
 
-                                    if find_user['user_id'] in self.bot.tipping_in_progress and \
-                                        int(time.time()) - self.bot.tipping_in_progress[find_user['user_id']] < 30:
+                                    if (
+                                        find_user["user_id"]
+                                        in self.bot.tipping_in_progress
+                                        and int(time.time())
+                                        - self.bot.tipping_in_progress[
+                                            find_user["user_id"]
+                                        ]
+                                        < 30
+                                    ):
                                         result = {
                                             "success": False,
                                             "error": "You have another transaction in progress!",
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                     else:
-                                        self.bot.tipping_in_progress[find_user['user_id']] = int(time.time())
+                                        self.bot.tipping_in_progress[
+                                            find_user["user_id"]
+                                        ] = int(time.time())
 
                                     # get price per unit
                                     per_unit_sell = 0.0
-                                    price_with = getattr(getattr(self.bot.coin_list, sell_param['sell_token']), "price_with")
+                                    price_with = getattr(
+                                        getattr(
+                                            self.bot.coin_list, sell_param["sell_token"]
+                                        ),
+                                        "price_with",
+                                    )
                                     if price_with:
-                                        per_unit_sell = await self.utils.get_coin_price(sell_param['sell_token'], price_with)
-                                        if per_unit_sell and per_unit_sell['price'] and per_unit_sell['price'] > 0:
-                                            per_unit_sell = per_unit_sell['price']
-                                        if per_unit_sell and per_unit_sell < 0.0000000001:
+                                        per_unit_sell = await self.utils.get_coin_price(
+                                            sell_param["sell_token"], price_with
+                                        )
+                                        if (
+                                            per_unit_sell
+                                            and per_unit_sell["price"]
+                                            and per_unit_sell["price"] > 0
+                                        ):
+                                            per_unit_sell = per_unit_sell["price"]
+                                        if (
+                                            per_unit_sell
+                                            and per_unit_sell < 0.0000000001
+                                        ):
                                             per_unit_sell = 0.0
 
                                     per_unit_get = 0.0
-                                    price_with = getattr(getattr(self.bot.coin_list,  sell_param['for_token']), "price_with")
+                                    price_with = getattr(
+                                        getattr(
+                                            self.bot.coin_list, sell_param["for_token"]
+                                        ),
+                                        "price_with",
+                                    )
                                     if price_with:
-                                        per_unit_get = await self.utils.get_coin_price(sell_param['for_token'], price_with)
-                                        if per_unit_get and per_unit_get['price'] and per_unit_get['price'] > 0:
-                                            per_unit_get = per_unit_get['price']
+                                        per_unit_get = await self.utils.get_coin_price(
+                                            sell_param["for_token"], price_with
+                                        )
+                                        if (
+                                            per_unit_get
+                                            and per_unit_get["price"]
+                                            and per_unit_get["price"] > 0
+                                        ):
+                                            per_unit_get = per_unit_get["price"]
                                         if per_unit_get and per_unit_get < 0.0000000001:
                                             per_unit_get = 0.0
 
                                     selling = await cexswap_sold_by_api(
-                                        ref_log, amount, sell_param['sell_token'], sell_param['for_token'],
-                                        find_user['user_id'], find_user['user_server'],
-                                        self.bot.coin_list, self.bot.config, per_unit_sell, per_unit_get
+                                        ref_log,
+                                        amount,
+                                        sell_param["sell_token"],
+                                        sell_param["for_token"],
+                                        find_user["user_id"],
+                                        find_user["user_server"],
+                                        self.bot.coin_list,
+                                        self.bot.config,
+                                        per_unit_sell,
+                                        per_unit_get,
                                     )
-                                    if selling['success'] is True:
+                                    if selling["success"] is True:
                                         # remove /summary cache
                                         try:
-                                            self.utils.del_cache_kv(self.bot.config['kv_db']['prefix_cexswap'], "summary")
+                                            self.utils.del_cache_kv(
+                                                self.bot.config["kv_db"][
+                                                    "prefix_cexswap"
+                                                ],
+                                                "summary",
+                                            )
                                         except Exception:
                                             traceback.print_exc(file=sys.stdout)
                                         result = {
                                             "success": True,
-                                            "sell": selling['sell'],
-                                            "sell_token": selling['sell_token'],
-                                            "get": selling['get'],
-                                            "for_token": selling['for_token'],
-                                            "price_impact_percent": selling['price_impact_percent'],
-                                            "message": selling['message'],
+                                            "sell": selling["sell"],
+                                            "sell_token": selling["sell_token"],
+                                            "get": selling["get"],
+                                            "for_token": selling["for_token"],
+                                            "price_impact_percent": selling[
+                                                "price_impact_percent"
+                                            ],
+                                            "message": selling["message"],
                                             "error": None,
-                                            "time": int(time.time())
+                                            "time": int(time.time()),
                                         }
                                         await log_to_channel(
                                             "cexswap",
-                                            f"[API SOLD]: User <@{find_user['user_id']}> / {find_user['user_id']} Sold: " \
+                                            f"[API SOLD]: User <@{find_user['user_id']}> / {find_user['user_id']} Sold: "
                                             f"{selling['sell']} {selling['sell_token']} Get: {selling['get']} {selling['for_token']}. Ref: {selling['ref']}",
-                                            self.bot.config['discord']['cexswap']
+                                            self.bot.config["discord"]["cexswap"],
                                         )
                                         try:
-                                            del self.bot.tipping_in_progress[find_user['user_id']]
+                                            del self.bot.tipping_in_progress[
+                                                find_user["user_id"]
+                                            ]
                                         except Exception:
                                             pass
                                         try:
-                                            get_user = self.bot.get_user(int(find_user['user_id']))
+                                            get_user = self.bot.get_user(
+                                                int(find_user["user_id"])
+                                            )
                                             if get_user is not None:
-                                                key_cache = find_user['user_id'] + "_" + SERVER_BOT
-                                                if key_cache in self.cache_sold_notify and self.cache_sold_notify[key_cache] == self.bot.config['cexswap']['sold_mute_user']:
+                                                key_cache = (
+                                                    find_user["user_id"]
+                                                    + "_"
+                                                    + SERVER_BOT
+                                                )
+                                                if (
+                                                    key_cache in self.cache_sold_notify
+                                                    and self.cache_sold_notify[
+                                                        key_cache
+                                                    ]
+                                                    == self.bot.config["cexswap"][
+                                                        "sold_mute_user"
+                                                    ]
+                                                ):
                                                     msg = f"Sold {selling['sell']} {selling['sell_token']}\nGet: {selling['get']} {selling['for_token']}\nRef: {selling['ref']}"
                                                     await get_user.send(
-                                                        f"You executed CEXSwap API sold: ```{msg}```" \
+                                                        f"You executed CEXSwap API sold: ```{msg}```"
                                                         "**You have too many recent trade during last minute. Bot will mute for a few seconds.**"
                                                     )
-                                                elif key_cache in self.cache_sold_notify and self.cache_sold_notify[key_cache] > 10:
+                                                elif (
+                                                    key_cache in self.cache_sold_notify
+                                                    and self.cache_sold_notify[
+                                                        key_cache
+                                                    ]
+                                                    > 10
+                                                ):
                                                     pass
                                                 else:
                                                     msg = f"Sold {selling['sell']} {selling['sell_token']}\nGet: {selling['get']} {selling['for_token']}\nRef: {selling['ref']}"
                                                     await get_user.send(
-                                                        f"You executed CEXSwap API sold: ```{msg}```" \
+                                                        f"You executed CEXSwap API sold: ```{msg}```"
                                                         "If you haven't done so, please contact our support and change API key immediately!"
                                                     )
-                                                if key_cache not in self.cache_sold_notify:
-                                                    self.cache_sold_notify[key_cache] = 1
+                                                if (
+                                                    key_cache
+                                                    not in self.cache_sold_notify
+                                                ):
+                                                    self.cache_sold_notify[
+                                                        key_cache
+                                                    ] = 1
                                                 else:
-                                                    self.cache_sold_notify[key_cache] += 1
+                                                    self.cache_sold_notify[
+                                                        key_cache
+                                                    ] += 1
                                         except Exception:
                                             pass
                                         return web.json_response(result, status=200)
                                     else:
                                         result = {
                                             "success": False,
-                                            "error": selling['error'],
-                                            "time": int(time.time())
+                                            "error": selling["error"],
+                                            "time": int(time.time()),
                                         }
                                         return web.json_response(result, status=500)
                             else:
                                 result = {
                                     "success": False,
                                     "error": "Unknown method!",
-                                    "time": int(time.time())
+                                    "time": int(time.time()),
                                 }
                                 return web.json_response(result, status=404)
                     else:
                         result = {
                             "success": False,
                             "error": "Missing Authorization API key!",
-                            "time": int(time.time())
+                            "time": int(time.time()),
                         }
                         return web.json_response(result, status=404)
                 else:
                     result = {
                         "success": False,
                         "error": "Invalid call",
-                        "time": int(time.time())
+                        "time": int(time.time()),
                     }
                     return web.json_response(result, status=404)
             except json.decoder.JSONDecodeError:
@@ -7001,14 +9767,14 @@ class Cexswap(commands.Cog):
                 traceback.print_exc(file=sys.stdout)
 
         app = web.Application()
-        app.router.add_get('/{tail:.*}', handler_get)
-        app.router.add_post('/{tail:.*}', handler_post)
+        app.router.add_get("/{tail:.*}", handler_get)
+        app.router.add_post("/{tail:.*}", handler_post)
         runner = web.AppRunner(app)
         await runner.setup()
         self.site = web.TCPSite(
             runner,
-            self.bot.config['cexswap_api']['binding_ip'],
-            self.bot.config['cexswap_api']['api_port_private']
+            self.bot.config["cexswap_api"]["binding_ip"],
+            self.bot.config["cexswap_api"]["api_port_private"],
         )
         await self.bot.wait_until_ready()
         await self.site.start()
@@ -7020,11 +9786,13 @@ class Cexswap(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "api_trade_announce"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15: # not running if less than 15s
+        if (
+            check_last_running and int(time.time()) - check_last_running["run_at"] < 15
+        ):  # not running if less than 15s
             return
         await asyncio.sleep(time_lap)
         try:
-            lap = int(time.time()) - 600 # not later than 10mn
+            lap = int(time.time()) - 600  # not later than 10mn
             await store.openConnection()
             async with store.pool.acquire() as conn:
                 async with conn.cursor() as cur:
@@ -7036,45 +9804,107 @@ class Cexswap(commands.Cog):
                     result = await cur.fetchall()
                     if result and len(result) > 0:
                         get_guilds = await self.utils.get_trade_channel_list()
-                        if len(get_guilds) > 0 and self.bot.config['cexswap']['disable'] == 0 and \
-                            self.bot.config['cexswap_api']['api_trade_announcement'] == 1:
+                        if (
+                            len(get_guilds) > 0
+                            and self.bot.config["cexswap"]["disable"] == 0
+                            and self.bot.config["cexswap_api"]["api_trade_announcement"]
+                            == 1
+                        ):
                             # too many announcement, skip. Take 10 first
                             result = result[:10]
                             for each_ann in result:
                                 # check if the amount is more than minimum.
                                 try:
-                                    coin_got = each_ann['got_ticker']
-                                    coin_sold = each_ann['sold_ticker']
-                                    min_got = getattr(getattr(self.bot.coin_list, coin_got), "cexswap_min_sold_ann")
-                                    min_sold = getattr(getattr(self.bot.coin_list, coin_sold), "cexswap_min_sold_ann")
-                                    if self.bot.config['cexswap']['ann_sold_limit'] == 2:
+                                    coin_got = each_ann["got_ticker"]
+                                    coin_sold = each_ann["sold_ticker"]
+                                    min_got = getattr(
+                                        getattr(self.bot.coin_list, coin_got),
+                                        "cexswap_min_sold_ann",
+                                    )
+                                    min_sold = getattr(
+                                        getattr(self.bot.coin_list, coin_sold),
+                                        "cexswap_min_sold_ann",
+                                    )
+                                    if (
+                                        self.bot.config["cexswap"]["ann_sold_limit"]
+                                        == 2
+                                    ):
                                         # continue without announcement
                                         pass
-                                    elif self.bot.config['cexswap']['ann_sold_limit'] == 0 or (min_got is None or min_sold is None or \
-                                        (min_sold and float(each_ann['total_sold_amount']) > min_sold) or \
-                                            (min_got and float(each_ann['got_total_amount']) > min_got)):
+                                    elif self.bot.config["cexswap"][
+                                        "ann_sold_limit"
+                                    ] == 0 or (
+                                        min_got is None
+                                        or min_sold is None
+                                        or (
+                                            min_sold
+                                            and float(each_ann["total_sold_amount"])
+                                            > min_sold
+                                        )
+                                        or (
+                                            min_got
+                                            and float(each_ann["got_total_amount"])
+                                            > min_got
+                                        )
+                                    ):
                                         list_guild_ids = [i.id for i in self.bot.guilds]
                                         for item in get_guilds:
-                                            if int(item['serverid']) not in list_guild_ids:
+                                            if (
+                                                int(item["serverid"])
+                                                not in list_guild_ids
+                                            ):
                                                 continue
                                             try:
-                                                key_cache = item['serverid'] + "_" + SERVER_BOT
-                                                get_guild = self.bot.get_guild(int(item['serverid']))
+                                                key_cache = (
+                                                    item["serverid"] + "_" + SERVER_BOT
+                                                )
+                                                get_guild = self.bot.get_guild(
+                                                    int(item["serverid"])
+                                                )
                                                 if get_guild:
-                                                    channel = get_guild.get_channel(int(item['trade_channel']))
+                                                    channel = get_guild.get_channel(
+                                                        int(item["trade_channel"])
+                                                    )
                                                     if channel is None:
                                                         continue
                                                     else:
-                                                        if key_cache in self.cache_sold_notify and self.cache_sold_notify[key_cache] == self.bot.config['cexswap']['sold_mute_channel']:
-                                                            await channel.send("**[CEXSWAP API] mutes trade notification for a few seconds.**")
-                                                        elif key_cache in self.cache_sold_notify and self.cache_sold_notify[key_cache] > 10:
+                                                        if (
+                                                            key_cache
+                                                            in self.cache_sold_notify
+                                                            and self.cache_sold_notify[
+                                                                key_cache
+                                                            ]
+                                                            == self.bot.config[
+                                                                "cexswap"
+                                                            ]["sold_mute_channel"]
+                                                        ):
+                                                            await channel.send(
+                                                                "**[CEXSWAP API] mutes trade notification for a few seconds.**"
+                                                            )
+                                                        elif (
+                                                            key_cache
+                                                            in self.cache_sold_notify
+                                                            and self.cache_sold_notify[
+                                                                key_cache
+                                                            ]
+                                                            > 10
+                                                        ):
                                                             pass
                                                         else:
-                                                            await channel.send(each_ann['api_messsage'])
-                                                        if key_cache not in self.cache_sold_notify:
-                                                            self.cache_sold_notify[key_cache] = 1
+                                                            await channel.send(
+                                                                each_ann["api_messsage"]
+                                                            )
+                                                        if (
+                                                            key_cache
+                                                            not in self.cache_sold_notify
+                                                        ):
+                                                            self.cache_sold_notify[
+                                                                key_cache
+                                                            ] = 1
                                                         else:
-                                                            self.cache_sold_notify[key_cache] += 1
+                                                            self.cache_sold_notify[
+                                                                key_cache
+                                                            ] += 1
                                             except Exception:
                                                 traceback.print_exc(file=sys.stdout)
                                     # Update announcement
@@ -7084,7 +9914,7 @@ class Cexswap(commands.Cog):
                                         SET `is_api_announced`=1
                                         WHERE `log_id`=%s LIMIT 1;
                                         """
-                                        await cur.execute(sql, each_ann['log_id'])
+                                        await cur.execute(sql, each_ann["log_id"])
                                         await conn.commit()
                                     except Exception:
                                         traceback.print_exc(file=sys.stdout)
@@ -7113,6 +9943,7 @@ class Cexswap(commands.Cog):
     def cog_unload(self):
         asyncio.ensure_future(self.site.stop())
         self.api_trade_announce.cancel()
+
 
 def setup(bot):
     cex = Cexswap(bot)

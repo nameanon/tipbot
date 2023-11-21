@@ -1,17 +1,17 @@
 ## For random paymentid
 import re
 import secrets
-import sha3
 import sys
 from binascii import hexlify, unhexlify
 
 import pyed25519
+import sha3
 
 # byte-oriented StringIO was moved to io.BytesIO in py3k
 try:
-    from io import BytesIO
+    pass
 except ImportError:
-    from StringIO import StringIO as BytesIO
+    pass
 
 b = pyed25519.b
 q = pyed25519.q
@@ -44,7 +44,7 @@ def public_from_int(i):
 
 
 def public_from_secret(sk):
-    return public_from_int(hexStrToInt(sk)).decode('utf-8')
+    return public_from_int(hexStrToInt(sk)).decode("utf-8")
 
 
 ### base58
@@ -55,9 +55,11 @@ def public_from_secret(sk):
 # this software is subject to the license terms in the LICENSE file found in the
 # top-level directory of this distribution.
 
-__alphabet = [ord(s) for s in '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz']
+__alphabet = [
+    ord(s) for s in "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+]
 __b58base = 58
-__UINT64MAX = 2 ** 64
+__UINT64MAX = 2**64
 __encodedBlockSizes = [0, 2, 3, 5, 6, 7, 9, 10, 11]
 __fullBlockSize = 8
 __fullEncodedBlockSize = 11
@@ -66,11 +68,13 @@ __fullEncodedBlockSize = 11
 def _hexToBin(hex):
     if len(hex) % 2 != 0:
         return "Hex string has invalid length!"
-    return [int(hex[i * 2:i * 2 + 2], 16) for i in range(len(hex) // 2)]
+    return [int(hex[i * 2 : i * 2 + 2], 16) for i in range(len(hex) // 2)]
 
 
 def _binToHex(bin):
-    return "".join([("0" + hex(int(bin[i])).split('x')[1])[-2:] for i in range(len(bin))])
+    return "".join(
+        [("0" + hex(int(bin[i])).split("x")[1])[-2:] for i in range(len(bin))]
+    )
 
 
 def _strToBin(a):
@@ -78,7 +82,7 @@ def _strToBin(a):
 
 
 def _binToStr(bin):
-    return ''.join([chr(bin[i]) for i in range(len(bin))])
+    return "".join([chr(bin[i]) for i in range(len(bin))])
 
 
 def _uint8be_to_64(data):
@@ -98,11 +102,11 @@ def _uint8be_to_64(data):
 
 
 def _uint64_to_8be(num, size):
-    res = [0] * size;
+    res = [0] * size
     if size < 1 or size > 8:
         return "Invalid input length"
 
-    twopow8 = 2 ** 8
+    twopow8 = 2**8
     for i in range(size - 1, -1, -1):
         res[i] = num % twopow8
         num = num // twopow8
@@ -122,14 +126,14 @@ def encode_block(data, buf, index):
     while num > 0:
         remainder = num % __b58base
         num = num // __b58base
-        buf[index + i] = __alphabet[remainder];
+        buf[index + i] = __alphabet[remainder]
         i -= 1
 
     return buf
 
 
 def encode(hex):
-    '''Encode hexadecimal string as base58 (ex: encoding a Monero address).'''
+    """Encode hexadecimal string as base58 (ex: encoding a Monero address)."""
     data = _hexToBin(hex)
     l_data = len(data)
 
@@ -138,20 +142,31 @@ def encode(hex):
 
     full_block_count = l_data // __fullBlockSize
     last_block_size = l_data % __fullBlockSize
-    res_size = full_block_count * __fullEncodedBlockSize + __encodedBlockSizes[last_block_size]
+    res_size = (
+        full_block_count * __fullEncodedBlockSize + __encodedBlockSizes[last_block_size]
+    )
 
     res = [0] * res_size
     for i in range(res_size):
         res[i] = __alphabet[0]
 
     for i in range(full_block_count):
-        res = encode_block(data[(i * __fullBlockSize):(i * __fullBlockSize + __fullBlockSize)], res,
-                           i * __fullEncodedBlockSize)
+        res = encode_block(
+            data[(i * __fullBlockSize) : (i * __fullBlockSize + __fullBlockSize)],
+            res,
+            i * __fullEncodedBlockSize,
+        )
 
     if last_block_size > 0:
         res = encode_block(
-            data[(full_block_count * __fullBlockSize):(full_block_count * __fullBlockSize + last_block_size)], res,
-            full_block_count * __fullEncodedBlockSize)
+            data[
+                (full_block_count * __fullBlockSize) : (
+                    full_block_count * __fullBlockSize + last_block_size
+                )
+            ],
+            res,
+            full_block_count * __fullEncodedBlockSize,
+        )
 
     return _binToStr(res)
 
@@ -191,7 +206,7 @@ def decode_block(data, buf, index):
 
 
 def decode(enc):
-    '''Decode a base58 string (ex: a Monero address) into hexidecimal form.'''
+    """Decode a base58 string (ex: a Monero address) into hexidecimal form."""
     enc = _strToBin(enc)
     l_enc = len(enc)
 
@@ -209,13 +224,26 @@ def decode(enc):
 
     data = [0] * data_size
     for i in range(full_block_count):
-        data = decode_block(enc[(i * __fullEncodedBlockSize):(i * __fullEncodedBlockSize + __fullEncodedBlockSize)],
-                            data, i * __fullBlockSize)
+        data = decode_block(
+            enc[
+                (i * __fullEncodedBlockSize) : (
+                    i * __fullEncodedBlockSize + __fullEncodedBlockSize
+                )
+            ],
+            data,
+            i * __fullBlockSize,
+        )
 
     if last_block_size > 0:
-        data = decode_block(enc[(full_block_count * __fullEncodedBlockSize):(
-                    full_block_count * __fullEncodedBlockSize + last_block_size)], data,
-                            full_block_count * __fullBlockSize)
+        data = decode_block(
+            enc[
+                (full_block_count * __fullEncodedBlockSize) : (
+                    full_block_count * __fullEncodedBlockSize + last_block_size
+                )
+            ],
+            data,
+            full_block_count * __fullBlockSize,
+        )
 
     return _binToHex(data)
 
@@ -229,19 +257,22 @@ Here's a quick and dirty module to help avoid reimplementing the same thing
 over and over again.
 """
 
-if sys.version > '3':
+if sys.version > "3":
+
     def _byte(b):
         return bytes((b,))
+
 else:
+
     def _byte(b):
         return chr(b)
 
 
 def varint_encode(number):
     """Pack `number` into varint bytes"""
-    buf = b''
+    buf = b""
     while True:
-        towrite = number & 0x7f
+        towrite = number & 0x7F
         number >>= 7
         if number:
             buf += _byte(towrite | 0x80)
@@ -252,17 +283,19 @@ def varint_encode(number):
 
 
 def hexStrToInt(h):
-    '''Converts a hexidecimal string to an integer.'''
+    """Converts a hexidecimal string to an integer."""
     return int.from_bytes(unhexlify(h), "little")
 
 
 def intToHexStr(i):
-    '''Converts an integer to a hexidecimal string.'''
+    """Converts an integer to a hexidecimal string."""
     return hexlify(i.to_bytes(32, "little")).decode("latin-1")
 
 
 # Validate CN address:
-def cn_validate_address(wallet_address: str, get_prefix: int, get_addrlen: int, get_prefix_char: str):
+def cn_validate_address(
+    wallet_address: str, get_prefix: int, get_addrlen: int, get_prefix_char: str
+):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_addrlen - len(get_prefix_char)
     my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
@@ -281,13 +314,15 @@ def cn_validate_address(wallet_address: str, get_prefix: int, get_addrlen: int, 
             expectedChecksum = cn_fast_hash(prefix_hex + spend + view)[:8]
             if checksum == expectedChecksum:
                 return wallet_address
-    except Exception as e:
+    except Exception:
         pass
     return None
 
 
 # Validate address:
-def cn_validate_integrated(wallet_address: str, get_prefix_char: str, get_prefix: int, get_intaddrlen: int):
+def cn_validate_integrated(
+    wallet_address: str, get_prefix_char: str, get_prefix: int, get_intaddrlen: int
+):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_intaddrlen - len(get_prefix_char)
     my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
@@ -301,26 +336,34 @@ def cn_validate_integrated(wallet_address: str, get_prefix_char: str, get_prefix
             i = len(prefix_hex) - 1
             address_no_prefix = address_hex[i:]
             integrated_id = address_no_prefix[1:129]
-            spend = address_no_prefix[(128 + 1):(128 + 65)]
-            view = address_no_prefix[(128 + 65):(128 + 129)]
-            checksum = address_no_prefix[(128 + 129):(128 + 137)]
-            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[:8]
+            spend = address_no_prefix[(128 + 1) : (128 + 65)]
+            view = address_no_prefix[(128 + 65) : (128 + 129)]
+            checksum = address_no_prefix[(128 + 129) : (128 + 137)]
+            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[
+                :8
+            ]
             if checksum == expectedChecksum:
-                checksum = cn_fast_hash(prefix_hex + spend + view);
+                checksum = cn_fast_hash(prefix_hex + spend + view)
                 address_b58 = encode(prefix_hex + spend + view + checksum[:8])
                 result = {
-                    'address': str(address_b58),
-                    'integrated_id': str(hextostr(integrated_id)),
+                    "address": str(address_b58),
+                    "integrated_id": str(hextostr(integrated_id)),
                 }
             else:
-                return 'invalid'
-    except Exception as e:
+                return "invalid"
+    except Exception:
         return None
     return result
 
 
 # make_integrated address:
-def cn_make_integrated(wallet_address, get_prefix_char: str, get_prefix: int, get_addrlen: int, integrated_id=None):
+def cn_make_integrated(
+    wallet_address,
+    get_prefix_char: str,
+    get_prefix: int,
+    get_addrlen: int,
+    integrated_id=None,
+):
     prefix_hex = varint_encode(get_prefix).hex()
     remain_length = get_addrlen - len(get_prefix_char)
     my_regex = f"{get_prefix_char}[a-zA-Z0-9]" + r"{" + str(remain_length) + ",}"
@@ -330,41 +373,46 @@ def cn_make_integrated(wallet_address, get_prefix_char: str, get_prefix: int, ge
         return None
     if not re.match(my_regex, wallet_address.strip()):
         return None
-    if not re.match(r'[a-zA-Z0-9]{64,}', integrated_id.strip()):
+    if not re.match(r"[a-zA-Z0-9]{64,}", integrated_id.strip()):
         return None
     try:
         address_hex = decode(wallet_address)
         checkPaymentID = integrated_id
-        integrated_id = integrated_id.encode('latin-1').hex()
-        if (address_hex.startswith(prefix_hex)):
+        integrated_id = integrated_id.encode("latin-1").hex()
+        if address_hex.startswith(prefix_hex):
             i = len(prefix_hex) - 1
             address_no_prefix = address_hex[i:]
             spend = address_no_prefix[1:65]
             view = address_no_prefix[65:129]
-            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[:8]
-            address = (prefix_hex + integrated_id + spend + view + expectedChecksum)
+            expectedChecksum = cn_fast_hash(prefix_hex + integrated_id + spend + view)[
+                :8
+            ]
+            address = prefix_hex + integrated_id + spend + view + expectedChecksum
             address = str(encode(address))
             return {
-                'address': wallet_address,
-                'paymentid': checkPaymentID,
-                'integrated_address': address,
+                "address": wallet_address,
+                "paymentid": checkPaymentID,
+                "integrated_address": address,
             }
-    except Exception as e:
+    except Exception:
         pass
     return None
 
 
 ## make random paymentid:
 def paymentid(length=None):
-    if length is None: length = 32
+    if length is None:
+        length = 32
     return secrets.token_hex(length)
 
 
 def hextostr(hex):
     h2b = _hexToBin(hex)
     # print(h2b)
-    res = ''
+    res = ""
     for i in h2b:
         res = res + chr(i)
     return res
+
+
 ##########

@@ -5,16 +5,16 @@ import time
 import traceback
 from datetime import datetime
 from io import BytesIO
-import time
+
 import aiohttp
 import disnake
 import magic
 import store
-from Bot import logchanbot, EMOJI_INFORMATION, SERVER_BOT
+from Bot import SERVER_BOT, logchanbot
+from cogs.utils import Utils
 from disnake.app_commands import Option, OptionChoice
 from disnake.enums import OptionType
 from disnake.ext import commands
-from cogs.utils import Utils
 
 
 class SomeRandomAPI(commands.Cog):
@@ -26,7 +26,9 @@ class SomeRandomAPI(commands.Cog):
         # animal
         self.some_random_api_path_animal = "some_random_api/animal/"
 
-    async def add_fact_db(self, name: str, fact: str, requested_by_uid: str, requested_by_name: str):
+    async def add_fact_db(
+        self, name: str, fact: str, requested_by_uid: str, requested_by_name: str
+    ):
         try:
             await store.openConnection()
             async with store.pool.acquire() as conn:
@@ -36,14 +38,25 @@ class SomeRandomAPI(commands.Cog):
                     (`name`, `fact`, `requested_by_uid`, `requested_by_name`, `requested_time`) 
                     VALUES (%s, %s, %s, %s, %s)
                     """
-                    await cur.execute(sql, (name, fact, requested_by_uid, requested_by_name, int(time.time())))
+                    await cur.execute(
+                        sql,
+                        (
+                            name,
+                            fact,
+                            requested_by_uid,
+                            requested_by_name,
+                            int(time.time()),
+                        ),
+                    )
                     await conn.commit()
                     return cur.rowcount
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return 0
 
-    async def add_joke_db(self, joke: str, requested_by_uid: str, requested_by_name: str):
+    async def add_joke_db(
+        self, joke: str, requested_by_uid: str, requested_by_name: str
+    ):
         try:
             await store.openConnection()
             async with store.pool.acquire() as conn:
@@ -53,7 +66,10 @@ class SomeRandomAPI(commands.Cog):
                     (`joke`, `requested_by_uid`, `requested_by_name`, `requested_time`) 
                     VALUES (%s, %s, %s, %s)
                     """
-                    await cur.execute(sql, (joke, requested_by_uid, requested_by_name, int(time.time())))
+                    await cur.execute(
+                        sql,
+                        (joke, requested_by_uid, requested_by_name, int(time.time())),
+                    )
                     await conn.commit()
                     return cur.rowcount
         except Exception:
@@ -61,8 +77,13 @@ class SomeRandomAPI(commands.Cog):
         return 0
 
     async def add_animal_db(
-        self, image_url: str, local_path: str, sha256: str, requested_by_uid: str,
-        requested_by_name: str, jsondump: str
+        self,
+        image_url: str,
+        local_path: str,
+        sha256: str,
+        requested_by_uid: str,
+        requested_by_name: str,
+        jsondump: str,
     ):
         try:
             await store.openConnection()
@@ -74,8 +95,18 @@ class SomeRandomAPI(commands.Cog):
                     `requested_by_uid`, `requested_by_name`, `inserted_date`) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """
-                    await cur.execute(sql, (
-                    image_url, local_path, sha256, jsondump, requested_by_uid, requested_by_name, int(time.time())))
+                    await cur.execute(
+                        sql,
+                        (
+                            image_url,
+                            local_path,
+                            sha256,
+                            jsondump,
+                            requested_by_uid,
+                            requested_by_name,
+                            int(time.time()),
+                        ),
+                    )
 
                     await conn.commit()
                     return cur.rowcount
@@ -105,23 +136,25 @@ class SomeRandomAPI(commands.Cog):
 
     async def fetch_image(self, image_url: str, saved_path: str, timeout):
         try:
-            headers = {
-                'User-Agent': self.bot.config['selenium_setting']['user_agent']
-            }
+            headers = {"User-Agent": self.bot.config["selenium_setting"]["user_agent"]}
             async with aiohttp.ClientSession() as session:
-                async with session.get(image_url, headers=headers, timeout=timeout) as response:
+                async with session.get(
+                    image_url, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
                         hash_object = hashlib.sha256(res_data)
                         hex_dig = str(hash_object.hexdigest())
                         mime_type = magic.from_buffer(res_data, mime=True)
-                        file_name = image_url.split("/")[-1] + "." + mime_type.split("/")[1]
+                        file_name = (
+                            image_url.split("/")[-1] + "." + mime_type.split("/")[1]
+                        )
                         with open(saved_path + file_name, "wb") as f:
                             f.write(BytesIO(res_data).getbuffer())
                         return {
                             "saved_location": saved_path + file_name,
                             "image_type": mime_type,
-                            "sha256": hex_dig
+                            "sha256": hex_dig,
                         }
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -129,14 +162,14 @@ class SomeRandomAPI(commands.Cog):
 
     async def fetch_sra(self, url, timeout):
         try:
-            headers = {
-                'User-Agent': self.bot.config['selenium_setting']['user_agent']
-            }
+            headers = {"User-Agent": self.bot.config["selenium_setting"]["user_agent"]}
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         decoded_data = json.loads(res_data)
                         return decoded_data
         except Exception:
@@ -153,30 +186,41 @@ class SomeRandomAPI(commands.Cog):
     @random.sub_command(
         usage="random animal <name>",
         options=[
-            Option('name', 'name', OptionType.string, required=True, choices=[
-                OptionChoice("🐕 dog", "dog"),
-                OptionChoice("🐈 cat", "cat"),
-                OptionChoice("🐼 panda", "panda"),
-                OptionChoice("🦊 fox", "fox"),
-                OptionChoice("🐼 red panda", "red_panda"),
-                OptionChoice("🐨 koala", "koala"),
-                OptionChoice("🐦 bird", "bird"),
-                OptionChoice("🦝 raccoon", "raccoon"),
-                OptionChoice("🦘 kangaroo", "kangaroo")
-            ])
+            Option(
+                "name",
+                "name",
+                OptionType.string,
+                required=True,
+                choices=[
+                    OptionChoice("🐕 dog", "dog"),
+                    OptionChoice("🐈 cat", "cat"),
+                    OptionChoice("🐼 panda", "panda"),
+                    OptionChoice("🦊 fox", "fox"),
+                    OptionChoice("🐼 red panda", "red_panda"),
+                    OptionChoice("🐨 koala", "koala"),
+                    OptionChoice("🐦 bird", "bird"),
+                    OptionChoice("🦝 raccoon", "raccoon"),
+                    OptionChoice("🦘 kangaroo", "kangaroo"),
+                ],
+            )
         ],
-        description="Get random animal from some-random-api"
+        description="Get random animal from some-random-api",
     )
-    async def animal(
-        self,
-        ctx,
-        name: str
-    ):
+    async def animal(self, ctx, name: str):
         await ctx.response.send_message(f"{ctx.author.mention}, random preparation... ")
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, f"/random animal", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    f"/random animal",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -186,35 +230,50 @@ class SomeRandomAPI(commands.Cog):
             fetch = await self.fetch_sra(url, 16)
             if fetch:
                 if "image" in fetch:
-                    embed = disnake.Embed(title=f"Animal {name}", description=f"Random Animal",
-                                          timestamp=datetime.now())
-                    fact = None
+                    embed = disnake.Embed(
+                        title=f"Animal {name}",
+                        description=f"Random Animal",
+                        timestamp=datetime.now(),
+                    )
                     if "fact" in fetch:
-                        embed.add_field(name="Fact", value=fetch['fact'], inline=False)
-                        fact = fetch['fact']
+                        embed.add_field(name="Fact", value=fetch["fact"], inline=False)
+                        fetch["fact"]
                     embed.set_image(url=fetch["image"])
                     embed.set_footer(
-                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}")
+                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}"
+                    )
                     await ctx.edit_original_message(content=None, embed=embed)
                     # Insert DB # Check if DB exists
                     try:
                         check = await self.check_animal_db(fetch["image"])
                         if check is None:
-                            fetch_img = await self.fetch_image(fetch["image"], self.some_random_api_path_animal, 32)
+                            fetch_img = await self.fetch_image(
+                                fetch["image"], self.some_random_api_path_animal, 32
+                            )
                             if fetch_img:
                                 await self.add_animal_db(
-                                    fetch["image"], fetch_img['saved_location'],
-                                    fetch_img['sha256'], str(ctx.author.id),
-                                    "{}#{}".format(ctx.author.name, ctx.author.discriminator),
-                                    json.dumps(fetch)
+                                    fetch["image"],
+                                    fetch_img["saved_location"],
+                                    fetch_img["sha256"],
+                                    str(ctx.author.id),
+                                    "{}#{}".format(
+                                        ctx.author.name, ctx.author.discriminator
+                                    ),
+                                    json.dumps(fetch),
                                 )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
                 else:
-                    error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                    error = disnake.Embed(
+                        title=":exclamation: Error",
+                        description=" :warning: internal error!",
+                    )
                     await ctx.edit_original_message(content=None, embed=error)
             else:
-                error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                error = disnake.Embed(
+                    title=":exclamation: Error",
+                    description=" :warning: internal error!",
+                )
                 await ctx.edit_original_message(content=None, embed=error)
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -223,27 +282,40 @@ class SomeRandomAPI(commands.Cog):
     @random.sub_command(
         usage="random fact <name>",
         options=[
-            Option('name', 'name', OptionType.string, required=True, choices=[
-                OptionChoice("🐕 dog", "dog"),
-                OptionChoice("🐈 cat", "cat"),
-                OptionChoice("🐼 panda", "panda"),
-                OptionChoice("🦊 fox", "fox"),
-                OptionChoice("🐨 koala", "koala"),
-                OptionChoice("🐦 bird", "bird")
-            ])
+            Option(
+                "name",
+                "name",
+                OptionType.string,
+                required=True,
+                choices=[
+                    OptionChoice("🐕 dog", "dog"),
+                    OptionChoice("🐈 cat", "cat"),
+                    OptionChoice("🐼 panda", "panda"),
+                    OptionChoice("🦊 fox", "fox"),
+                    OptionChoice("🐨 koala", "koala"),
+                    OptionChoice("🐦 bird", "bird"),
+                ],
+            )
         ],
-        description="Get random fact from some-random-api"
+        description="Get random fact from some-random-api",
     )
-    async def fact(
-        self,
-        ctx,
-        name: str
-    ):
-        await ctx.response.send_message(f"{ctx.author.mention}, random fact preparation... ")
+    async def fact(self, ctx, name: str):
+        await ctx.response.send_message(
+            f"{ctx.author.mention}, random fact preparation... "
+        )
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, f"/random fact", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    f"/random fact",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -253,25 +325,38 @@ class SomeRandomAPI(commands.Cog):
             fetch = await self.fetch_sra(url, 16)
             if fetch:
                 if "fact" in fetch:
-                    fact = fetch['fact']
-                    embed = disnake.Embed(title=f"Fact {name}", description=f"Random Fact", timestamp=datetime.now())
+                    fact = fetch["fact"]
+                    embed = disnake.Embed(
+                        title=f"Fact {name}",
+                        description=f"Random Fact",
+                        timestamp=datetime.now(),
+                    )
                     embed.add_field(name="Fact", value=fact, inline=False)
                     embed.set_footer(
-                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}")
+                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}"
+                    )
                     await ctx.edit_original_message(content=None, embed=embed)
                     # Insert DB # Check if DB exists
                     try:
                         await self.add_fact_db(
-                            name, fact, str(ctx.author.id),
-                            "{}#{}".format(ctx.author.name, ctx.author.discriminator)
+                            name,
+                            fact,
+                            str(ctx.author.id),
+                            "{}#{}".format(ctx.author.name, ctx.author.discriminator),
                         )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
                 else:
-                    error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                    error = disnake.Embed(
+                        title=":exclamation: Error",
+                        description=" :warning: internal error!",
+                    )
                     await ctx.edit_original_message(content=None, embed=error)
             else:
-                error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                error = disnake.Embed(
+                    title=":exclamation: Error",
+                    description=" :warning: internal error!",
+                )
                 await ctx.edit_original_message(content=None, embed=error)
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -280,27 +365,40 @@ class SomeRandomAPI(commands.Cog):
     @random.sub_command(
         usage="random image <name>",
         options=[
-            Option('name', 'name', OptionType.string, required=True, choices=[
-                OptionChoice("🐕 dog", "dog"),
-                OptionChoice("🐈 cat", "cat"),
-                OptionChoice("🐼 panda", "panda"),
-                OptionChoice("🦊 fox", "fox"),
-                OptionChoice("🐼 red panda", "red_panda"),
-                OptionChoice("🐨 koala", "koala"),
-                OptionChoice("🐦 bird", "bird")
-            ])
+            Option(
+                "name",
+                "name",
+                OptionType.string,
+                required=True,
+                choices=[
+                    OptionChoice("🐕 dog", "dog"),
+                    OptionChoice("🐈 cat", "cat"),
+                    OptionChoice("🐼 panda", "panda"),
+                    OptionChoice("🦊 fox", "fox"),
+                    OptionChoice("🐼 red panda", "red_panda"),
+                    OptionChoice("🐨 koala", "koala"),
+                    OptionChoice("🐦 bird", "bird"),
+                ],
+            )
         ],
-        description="Get random image from some-random-api"
+        description="Get random image from some-random-api",
     )
-    async def image(
-        self,
-        ctx,
-        name: str
-    ):
-        await ctx.response.send_message(f"{ctx.author.mention}, random image preparation... ")
+    async def image(self, ctx, name: str):
+        await ctx.response.send_message(
+            f"{ctx.author.mention}, random image preparation... "
+        )
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, f"/random image", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    f"/random image",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -313,50 +411,69 @@ class SomeRandomAPI(commands.Cog):
                     embed = disnake.Embed(
                         title=f"Image {name}",
                         description=f"Random Image",
-                        timestamp=datetime.now()
+                        timestamp=datetime.now(),
                     )
                     embed.set_image(url=fetch["link"])
                     embed.set_footer(
-                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} "\
-                            f"| Powered by {self.poweredby}"
+                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} "
+                        f"| Powered by {self.poweredby}"
                     )
                     await ctx.edit_original_message(content=None, embed=embed)
                     # Insert DB # Check if DB exists
                     try:
                         check = await self.check_animal_db(fetch["link"])
                         if check is None:
-                            fetch_img = await self.fetch_image(fetch["link"], self.some_random_api_path_animal, 32)
+                            fetch_img = await self.fetch_image(
+                                fetch["link"], self.some_random_api_path_animal, 32
+                            )
                             if fetch_img:
                                 await self.add_animal_db(
-                                    fetch["link"], fetch_img['saved_location'],
-                                    fetch_img['sha256'], str(ctx.author.id),
-                                    "{}#{}".format(ctx.author.name, ctx.author.discriminator),
-                                    json.dumps(fetch)
+                                    fetch["link"],
+                                    fetch_img["saved_location"],
+                                    fetch_img["sha256"],
+                                    str(ctx.author.id),
+                                    "{}#{}".format(
+                                        ctx.author.name, ctx.author.discriminator
+                                    ),
+                                    json.dumps(fetch),
                                 )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
                 else:
-                    error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                    error = disnake.Embed(
+                        title=":exclamation: Error",
+                        description=" :warning: internal error!",
+                    )
                     await ctx.edit_original_message(content=None, embed=error)
             else:
-                error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                error = disnake.Embed(
+                    title=":exclamation: Error",
+                    description=" :warning: internal error!",
+                )
                 await ctx.edit_original_message(content=None, embed=error)
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
 
     @random.sub_command(
-        usage="random joke",
-        description="Get random joke from some-random-api"
+        usage="random joke", description="Get random joke from some-random-api"
     )
-    async def joke(
-        self,
-        ctx
-    ):
-        await ctx.response.send_message(f"{ctx.author.mention}, random joke preparation... ")
+    async def joke(self, ctx):
+        await ctx.response.send_message(
+            f"{ctx.author.mention}, random joke preparation... "
+        )
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, f"/random joke", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    f"/random joke",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -366,26 +483,38 @@ class SomeRandomAPI(commands.Cog):
             fetch = await self.fetch_sra(url, 16)
             if fetch:
                 if "joke" in fetch:
-                    joke = fetch['joke']
-                    embed = disnake.Embed(title=f"RANDOM JOKE", description=joke, timestamp=datetime.now())
+                    joke = fetch["joke"]
+                    embed = disnake.Embed(
+                        title=f"RANDOM JOKE", description=joke, timestamp=datetime.now()
+                    )
                     embed.set_footer(
-                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}")
+                        text=f"Requested by {ctx.author.name}#{ctx.author.discriminator} | Powered by {self.poweredby}"
+                    )
                     await ctx.edit_original_message(content=None, embed=embed)
                     try:
                         await self.add_joke_db(
-                            joke, str(ctx.author.id), "{}#{}".format(ctx.author.name, ctx.author.discriminator)
+                            joke,
+                            str(ctx.author.id),
+                            "{}#{}".format(ctx.author.name, ctx.author.discriminator),
                         )
                     except Exception:
                         traceback.print_exc(file=sys.stdout)
                 else:
-                    error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                    error = disnake.Embed(
+                        title=":exclamation: Error",
+                        description=" :warning: internal error!",
+                    )
                     await ctx.edit_original_message(content=None, embed=error)
             else:
-                error = disnake.Embed(title=":exclamation: Error", description=" :warning: internal error!")
+                error = disnake.Embed(
+                    title=":exclamation: Error",
+                    description=" :warning: internal error!",
+                )
                 await ctx.edit_original_message(content=None, embed=error)
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(traceback.format_exc())
+
 
 def setup(bot):
     bot.add_cog(SomeRandomAPI(bot))

@@ -1,11 +1,13 @@
-import numexpr
-import traceback, sys
+import sys
 import time
-from Bot import EMOJI_INFORMATION, EMOJI_ERROR, SERVER_BOT
+import traceback
+
+import numexpr
+from Bot import EMOJI_ERROR, EMOJI_INFORMATION, SERVER_BOT
+from cogs.utils import Utils
 from disnake.app_commands import Option
 from disnake.enums import OptionType
 from disnake.ext import commands
-from cogs.utils import Utils
 
 
 class Calculator(commands.Cog):
@@ -15,8 +17,17 @@ class Calculator(commands.Cog):
 
     async def async_calc(self, ctx, eval_string: str = None):
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/cal", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/cal",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -27,16 +38,30 @@ class Calculator(commands.Cog):
         else:
             eval_string_original = eval_string
             eval_string = eval_string.replace(",", "")
-            supported_function = ['+', '-', '*', '/', '(', ')', '.', ',', '^', '%']
-            additional_support = ['exp', 'sqrt', 'abs', 'log10', 'log', 'sinh', 'cosh', 'tanh', 'sin', 'cos', 'tan']
+            supported_function = ["+", "-", "*", "/", "(", ")", ".", ",", "^", "%"]
+            additional_support = [
+                "exp",
+                "sqrt",
+                "abs",
+                "log10",
+                "log",
+                "sinh",
+                "cosh",
+                "tanh",
+                "sin",
+                "cos",
+                "tan",
+            ]
             test_string = eval_string
             for each in additional_support:
                 test_string = test_string.replace(each, "")
             if all(c.isdigit() or c in supported_function for c in test_string):
                 try:
                     result = numexpr.evaluate(eval_string).item()
-                    msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, "\
-                            f"result of `{eval_string_original}`:```{result}```"
+                    msg = (
+                        f"{EMOJI_INFORMATION} {ctx.author.mention}, "
+                        f"result of `{eval_string_original}`:```{result}```"
+                    )
                     await ctx.response.send_message(msg)
                 except Exception:
                     msg = f"{EMOJI_ERROR} {ctx.author.mention}, I can not find the result for `{eval_string_original}`."
@@ -50,13 +75,9 @@ class Calculator(commands.Cog):
         options=[
             Option("eval_string", "Math to evaluate", OptionType.string, required=True)
         ],
-        description="Do some math."
+        description="Do some math.",
     )
-    async def cal(
-        self,
-        ctx,
-        eval_string: str = None
-    ):
+    async def cal(self, ctx, eval_string: str = None):
         await self.async_calc(ctx, eval_string)
 
 

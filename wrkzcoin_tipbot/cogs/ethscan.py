@@ -1,21 +1,19 @@
-import sys
-import traceback
-import time
-
-import aiohttp, asyncio
-from aiohttp import TCPConnector
-
-import json
-from disnake.ext import tasks, commands
+import asyncio
 import functools
+import json
+import sys
+import time
+import traceback
 
+import aiohttp
 import store
-from Bot import get_token_list, logchanbot, hex_to_base58, base58_to_hex
+from aiohttp import TCPConnector
+from Bot import hex_to_base58, logchanbot
 from cogs.utils import Utils
+from disnake.ext import commands, tasks
 
 
 class EthScan(commands.Cog):
-
     def __init__(self, bot):
         self.bot = bot
         self.utils = Utils(self.bot)
@@ -27,26 +25,29 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_trx_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
-        if "local_node_trx" in bot_settings and bot_settings['local_node_trx'] is not None:
-            self.bot.erc_node_list['TRX'] = bot_settings['local_node_trx']
+        if (
+            "local_node_trx" in bot_settings
+            and bot_settings["local_node_trx"] is not None
+        ):
+            self.bot.erc_node_list["TRX"] = bot_settings["local_node_trx"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_trx'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_trx"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # trx needs to fetch best node from their public
-                        self.bot.erc_node_list['TRX'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["TRX"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for TRX.")
         # Update @bot_task_logs
@@ -58,26 +59,29 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_arb1eth_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
-        if "local_node_arb1eth" in bot_settings and bot_settings['local_node_arb1eth'] is not None:
-            self.bot.erc_node_list['ARB1ETH'] = bot_settings['local_node_arb1eth']
+        if (
+            "local_node_arb1eth" in bot_settings
+            and bot_settings["local_node_arb1eth"] is not None
+        ):
+            self.bot.erc_node_list["ARB1ETH"] = bot_settings["local_node_arb1eth"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_arb1eth'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_arb1eth"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # ARB1ETH needs to fetch best node from their public
-                        self.bot.erc_node_list['ARB1ETH'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["ARB1ETH"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for ARB1ETH.")
         # Update @bot_task_logs
@@ -89,29 +93,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_opeth_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_opeth_withdraw'):
-            self.bot.erc_node_list['OPETH_WITHDRAW'] = bot_settings['local_node_opeth_withdraw']
-        if "local_node_opeth" in bot_settings and bot_settings['local_node_opeth'] is not None:
-            self.bot.erc_node_list['OPETH'] = bot_settings['local_node_opeth']
+        if bot_settings.get("local_node_opeth_withdraw"):
+            self.bot.erc_node_list["OPETH_WITHDRAW"] = bot_settings[
+                "local_node_opeth_withdraw"
+            ]
+        if (
+            "local_node_opeth" in bot_settings
+            and bot_settings["local_node_opeth"] is not None
+        ):
+            self.bot.erc_node_list["OPETH"] = bot_settings["local_node_opeth"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_opeth'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_opeth"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # OPETH needs to fetch best node from their public
-                        self.bot.erc_node_list['OPETH'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["OPETH"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for OPETH.")
         # Update @bot_task_logs
@@ -123,7 +132,7 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_bsc_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
@@ -131,15 +140,15 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                        bot_settings['api_best_node_bsc'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
+                bot_settings["api_best_node_bsc"],
+                headers={"Content-Type": "application/json"},
+                timeout=5.0,
+            ) as response:
                 if response.status == 200:
                     res_data = await response.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     # BSC needs to fetch best node from their public
-                    self.bot.erc_node_list['BSC'] = res_data.replace('"', '')
+                    self.bot.erc_node_list["BSC"] = res_data.replace('"', "")
                 else:
                     await logchanbot("Can not fetch best node for BSC.")
         # Update @bot_task_logs
@@ -151,29 +160,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_sol_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_sol_withdraw'):
-            self.bot.erc_node_list['SOL_WITHDRAW'] = bot_settings['local_node_sol_withdraw']
-        if "local_node_sol" in bot_settings and bot_settings['local_node_sol'] is not None:
-            self.bot.erc_node_list['SOL'] = bot_settings['local_node_sol']
+        if bot_settings.get("local_node_sol_withdraw"):
+            self.bot.erc_node_list["SOL_WITHDRAW"] = bot_settings[
+                "local_node_sol_withdraw"
+            ]
+        if (
+            "local_node_sol" in bot_settings
+            and bot_settings["local_node_sol"] is not None
+        ):
+            self.bot.erc_node_list["SOL"] = bot_settings["local_node_sol"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_sol'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_sol"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # SOL needs to fetch best node from their public
-                        self.bot.erc_node_list['SOL'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["SOL"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for SOL.")
         # Update @bot_task_logs
@@ -185,29 +199,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_matic_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_matic_withdraw'):
-            self.bot.erc_node_list['MATIC_WITHDRAW'] = bot_settings['local_node_matic_withdraw']
-        if "local_node_matic" in bot_settings and bot_settings['local_node_matic'] is not None:
-            self.bot.erc_node_list['MATIC'] = bot_settings['local_node_matic']
+        if bot_settings.get("local_node_matic_withdraw"):
+            self.bot.erc_node_list["MATIC_WITHDRAW"] = bot_settings[
+                "local_node_matic_withdraw"
+            ]
+        if (
+            "local_node_matic" in bot_settings
+            and bot_settings["local_node_matic"] is not None
+        ):
+            self.bot.erc_node_list["MATIC"] = bot_settings["local_node_matic"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_matic'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_matic"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # MATIC needs to fetch best node from their public
-                        self.bot.erc_node_list['MATIC'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["MATIC"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for MATIC.")
         # Update @bot_task_logs
@@ -219,29 +238,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_celo_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_celo_withdraw'):
-            self.bot.erc_node_list['CELO_WITHDRAW'] = bot_settings['local_node_celo_withdraw']
-        if "local_node_celo" in bot_settings and bot_settings['local_node_celo'] is not None:
-            self.bot.erc_node_list['CELO'] = bot_settings['local_node_celo']
+        if bot_settings.get("local_node_celo_withdraw"):
+            self.bot.erc_node_list["CELO_WITHDRAW"] = bot_settings[
+                "local_node_celo_withdraw"
+            ]
+        if (
+            "local_node_celo" in bot_settings
+            and bot_settings["local_node_celo"] is not None
+        ):
+            self.bot.erc_node_list["CELO"] = bot_settings["local_node_celo"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_celo'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_celo"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # CELO needs to fetch best node from their public
-                        self.bot.erc_node_list['CELO'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["CELO"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for CELO.")
         # Update @bot_task_logs
@@ -253,29 +277,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_ftm_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_ftm_withdraw'):
-            self.bot.erc_node_list['FTM_WITHDRAW'] = bot_settings['local_node_ftm_withdraw']
-        if "local_node_ftm" in bot_settings and bot_settings['local_node_ftm'] is not None:
-            self.bot.erc_node_list['FTM'] = bot_settings['local_node_ftm']
+        if bot_settings.get("local_node_ftm_withdraw"):
+            self.bot.erc_node_list["FTM_WITHDRAW"] = bot_settings[
+                "local_node_ftm_withdraw"
+            ]
+        if (
+            "local_node_ftm" in bot_settings
+            and bot_settings["local_node_ftm"] is not None
+        ):
+            self.bot.erc_node_list["FTM"] = bot_settings["local_node_ftm"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_ftm'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_ftm"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # FTM needs to fetch best node from their public
-                        self.bot.erc_node_list['FTM'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["FTM"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for FTM.")
         # Update @bot_task_logs
@@ -287,29 +316,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_avax_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_avax_withdraw'):
-            self.bot.erc_node_list['AVAX_WITHDRAW'] = bot_settings['local_node_avax_withdraw']
-        if "local_node_avax" in bot_settings and bot_settings['local_node_avax'] is not None:
-            self.bot.erc_node_list['AVAX'] = bot_settings['local_node_avax']
+        if bot_settings.get("local_node_avax_withdraw"):
+            self.bot.erc_node_list["AVAX_WITHDRAW"] = bot_settings[
+                "local_node_avax_withdraw"
+            ]
+        if (
+            "local_node_avax" in bot_settings
+            and bot_settings["local_node_avax"] is not None
+        ):
+            self.bot.erc_node_list["AVAX"] = bot_settings["local_node_avax"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_avax'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_avax"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # AVAX needs to fetch best node from their public
-                        self.bot.erc_node_list['AVAX'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["AVAX"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for AVAX.")
         # Update @bot_task_logs
@@ -321,32 +355,39 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_xdai_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_xdai_withdraw'):
-            self.bot.erc_node_list['XDAI_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
-            self.bot.erc_node_list['xDai_WITHDRAW'] = bot_settings['local_node_xdai_withdraw']
-        if "local_node_xdai" in bot_settings and bot_settings['local_node_xdai'] is not None:
-            self.bot.erc_node_list['XDAI'] = bot_settings['local_node_xdai']
-            self.bot.erc_node_list['xDai'] = bot_settings['local_node_xdai']
+        if bot_settings.get("local_node_xdai_withdraw"):
+            self.bot.erc_node_list["XDAI_WITHDRAW"] = bot_settings[
+                "local_node_xdai_withdraw"
+            ]
+            self.bot.erc_node_list["xDai_WITHDRAW"] = bot_settings[
+                "local_node_xdai_withdraw"
+            ]
+        if (
+            "local_node_xdai" in bot_settings
+            and bot_settings["local_node_xdai"] is not None
+        ):
+            self.bot.erc_node_list["XDAI"] = bot_settings["local_node_xdai"]
+            self.bot.erc_node_list["xDai"] = bot_settings["local_node_xdai"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_xdai'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_xdai"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # XDAI needs to fetch best node from their public
-                        self.bot.erc_node_list['XDAI'] = res_data.replace('"', '')
-                        self.bot.erc_node_list['xDai'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["XDAI"] = res_data.replace('"', "")
+                        self.bot.erc_node_list["xDai"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for XDAI.")
         # Update @bot_task_logs
@@ -358,7 +399,7 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_one_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
@@ -366,15 +407,15 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                        bot_settings['api_best_node_one'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
+                bot_settings["api_best_node_one"],
+                headers={"Content-Type": "application/json"},
+                timeout=5.0,
+            ) as response:
                 if response.status == 200:
                     res_data = await response.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     # ONE needs to fetch best node from their public
-                    self.bot.erc_node_list['ONE'] = res_data.replace('"', '')
+                    self.bot.erc_node_list["ONE"] = res_data.replace('"', "")
                 else:
                     await logchanbot("Can not fetch best node for ONE.")
         # Update @bot_task_logs
@@ -386,29 +427,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_tezos_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_xtz_withdraw'):
-            self.bot.erc_node_list['XTZ_WITHDRAW'] = bot_settings['local_node_xtz_withdraw']
-        if "local_node_xtz" in bot_settings and bot_settings['local_node_xtz'] is not None:
-            self.bot.erc_node_list['XTZ'] = bot_settings['local_node_xtz']
+        if bot_settings.get("local_node_xtz_withdraw"):
+            self.bot.erc_node_list["XTZ_WITHDRAW"] = bot_settings[
+                "local_node_xtz_withdraw"
+            ]
+        if (
+            "local_node_xtz" in bot_settings
+            and bot_settings["local_node_xtz"] is not None
+        ):
+            self.bot.erc_node_list["XTZ"] = bot_settings["local_node_xtz"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_xtz'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_xtz"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # XTZ needs to fetch best node from their public
-                        self.bot.erc_node_list['XTZ'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["XTZ"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for XTZ.")
         # Update @bot_task_logs
@@ -420,29 +466,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_near_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_near_withdraw'):
-            self.bot.erc_node_list['NEAR_WITHDRAW'] = bot_settings['local_node_near_withdraw']
-        if "local_node_near" in bot_settings and bot_settings['local_node_near'] is not None:
-            self.bot.erc_node_list['NEAR'] = bot_settings['local_node_near']
+        if bot_settings.get("local_node_near_withdraw"):
+            self.bot.erc_node_list["NEAR_WITHDRAW"] = bot_settings[
+                "local_node_near_withdraw"
+            ]
+        if (
+            "local_node_near" in bot_settings
+            and bot_settings["local_node_near"] is not None
+        ):
+            self.bot.erc_node_list["NEAR"] = bot_settings["local_node_near"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_near'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_near"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # NEAR needs to fetch best node from their public
-                        self.bot.erc_node_list['NEAR'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["NEAR"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for NEAR.")
         # Update @bot_task_logs
@@ -454,29 +505,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_xrp_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_xrp_withdraw'):
-            self.bot.erc_node_list['XRP_WITHDRAW'] = bot_settings['local_node_xrp_withdraw']
-        if "local_node_xrp" in bot_settings and bot_settings['local_node_xrp'] is not None:
-            self.bot.erc_node_list['XRP'] = bot_settings['local_node_xrp']
+        if bot_settings.get("local_node_xrp_withdraw"):
+            self.bot.erc_node_list["XRP_WITHDRAW"] = bot_settings[
+                "local_node_xrp_withdraw"
+            ]
+        if (
+            "local_node_xrp" in bot_settings
+            and bot_settings["local_node_xrp"] is not None
+        ):
+            self.bot.erc_node_list["XRP"] = bot_settings["local_node_xrp"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_xrp'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_xrp"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # XRP needs to fetch best node from their public
-                        self.bot.erc_node_list['XRP'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["XRP"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for XRP.")
         # Update @bot_task_logs
@@ -488,7 +544,7 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_zil_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
@@ -496,15 +552,15 @@ class EthScan(commands.Cog):
             return
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                        bot_settings['api_best_node_zil'],
-                        headers={'Content-Type': 'application/json'},
-                        timeout=5.0
-                    ) as response:
+                bot_settings["api_best_node_zil"],
+                headers={"Content-Type": "application/json"},
+                timeout=5.0,
+            ) as response:
                 if response.status == 200:
                     res_data = await response.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     # ZIL needs to fetch best node from their public
-                    self.bot.erc_node_list['ZIL'] = res_data.replace('"', '')
+                    self.bot.erc_node_list["ZIL"] = res_data.replace('"', "")
                 else:
                     await logchanbot("Can not fetch best node for ZIL.")
         # Update @bot_task_logs
@@ -516,26 +572,29 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_vet_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
-        if "local_node_vet" in bot_settings and bot_settings['local_node_vet'] is not None:
-            self.bot.erc_node_list['VET'] = bot_settings['local_node_vet']
+        if (
+            "local_node_vet" in bot_settings
+            and bot_settings["local_node_vet"] is not None
+        ):
+            self.bot.erc_node_list["VET"] = bot_settings["local_node_vet"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_vet'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_vet"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # VET needs to fetch best node from their public
-                        self.bot.erc_node_list['VET'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["VET"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for VET.")
         # Update @bot_task_logs
@@ -547,29 +606,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_nova_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_nova_withdraw'):
-            self.bot.erc_node_list['NOVA_WITHDRAW'] = bot_settings['local_node_nova_withdraw']
-        if "local_node_nova" in bot_settings and bot_settings['local_node_nova'] is not None:
-            self.bot.erc_node_list['NOVA'] = bot_settings['local_node_nova']
+        if bot_settings.get("local_node_nova_withdraw"):
+            self.bot.erc_node_list["NOVA_WITHDRAW"] = bot_settings[
+                "local_node_nova_withdraw"
+            ]
+        if (
+            "local_node_nova" in bot_settings
+            and bot_settings["local_node_nova"] is not None
+        ):
+            self.bot.erc_node_list["NOVA"] = bot_settings["local_node_nova"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_nova'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_nova"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # NOVA needs to fetch best node from their public
-                        self.bot.erc_node_list['NOVA'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["NOVA"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for NOVA.")
         # Update @bot_task_logs
@@ -581,29 +645,34 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_fetch_eth_node"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         bot_settings = await self.utils.get_bot_settings()
         if bot_settings is None:
             return
         # Use withdraw node differently
-        if bot_settings.get('local_node_eth_withdraw'):
-            self.bot.erc_node_list['ETH_WITHDRAW'] = bot_settings['local_node_eth_withdraw']
-        if "local_node_eth" in bot_settings and bot_settings['local_node_eth'] is not None:
-            self.bot.erc_node_list['ETH'] = bot_settings['local_node_eth']
+        if bot_settings.get("local_node_eth_withdraw"):
+            self.bot.erc_node_list["ETH_WITHDRAW"] = bot_settings[
+                "local_node_eth_withdraw"
+            ]
+        if (
+            "local_node_eth" in bot_settings
+            and bot_settings["local_node_eth"] is not None
+        ):
+            self.bot.erc_node_list["ETH"] = bot_settings["local_node_eth"]
         else:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                                    bot_settings['api_best_node_eth'],
-                                    headers={'Content-Type': 'application/json'},
-                                    timeout=5.0
-                                ) as response:
+                    bot_settings["api_best_node_eth"],
+                    headers={"Content-Type": "application/json"},
+                    timeout=5.0,
+                ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         # ETH needs to fetch best node from their public
-                        self.bot.erc_node_list['ETH'] = res_data.replace('"', '')
+                        self.bot.erc_node_list["ETH"] = res_data.replace('"', "")
                     else:
                         await logchanbot("Can not fetch best node for ETH.")
         # Update @bot_task_logs
@@ -616,7 +685,7 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_remove_all_tx_ethscan"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         try:
@@ -640,14 +709,16 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_pull_trc20_scanning"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         # Get all contracts of ETH type and update to coin_ethscan_setting
         trc_contracts = await self.get_all_contracts("TRC-20")
         if len(trc_contracts) > 0:
             # Update height
-            local_height = await store.trx_get_block_number(self.bot.erc_node_list['TRX'], 16)
+            local_height = await store.trx_get_block_number(
+                self.bot.erc_node_list["TRX"], 16
+            )
             if local_height == 0:
                 await asyncio.sleep(5.0)
                 return
@@ -657,11 +728,13 @@ class EthScan(commands.Cog):
                     await self.utils.async_set_cache_kv(
                         "block",
                         f"{self.bot.config['kv_db']['prefix'] + self.bot.config['kv_db']['daemon_height']}{net_name}",
-                        local_height
+                        local_height,
                     )
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                    await logchanbot(f"ethscan pull_trc20_scanning {str(traceback.format_exc())}")
+                    await logchanbot(
+                        f"ethscan pull_trc20_scanning {str(traceback.format_exc())}"
+                    )
 
             for _ in trc_contracts:
                 try:
@@ -682,7 +755,7 @@ class EthScan(commands.Cog):
         # Check if task recently run @bot_task_logs
         task_name = "ethscan_pull_erc20_scanning"
         check_last_running = await self.utils.bot_task_logs_check(task_name)
-        if check_last_running and int(time.time()) - check_last_running['run_at'] < 15:
+        if check_last_running and int(time.time()) - check_last_running["run_at"] < 15:
             # not running if less than 15s
             return
         # Get all contracts of ETH type and update to coin_ethscan_setting
@@ -691,32 +764,36 @@ class EthScan(commands.Cog):
         if len(erc_contracts) > 0:
             contracts = {}
             for each_c in erc_contracts:
-                if each_c['net_name'] not in contracts:
-                    contracts[each_c['net_name']] = []
-                if each_c['contract']:
-                    contracts[each_c['net_name']].append(each_c['contract'])
+                if each_c["net_name"] not in contracts:
+                    contracts[each_c["net_name"]] = []
+                if each_c["contract"]:
+                    contracts[each_c["net_name"]].append(each_c["contract"])
             # Update contract list setting
             for k, v in contracts.items():
                 try:
-                    if k in net_names and net_names[k]['enable'] == 1:
+                    if k in net_names and net_names[k]["enable"] == 1:
                         await self.update_scan_setting(k, v)
                         # Update height
-                        local_height = await store.erc_get_block_number(self.bot.erc_node_list[k])
+                        local_height = await store.erc_get_block_number(
+                            self.bot.erc_node_list[k]
+                        )
                         try:
                             if local_height and local_height > 0:
                                 await self.utils.async_set_cache_kv(
                                     "block",
                                     f"{self.bot.config['kv_db']['prefix'] + self.bot.config['kv_db']['daemon_height']}{k}",
-                                    local_height
+                                    local_height,
                                 )
                             else:
                                 return
                         except Exception:
                             traceback.print_exc(file=sys.stdout)
-                            await logchanbot(f"ethscan pull_erc20_scanning {str(traceback.format_exc())}")
+                            await logchanbot(
+                                f"ethscan pull_erc20_scanning {str(traceback.format_exc())}"
+                            )
 
-                                        # TODO: this blocked IO
-                                        # await self.fetch_txes(self.bot.erc_node_list[k], k, v, net_names[k]['scanned_from_height'])
+                            # TODO: this blocked IO
+                            # await self.fetch_txes(self.bot.erc_node_list[k], k, v, net_names[k]['scanned_from_height'])
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
             await asyncio.sleep(10.0)
@@ -733,7 +810,8 @@ class EthScan(commands.Cog):
                     WHERE `type`=%s AND `contract` IS NOT NULL AND `net_name` IS NOT NULL """
                     await cur.execute(sql, (type_token,))
                     result = await cur.fetchall()
-                    if result and len(result) > 0: return result
+                    if result and len(result) > 0:
+                        return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
             await logchanbot(f"ethscan get_all_contracts {str(traceback.format_exc())}")
@@ -751,7 +829,7 @@ class EthScan(commands.Cog):
                     net_names = {}
                     if result and len(result) > 0:
                         for each in result:
-                            net_names[each['net_name']] = each
+                            net_names[each["net_name"]] = each
                         return net_names
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -770,10 +848,19 @@ class EthScan(commands.Cog):
                     return True
         except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot(f"ethscan update_scan_setting {str(traceback.format_exc())}")
+            await logchanbot(
+                f"ethscan update_scan_setting {str(traceback.format_exc())}"
+            )
         return None
 
-    async def fetch_txes(self, url: str, net_name: str, contracts, scanned_from_height: int, timeout: int = 64):
+    async def fetch_txes(
+        self,
+        url: str,
+        net_name: str,
+        contracts,
+        scanned_from_height: int,
+        timeout: int = 64,
+    ):
         # contracts: List
         try:
             # get all addresses in DB
@@ -784,9 +871,9 @@ class EthScan(commands.Cog):
             contract = json.dumps(contracts)
             txHash_unique = []
             list_tx = await store.get_txscan_stored_list_erc(net_name)
-            if len(list_tx['txHash_unique']) > 0:
+            if len(list_tx["txHash_unique"]) > 0:
                 # Get the latest one with timestamp
-                txHash_unique += list_tx['txHash_unique']
+                txHash_unique += list_tx["txHash_unique"]
                 txHash_unique = list(set(txHash_unique))
             # Get latest fetching
             height = await store.get_latest_stored_scanning_height_erc(net_name)
@@ -826,97 +913,190 @@ class EthScan(commands.Cog):
                 if to_block - height > reddit_blocks - 1:
                     # print("{} eth_getLogs {} from: {} to: {}".format(net_name, contract, height, to_block))
                     pass
-                data = '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock": "' + fromHeight + '", "toBlock": "' + to_bloc_str + '", "address": ' + contract + '}],"id":0}'
+                data = (
+                    '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock": "'
+                    + fromHeight
+                    + '", "toBlock": "'
+                    + to_bloc_str
+                    + '", "address": '
+                    + contract
+                    + '}],"id":0}'
+                )
                 if net_name == "xDai":
                     # xDai need camel case
-                    data = '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"FromBlock": "' + fromHeight + '", "ToBlock": "' + to_bloc_str + '", "Address": ' + contract + '}],"id":0}'
+                    data = (
+                        '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"FromBlock": "'
+                        + fromHeight
+                        + '", "ToBlock": "'
+                        + to_bloc_str
+                        + '", "Address": '
+                        + contract
+                        + '}],"id":0}'
+                    )
                 try:
-                    async with aiohttp.ClientSession(connector=TCPConnector(ssl=False)) as session:
-                        async with session.post(url, headers={'Content-Type': 'application/json'},
-                                                                    json=json.loads(data), timeout=timeout) as response:
+                    async with aiohttp.ClientSession(
+                        connector=TCPConnector(ssl=False)
+                    ) as session:
+                        async with session.post(
+                            url,
+                            headers={"Content-Type": "application/json"},
+                            json=json.loads(data),
+                            timeout=timeout,
+                        ) as response:
                             if response.status == 200:
                                 res_data = await response.read()
-                                res_data = res_data.decode('utf-8')
+                                res_data = res_data.decode("utf-8")
                                 decoded_data = json.loads(res_data)
-                                if decoded_data and 'error' in decoded_data:
+                                if decoded_data and "error" in decoded_data:
                                     return []
-                                elif decoded_data and 'result' in decoded_data:
-                                    records = decoded_data['result']
+                                elif decoded_data and "result" in decoded_data:
+                                    records = decoded_data["result"]
                                     if len(records) > 0:
-                                        # print("{} Got {} record(s).".format(net_name, len(records))) 
+                                        # print("{} Got {} record(s).".format(net_name, len(records)))
                                         # For later debug
                                         pass
                                     if len(records) > 0:
                                         rows = []
                                         for each in records:
-                                            if each['topics'] and len(each['topics']) >= 3:
-                                                from_addr = each['topics'][1]
-                                                to_addr = each['topics'][2]
-                                                to_addr_tmp = "0x" + each['topics'][2][26:]
-                                                if to_addr_tmp not in all_addresses_in_db:
+                                            if (
+                                                each["topics"]
+                                                and len(each["topics"]) >= 3
+                                            ):
+                                                from_addr = each["topics"][1]
+                                                to_addr = each["topics"][2]
+                                                to_addr_tmp = (
+                                                    "0x" + each["topics"][2][26:]
+                                                )
+                                                if (
+                                                    to_addr_tmp
+                                                    not in all_addresses_in_db
+                                                ):
                                                     continue
 
                                                 blockTime = 0
-                                                if str(int(each['blockNumber'], 16)) in self.blockTime:
-                                                    blockTime = self.blockTime[str(int(each['blockNumber'], 16))]
+                                                if (
+                                                    str(int(each["blockNumber"], 16))
+                                                    in self.blockTime
+                                                ):
+                                                    blockTime = self.blockTime[
+                                                        str(
+                                                            int(each["blockNumber"], 16)
+                                                        )
+                                                    ]
                                                 else:
                                                     try:
-                                                        get_blockinfo = await store.erc_get_block_info(url, int(
-                                                            each['blockNumber'], 16))
+                                                        get_blockinfo = await store.erc_get_block_info(
+                                                            url,
+                                                            int(
+                                                                each["blockNumber"], 16
+                                                            ),
+                                                        )
                                                         if get_blockinfo:
-                                                            blockTime = int(get_blockinfo['timestamp'], 16)
+                                                            blockTime = int(
+                                                                get_blockinfo[
+                                                                    "timestamp"
+                                                                ],
+                                                                16,
+                                                            )
                                                             self.blockTime[
-                                                                str(int(each['blockNumber'], 16))] = blockTime
+                                                                str(
+                                                                    int(
+                                                                        each[
+                                                                            "blockNumber"
+                                                                        ],
+                                                                        16,
+                                                                    )
+                                                                )
+                                                            ] = blockTime
                                                     except Exception:
-                                                        traceback.print_exc(file=sys.stdout)
+                                                        traceback.print_exc(
+                                                            file=sys.stdout
+                                                        )
                                                 key = "{}_{}_{}_{}".format(
-                                                    each['address'], int(each['blockNumber'], 16),
-                                                    each['transactionHash'], from_addr, to_addr
+                                                    each["address"],
+                                                    int(each["blockNumber"], 16),
+                                                    each["transactionHash"],
+                                                    from_addr,
+                                                    to_addr,
                                                 )
 
                                                 def lower_txes(txHash_unique):
-                                                    return [x.lower() for x in txHash_unique]
+                                                    return [
+                                                        x.lower() for x in txHash_unique
+                                                    ]
 
-                                                uniq_txes = functools.partial(lower_txes, txHash_unique)
-                                                txHash_unique = await self.bot.loop.run_in_executor(None, uniq_txes)
+                                                uniq_txes = functools.partial(
+                                                    lower_txes, txHash_unique
+                                                )
+                                                txHash_unique = (
+                                                    await self.bot.loop.run_in_executor(
+                                                        None, uniq_txes
+                                                    )
+                                                )
 
                                                 if key.lower() not in txHash_unique:
                                                     txHash_unique.append(key)
                                                     try:
-                                                        rows.append((net_name, each['address'],
-                                                                     json.dumps(each['topics']), from_addr, to_addr,
-                                                                     int(each['blockNumber'], 16), blockTime,
-                                                                     each['transactionHash'], key))
+                                                        rows.append(
+                                                            (
+                                                                net_name,
+                                                                each["address"],
+                                                                json.dumps(
+                                                                    each["topics"]
+                                                                ),
+                                                                from_addr,
+                                                                to_addr,
+                                                                int(
+                                                                    each["blockNumber"],
+                                                                    16,
+                                                                ),
+                                                                blockTime,
+                                                                each["transactionHash"],
+                                                                key,
+                                                            )
+                                                        )
                                                     except Exception:
-                                                        traceback.print_exc(file=sys.stdout)
+                                                        traceback.print_exc(
+                                                            file=sys.stdout
+                                                        )
                                                     # print("{} Append row {}".format(net_name, len(rows)))
                                         # print("{} Got {} row(s)".format(net_name, len(rows)))
                                         if rows:
                                             # insert data
                                             # print(rows[-1])
-                                            insert_data = await store.get_monit_contract_tx_insert_erc(rows)
+                                            await store.get_monit_contract_tx_insert_erc(
+                                                rows
+                                            )
                                             # if insert_data == 0:
                                             # print(f"Failed to insert minting to `erc_contract_scan` for net_name {net_name}")
                                             # else:
                                             # print(f"Insert {insert_data} minting to `erc_contract_scan` for net_name {net_name}")
                                             update_height = await store.get_monit_scanning_net_name_update_height(
-                                                net_name, to_block)
+                                                net_name, to_block
+                                            )
                                             if update_height is None:
-                                                print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
+                                                print(
+                                                    f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}"
+                                                )
                                         elif not rows:
                                             # Update height to DB
                                             update_height = await store.get_monit_scanning_net_name_update_height(
-                                                net_name, to_block)
+                                                net_name, to_block
+                                            )
                                             if update_height is None:
-                                                print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
-                                                                        ##return records
+                                                print(
+                                                    f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}"
+                                                )
+                                                ##return records
                                     elif len(records) == 0:
                                         # Update height to DB
                                         update_height = await store.get_monit_scanning_net_name_update_height(
                                             net_name, to_block
                                         )
                                         if update_height is None:
-                                            print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
+                                            print(
+                                                f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}"
+                                            )
                             elif response.status == 400:
                                 await asyncio.sleep(3.0)
                                 return
@@ -936,14 +1116,18 @@ class EthScan(commands.Cog):
 
             txHash_unique = []
             list_tx = await store.get_txscan_stored_list_erc(net_name)
-            if len(list_tx['txHash_unique']) > 0:
+            if len(list_tx["txHash_unique"]) > 0:
                 # Get the latest one with timestamp
-                txHash_unique += list_tx['txHash_unique']
+                txHash_unique += list_tx["txHash_unique"]
                 txHash_unique = list(set(txHash_unique))
 
             # Get latest fetching
-            last_timestamp = await store.get_latest_stored_scanning_height_erc(net_name, contract)
-            local_height = await store.trx_get_block_number(self.bot.erc_node_list['TRX'], timeout)
+            last_timestamp = await store.get_latest_stored_scanning_height_erc(
+                net_name, contract
+            )
+            local_height = await store.trx_get_block_number(
+                self.bot.erc_node_list["TRX"], timeout
+            )
             if local_height == 0:
                 await asyncio.sleep(5.0)
                 return
@@ -954,75 +1138,146 @@ class EthScan(commands.Cog):
                     url = f"https://api.trongrid.io/v1/contracts/{contract}/events?event_name=Transfer&only_confirmed=true&order_by=block_timestamp,desc&limit=200&min_block_timestamp={str(last_timestamp * 1000)}"
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(url, headers={'Content-Type': 'application/json',
-                                                                                 'TRON-PRO-API-KEY': self.bot.config['Tron_Node']['trongrid_api']},
-                                                                   timeout=timeout) as response:
+                        async with session.get(
+                            url,
+                            headers={
+                                "Content-Type": "application/json",
+                                "TRON-PRO-API-KEY": self.bot.config["Tron_Node"][
+                                    "trongrid_api"
+                                ],
+                            },
+                            timeout=timeout,
+                        ) as response:
                             if response.status == 200:
                                 res_data = await response.read()
-                                res_data = res_data.decode('utf-8')
+                                res_data = res_data.decode("utf-8")
                                 decoded_data = json.loads(res_data)
-                                if decoded_data and 'success' in decoded_data and decoded_data['success'] is True:
-                                    records = decoded_data['data']
+                                if (
+                                    decoded_data
+                                    and "success" in decoded_data
+                                    and decoded_data["success"] is True
+                                ):
+                                    records = decoded_data["data"]
                                     if len(records) > 0:
                                         # print("{} / {} Got {} record(s).".format(net_name, coin_name, len(records))) # For later debug
                                         pass
                                     if len(records) > 0:
-                                        to_block = int(records[0]['block_timestamp'] / 1000)
+                                        to_block = int(
+                                            records[0]["block_timestamp"] / 1000
+                                        )
                                         rows = []
                                         for each in records:
-                                            if each['result'] and len(each['result']) >= 6:
+                                            if (
+                                                each["result"]
+                                                and len(each["result"]) >= 6
+                                            ):
                                                 try:
-                                                    from_addr = hex_to_base58(each['result']['0'])
-                                                    to_addr = hex_to_base58(each['result']['1'])
-                                                    if to_addr not in all_addresses_in_db:
+                                                    from_addr = hex_to_base58(
+                                                        each["result"]["0"]
+                                                    )
+                                                    to_addr = hex_to_base58(
+                                                        each["result"]["1"]
+                                                    )
+                                                    if (
+                                                        to_addr
+                                                        not in all_addresses_in_db
+                                                    ):
                                                         continue
                                                     blockTime = 0
-                                                    if str(each['block_number']) in self.blockTime:
-                                                        blockTime = self.blockTime[str(each['block_number'])]
+                                                    if (
+                                                        str(each["block_number"])
+                                                        in self.blockTime
+                                                    ):
+                                                        blockTime = self.blockTime[
+                                                            str(each["block_number"])
+                                                        ]
                                                     else:
                                                         try:
                                                             get_blockinfo = await store.trx_get_block_info(
-                                                                self.bot.erc_node_list['TRX'], each['block_number'])
+                                                                self.bot.erc_node_list[
+                                                                    "TRX"
+                                                                ],
+                                                                each["block_number"],
+                                                            )
                                                             if get_blockinfo:
-                                                                blockTime = int(get_blockinfo['timestamp'] / 1000)
-                                                                self.blockTime[str(each['block_number'])] = blockTime
+                                                                blockTime = int(
+                                                                    get_blockinfo[
+                                                                        "timestamp"
+                                                                    ]
+                                                                    / 1000
+                                                                )
+                                                                self.blockTime[
+                                                                    str(
+                                                                        each[
+                                                                            "block_number"
+                                                                        ]
+                                                                    )
+                                                                ] = blockTime
                                                         except Exception:
-                                                            traceback.print_exc(file=sys.stdout)
+                                                            traceback.print_exc(
+                                                                file=sys.stdout
+                                                            )
                                                 except Exception:
                                                     traceback.print_exc(file=sys.stdout)
                                                     continue
                                                 key = "{}_{}_{}_{}".format(
-                                                    each['contract_address'],
-                                                    each['block_number'], each['transaction_id'],
-                                                    from_addr, to_addr
+                                                    each["contract_address"],
+                                                    each["block_number"],
+                                                    each["transaction_id"],
+                                                    from_addr,
+                                                    to_addr,
                                                 )
 
                                                 def lower_txes(txHash_unique):
-                                                    return [x.lower() for x in txHash_unique]
+                                                    return [
+                                                        x.lower() for x in txHash_unique
+                                                    ]
 
-                                                uniq_txes = functools.partial(lower_txes, txHash_unique)
-                                                txHash_unique = await self.bot.loop.run_in_executor(None, uniq_txes)
+                                                uniq_txes = functools.partial(
+                                                    lower_txes, txHash_unique
+                                                )
+                                                txHash_unique = (
+                                                    await self.bot.loop.run_in_executor(
+                                                        None, uniq_txes
+                                                    )
+                                                )
 
                                                 if key.lower() not in txHash_unique:
                                                     txHash_unique.append(key)
                                                     try:
-                                                        rows.append((net_name, each['contract_address'], from_addr,
-                                                                     to_addr, each['block_number'], blockTime,
-                                                                     each['transaction_id'], key))
+                                                        rows.append(
+                                                            (
+                                                                net_name,
+                                                                each[
+                                                                    "contract_address"
+                                                                ],
+                                                                from_addr,
+                                                                to_addr,
+                                                                each["block_number"],
+                                                                blockTime,
+                                                                each["transaction_id"],
+                                                                key,
+                                                            )
+                                                        )
                                                     except Exception:
-                                                        traceback.print_exc(file=sys.stdout)
+                                                        traceback.print_exc(
+                                                            file=sys.stdout
+                                                        )
                                                     # print("{} Append row {}".format(net_name, len(rows)))
                                         # print("{} / {} Got {} row(s)".format(net_name, coin_name, len(rows)))
                                         if rows:
                                             # insert data
                                             # print(rows[-1])
-                                            insert_data = await store.get_monit_contract_tx_insert_trc(rows)
+                                            await store.get_monit_contract_tx_insert_trc(
+                                                rows
+                                            )
                                             # if insert_data == 0:
                                             # print(f"Failed to insert minting to `erc_contract_scan` for net_name {net_name}")
                                             # else:
                                             # print(f"Insert {insert_data} minting to `erc_contract_scan` for net_name {net_name}")
                                             update_height = await store.get_monit_scanning_net_name_update_height(
-                                                net_name, to_block, coin_name)
+                                                net_name, to_block, coin_name
+                                            )
                                             if update_height is None:
                                                 print(
                                                     f"to_block {to_block} No tx for `erc_contract_scan` for net_name {net_name}"
@@ -1030,19 +1285,22 @@ class EthScan(commands.Cog):
                                         elif not rows:
                                             # Update height to DB
                                             update_height = await store.get_monit_scanning_net_name_update_height(
-                                                net_name, to_block, coin_name)
+                                                net_name, to_block, coin_name
+                                            )
                                             if update_height is None:
                                                 print(
                                                     f"to_block {to_block} No tx for `erc_contract_scan` for net_name {net_name}"
                                                 )
-                                                                        ##return records
+                                                ##return records
                                     elif len(records) == 0:
                                         # Update height to DB
                                         update_height = await store.get_monit_scanning_net_name_update_height(
-                                            net_name,  to_block, coin_name
+                                            net_name, to_block, coin_name
                                         )
                                         if update_height is None:
-                                            print(f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}")
+                                            print(
+                                                f"to_block {str(to_block)} No tx for `erc_contract_scan` for net_name {net_name}"
+                                            )
                             elif response.status == 400:
                                 await asyncio.sleep(5.0)
                                 return
@@ -1055,7 +1313,7 @@ class EthScan(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if self.bot.config['discord']['enable_bg_tasks'] != 1:
+        if self.bot.config["discord"]["enable_bg_tasks"] != 1:
             return
         if not self.fetch_arb1eth_node.is_running():
             self.fetch_arb1eth_node.start()
@@ -1105,7 +1363,7 @@ class EthScan(commands.Cog):
             self.remove_all_tx_ethscan.start()
 
     async def cog_load(self):
-        if self.bot.config['discord']['enable_bg_tasks'] != 1:
+        if self.bot.config["discord"]["enable_bg_tasks"] != 1:
             return
         if not self.fetch_arb1eth_node.is_running():
             self.fetch_arb1eth_node.start()

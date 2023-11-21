@@ -6,12 +6,13 @@ Tags: large, game, puzzle, word"""
 # A version of this game is featured in the book, "Invent Your Own
 # Computer Games with Python" https://nostarch.com/inventwithpython
 
-import random, sys, re
+import re
 
 # Set up the constants:
 # (!) Try adding or changing the strings in HANGMAN_PICS to make a
 # guillotine instead of a gallows.
-HANGMAN_PICS = [r"""
+HANGMAN_PICS = [
+    r"""
  +--+
  |  |
     |
@@ -19,23 +20,23 @@ HANGMAN_PICS = [r"""
     |
     |
 =====""",
-r"""
- +--+
- |  |
- O  |
-    |
-    |
-    |
-=====""",
-r"""
+    r"""
  +--+
  |  |
  O  |
+    |
+    |
+    |
+=====""",
+    r"""
+ +--+
+ |  |
+ O  |
  |  |
     |
     |
 =====""",
-r"""
+    r"""
  +--+
  |  |
  O  |
@@ -43,7 +44,7 @@ r"""
     |
     |
 =====""",
-r"""
+    r"""
  +--+
  |  |
  O  |
@@ -51,7 +52,7 @@ r"""
     |
     |
 =====""",
-r"""
+    r"""
  +--+
  |  |
  O  |
@@ -59,31 +60,32 @@ r"""
 /   |
     |
 =====""",
-r"""
+    r"""
  +--+
  |  |
  O  |
 /|\ |
 / \ |
     |
-====="""]
+=====""",
+]
 
 
 def load_words():
     wordList = []
-    with open('games/oxford.txt') as word_file:
+    with open("games/oxford.txt") as word_file:
         valid_words = set(word_file.read().split())
     for item in valid_words:
-        if 6 <= len(item) <= 15 and re.match('[a-zA-Z]+', item):
+        if 6 <= len(item) <= 15 and re.match("[a-zA-Z]+", item):
             wordList.append(item)
 
     badword_list = []
-    with open('games/profane-words.raw') as word_file:
+    with open("games/profane-words.raw") as word_file:
         badword_list = set(word_file.read().split())
 
-    print('Word from dict: '+str(len(wordList)))
+    print("Word from dict: " + str(len(wordList)))
     newWordList = [x for x in wordList if x not in badword_list]
-    print('Word after bad word:'+str(len(newWordList))) 
+    print("Word after bad word:" + str(len(newWordList)))
     return newWordList
 
 
@@ -93,12 +95,12 @@ def drawHangman(missedLetters, correctLetters, secretWord):
     picture = HANGMAN_PICS[len(missedLetters)]
 
     # Show the incorrectly guessed letters:
-    missed_letter = 'No missed letters yet.'
+    missed_letter = "No missed letters yet."
     if len(missedLetters) > 0:
-        missed_letter = 'Missed letters: ' + ', '.join(missedLetters)
+        missed_letter = "Missed letters: " + ", ".join(missedLetters)
 
     # Display the blanks for the secret word (one blank per letter):
-    blanks = ['_'] * len(secretWord)
+    blanks = ["_"] * len(secretWord)
 
     # Replace blanks with correctly guessed letters:
     for i in range(len(secretWord)):
@@ -106,5 +108,5 @@ def drawHangman(missedLetters, correctLetters, secretWord):
             blanks[i] = secretWord[i]
 
     # Show the secret word with spaces in between each letter:
-    word_line = ' '.join(blanks)
-    return {'picture': picture, 'missed_letter': missed_letter, 'word_line': word_line}
+    word_line = " ".join(blanks)
+    return {"picture": picture, "missed_letter": missed_letter, "word_line": word_line}

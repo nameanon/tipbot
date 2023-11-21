@@ -9,7 +9,7 @@ __version__ = 0
 import random
 
 # Set up the constants:
-BLANK = ''  # A value that represents a blank space on the board.
+BLANK = ""  # A value that represents a blank space on the board.
 
 
 def getNewBoard():
@@ -79,7 +79,9 @@ def drawBoard(board):
 |{}|{}|{}|{}|
 |     |     |     |     |
 +-----+-----+-----+-----+
-""".format(*labels)
+""".format(
+        *labels
+    )
 
 
 def getScore(board):
@@ -129,26 +131,34 @@ def makeMove(board, move):
 
     # The board is split up into four columns, which are different
     # depending on the direction of the move:
-    if move == 'W':
-        allColumnsSpaces = [[(0, 0), (0, 1), (0, 2), (0, 3)],
-                            [(1, 0), (1, 1), (1, 2), (1, 3)],
-                            [(2, 0), (2, 1), (2, 2), (2, 3)],
-                            [(3, 0), (3, 1), (3, 2), (3, 3)]]
-    elif move == 'A':
-        allColumnsSpaces = [[(0, 0), (1, 0), (2, 0), (3, 0)],
-                            [(0, 1), (1, 1), (2, 1), (3, 1)],
-                            [(0, 2), (1, 2), (2, 2), (3, 2)],
-                            [(0, 3), (1, 3), (2, 3), (3, 3)]]
-    elif move == 'S':
-        allColumnsSpaces = [[(0, 3), (0, 2), (0, 1), (0, 0)],
-                            [(1, 3), (1, 2), (1, 1), (1, 0)],
-                            [(2, 3), (2, 2), (2, 1), (2, 0)],
-                            [(3, 3), (3, 2), (3, 1), (3, 0)]]
-    elif move == 'D':
-        allColumnsSpaces = [[(3, 0), (2, 0), (1, 0), (0, 0)],
-                            [(3, 1), (2, 1), (1, 1), (0, 1)],
-                            [(3, 2), (2, 2), (1, 2), (0, 2)],
-                            [(3, 3), (2, 3), (1, 3), (0, 3)]]
+    if move == "W":
+        allColumnsSpaces = [
+            [(0, 0), (0, 1), (0, 2), (0, 3)],
+            [(1, 0), (1, 1), (1, 2), (1, 3)],
+            [(2, 0), (2, 1), (2, 2), (2, 3)],
+            [(3, 0), (3, 1), (3, 2), (3, 3)],
+        ]
+    elif move == "A":
+        allColumnsSpaces = [
+            [(0, 0), (1, 0), (2, 0), (3, 0)],
+            [(0, 1), (1, 1), (2, 1), (3, 1)],
+            [(0, 2), (1, 2), (2, 2), (3, 2)],
+            [(0, 3), (1, 3), (2, 3), (3, 3)],
+        ]
+    elif move == "S":
+        allColumnsSpaces = [
+            [(0, 3), (0, 2), (0, 1), (0, 0)],
+            [(1, 3), (1, 2), (1, 1), (1, 0)],
+            [(2, 3), (2, 2), (2, 1), (2, 0)],
+            [(3, 3), (3, 2), (3, 1), (3, 0)],
+        ]
+    elif move == "D":
+        allColumnsSpaces = [
+            [(3, 0), (2, 0), (1, 0), (0, 0)],
+            [(3, 1), (2, 1), (1, 1), (0, 1)],
+            [(3, 2), (2, 2), (1, 2), (0, 2)],
+            [(3, 3), (2, 3), (1, 3), (0, 3)],
+        ]
 
     # The board data structure after making the move:
     boardAfterMove = {}
@@ -196,5 +206,3 @@ def isFull(board):
             if board[(x, y)] == BLANK:
                 return False
     return True  # No space is blank, so return True.
-
-

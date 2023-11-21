@@ -1,17 +1,17 @@
 import sys
+import time
 import traceback
 from datetime import datetime
 from decimal import Decimal
-import time
 
 import disnake
 import store
 from Bot import EMOJI_RED_NO, SERVER_BOT
+from cogs.utils import Utils, num_format_coin
 from cogs.wallet import WalletAPI
 from disnake.app_commands import Option
 from disnake.enums import OptionType
 from disnake.ext import commands
-from cogs.utils import Utils, num_format_coin
 
 
 class BotBalance(commands.Cog):
@@ -34,7 +34,10 @@ class BotBalance(commands.Cog):
 
         coin_name = token.upper()
         # Token name check
-        if len(self.bot.coin_alias_names) > 0 and coin_name in self.bot.coin_alias_names:
+        if (
+            len(self.bot.coin_alias_names) > 0
+            and coin_name in self.bot.coin_alias_names
+        ):
             coin_name = self.bot.coin_alias_names[coin_name]
         if not hasattr(self.bot.coin_list, coin_name):
             msg = f"{ctx.author.mention}, **{coin_name}** does not exist with us."
@@ -46,8 +49,17 @@ class BotBalance(commands.Cog):
         await ctx.response.send_message(msg)
 
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM",
-                                         str(ctx.author.id), SERVER_BOT, "/botbalance", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/botbalance",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -55,15 +67,24 @@ class BotBalance(commands.Cog):
         try:
             try:
                 coin_emoji = ""
-                if ctx.guild.get_member(int(self.bot.user.id)).guild_permissions.external_emojis is True:
-                    coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
+                if (
+                    ctx.guild.get_member(
+                        int(self.bot.user.id)
+                    ).guild_permissions.external_emojis
+                    is True
+                ):
+                    coin_emoji = getattr(
+                        getattr(self.bot.coin_list, coin_name), "coin_emoji_discord"
+                    )
                     coin_emoji = f"{coin_emoji} " if coin_emoji else ""
             except Exception:
                 traceback.print_exc(file=sys.stdout)
 
             net_name = getattr(getattr(self.bot.coin_list, coin_name), "net_name")
             type_coin = getattr(getattr(self.bot.coin_list, coin_name), "type")
-            deposit_confirm_depth = getattr(getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth")
+            deposit_confirm_depth = getattr(
+                getattr(self.bot.coin_list, coin_name), "deposit_confirm_depth"
+            )
             get_deposit = await self.wallet_api.sql_get_userwallet(
                 str(member.id), coin_name, net_name, type_coin, SERVER_BOT, 0
             )
@@ -72,35 +93,43 @@ class BotBalance(commands.Cog):
                     str(member.id), coin_name, net_name, type_coin, SERVER_BOT, 0, 0
                 )
 
-            wallet_address = get_deposit['balance_wallet_address']
+            wallet_address = get_deposit["balance_wallet_address"]
             if type_coin in ["TRTL-API", "TRTL-SERVICE", "BCN", "XMR"]:
-                wallet_address = get_deposit['paymentid']
+                wallet_address = get_deposit["paymentid"]
             elif type_coin in ["XRP"]:
-                wallet_address = get_deposit['destination_tag']
+                wallet_address = get_deposit["destination_tag"]
 
-            height = await self.wallet_api.get_block_height(type_coin, coin_name, net_name)
-            description = ""
-            token_display = getattr(getattr(self.bot.coin_list, coin_name), "display_name")
+            height = await self.wallet_api.get_block_height(
+                type_coin, coin_name, net_name
+            )
+            token_display = getattr(
+                getattr(self.bot.coin_list, coin_name), "display_name"
+            )
             embed = disnake.Embed(
                 title=f"Balance for Bot {member.name}#{member.discriminator}",
                 description="This is for Bot's! Not yours!",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
             embed.set_author(name=member.name, icon_url=member.display_avatar)
             try:
                 # height can be None
                 userdata_balance = await store.sql_user_balance_single(
-                    str(member.id), coin_name, wallet_address, type_coin, height,
-                    deposit_confirm_depth, SERVER_BOT
+                    str(member.id),
+                    coin_name,
+                    wallet_address,
+                    type_coin,
+                    height,
+                    deposit_confirm_depth,
+                    SERVER_BOT,
                 )
-                total_balance = userdata_balance['adjust']
+                total_balance = userdata_balance["adjust"]
                 equivalent_usd = ""
                 if price_with := getattr(
                     getattr(self.bot.coin_list, coin_name), "price_with"
                 ):
                     per_unit = await self.utils.get_coin_price(coin_name, price_with)
-                    if per_unit and per_unit['price'] and per_unit['price'] > 0:
-                        per_unit = per_unit['price']
+                    if per_unit and per_unit["price"] and per_unit["price"] > 0:
+                        per_unit = per_unit["price"]
                         total_in_usd = float(Decimal(total_balance) * Decimal(per_unit))
                         if total_in_usd >= 0.01:
                             equivalent_usd = " ~ {:,.2f}$".format(total_in_usd)
@@ -135,19 +164,16 @@ class BotBalance(commands.Cog):
             Option("botname", "Enter a bot", OptionType.user, required=True),
             Option("coin", "Enter coin ticker/name", OptionType.string, required=True),
         ],
-        description="Get Bot's balance by mention it.")
-    async def botbalance(
-        self,
-        ctx,
-        botname: disnake.Member,
-        coin: str
-    ):
+        description="Get Bot's balance by mention it.",
+    )
+    async def botbalance(self, ctx, botname: disnake.Member, coin: str):
         await self.bot_bal(ctx, botname, coin)
 
     @botbalance.autocomplete("coin")
     async def coin_name_autocomp(self, inter: disnake.CommandInteraction, string: str):
         string = string.lower()
         return [name for name in self.bot.coin_name_list if string in name.lower()][:10]
+
 
 def setup(bot):
     bot.add_cog(BotBalance(bot))

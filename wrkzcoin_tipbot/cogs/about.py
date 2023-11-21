@@ -1,13 +1,13 @@
-import sys
-import traceback
-import psutil
-from datetime import datetime
-import time
 import random
+import sys
+import time
+import traceback
+from datetime import datetime
 
 import disnake
+import psutil
 import store
-from Bot import RowButtonRowCloseAnyMessage, logchanbot, SERVER_BOT
+from Bot import SERVER_BOT, RowButtonRowCloseAnyMessage, logchanbot
 from cogs.utils import Utils
 from disnake.ext import commands
 
@@ -36,15 +36,27 @@ class About(commands.Cog):
     async def async_about(self, ctx):
         await ctx.response.defer(ephemeral=False)
         try:
-            self.bot.commandings.append((str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM", 
-                                         str(ctx.author.id), SERVER_BOT, "/about", int(time.time())))
+            self.bot.commandings.append(
+                (
+                    str(ctx.guild.id)
+                    if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                    else "DM",
+                    str(ctx.author.id),
+                    SERVER_BOT,
+                    "/about",
+                    int(time.time()),
+                )
+            )
             await self.utils.add_command_calls()
         except Exception:
             traceback.print_exc(file=sys.stdout)
         try:
             embed = await self.about_embed()
             # if advert enable
-            if self.bot.config['discord']['enable_advert'] == 1 and len(self.bot.advert_list) > 0:
+            if (
+                self.bot.config["discord"]["enable_advert"] == 1
+                and len(self.bot.advert_list) > 0
+            ):
                 try:
                     random.shuffle(self.bot.advert_list)
                     embed.add_field(
@@ -53,14 +65,19 @@ class About(commands.Cog):
                         inline=False,
                     )
                     await self.utils.advert_impress(
-                        self.bot.advert_list[0]['id'], str(ctx.author.id),
-                        str(ctx.guild.id) if hasattr(ctx, "guild") and hasattr(ctx.guild, "id") else "DM"
+                        self.bot.advert_list[0]["id"],
+                        str(ctx.author.id),
+                        str(ctx.guild.id)
+                        if hasattr(ctx, "guild") and hasattr(ctx.guild, "id")
+                        else "DM",
                     )
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
             # end advert
 
-            await ctx.edit_original_message(content=None, embed=embed, view=RowButtonRowCloseAnyMessage())
+            await ctx.edit_original_message(
+                content=None, embed=embed, view=RowButtonRowCloseAnyMessage()
+            )
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
@@ -70,48 +87,71 @@ class About(commands.Cog):
         description = ""
         ts = datetime.now()
         try:
-            guilds = '{:,.0f}'.format(len(self.bot.guilds))
-            total_members = '{:,.0f}'.format(sum(1 for _ in self.bot.get_all_members()))
-            total_unique = '{:,.0f}'.format(len(self.bot.users))
-            total_bots = '{:,.0f}'.format(sum(1 for m in self.bot.get_all_members() if m.bot is True))
-            total_online = '{:,.0f}'.format(sum(1 for m in self.bot.get_all_members() if m.status != disnake.Status.offline))
+            guilds = "{:,.0f}".format(len(self.bot.guilds))
+            total_members = "{:,.0f}".format(sum(1 for _ in self.bot.get_all_members()))
+            total_unique = "{:,.0f}".format(len(self.bot.users))
+            total_bots = "{:,.0f}".format(
+                sum(1 for m in self.bot.get_all_members() if m.bot is True)
+            )
+            total_online = "{:,.0f}".format(
+                sum(
+                    1
+                    for m in self.bot.get_all_members()
+                    if m.status != disnake.Status.offline
+                )
+            )
             cpu_usage = psutil.cpu_percent() / psutil.cpu_count()
             memory_usage = psutil.Process().memory_full_info().uss / 1024**2
             description = f"Total guild(s): `{guilds}` Total member(s): `{total_members}`\nUnique: `{total_unique}` Bots: `{total_bots}`\nOnline: `{total_online}`\n\n**Usage**: CPU: `{round(cpu_usage, 1)} %` Memory: `{round(memory_usage, 1)} MiB`"
             ts = datetime.fromtimestamp(int(psutil.Process().create_time()))
         except Exception:
             traceback.print_exc(file=sys.stdout)
-        botdetails = disnake.Embed(title='About Me', description=description, timestamp=ts)
-        botdetails.add_field(name='Creator\'s Discord Name:', value='pluton#8888', inline=True)
-        botdetails.add_field(name='My Github:', value="[TipBot Github](https://github.com/wrkzcoin/TipBot)",
-                             inline=True)
-        botdetails.add_field(name='Invite Me:', value=self.bot.config['discord']['invite_link'], inline=True)
+        botdetails = disnake.Embed(
+            title="About Me", description=description, timestamp=ts
+        )
+        botdetails.add_field(
+            name="Creator's Discord Name:", value="pluton#8888", inline=True
+        )
+        botdetails.add_field(
+            name="My Github:",
+            value="[TipBot Github](https://github.com/wrkzcoin/TipBot)",
+            inline=True,
+        )
+        botdetails.add_field(
+            name="Invite Me:",
+            value=self.bot.config["discord"]["invite_link"],
+            inline=True,
+        )
         try:
             get_tipping_count = await self.get_tipping_count()
             if get_tipping_count:
-                botdetails.add_field(name="Tips", value='{:,.0f}'.format(get_tipping_count['nos_tipping']), inline=True)
+                botdetails.add_field(
+                    name="Tips",
+                    value="{:,.0f}".format(get_tipping_count["nos_tipping"]),
+                    inline=True,
+                )
         except Exception:
             traceback.print_exc(file=sys.stdout)
         try:
             bot_settings = await self.utils.get_bot_settings()
-            botdetails.add_field(name='Add Coin/Token', value=bot_settings['link_listing_form'], inline=False)
+            botdetails.add_field(
+                name="Add Coin/Token",
+                value=bot_settings["link_listing_form"],
+                inline=False,
+            )
         except Exception:
             traceback.print_exc(file=sys.stdout)
         botdetails.set_footer(
-            text='Made in Python',
-            icon_url='http://findicons.com/files/icons/2804/plex/512/python.png'
+            text="Made in Python",
+            icon_url="http://findicons.com/files/icons/2804/plex/512/python.png",
         )
-        botdetails.set_author(name=self.bot.user.name, icon_url=self.bot.user.display_avatar)
+        botdetails.set_author(
+            name=self.bot.user.name, icon_url=self.bot.user.display_avatar
+        )
         return botdetails
 
-    @commands.slash_command(
-        usage="about",
-        description="Get information about me."
-    )
-    async def about(
-            self,
-            ctx
-    ):
+    @commands.slash_command(usage="about", description="Get information about me.")
+    async def about(self, ctx):
         await self.async_about(ctx)
 
     @commands.user_command(name="About")

@@ -1,86 +1,97 @@
-import sys
-import traceback
-from typing import List
-import time
-from cachetools import TTLCache
-import pickle
-import redis
-import aiohttp
+import asyncio
 import json
+import pickle
+import random
+
 # password gen
 import secrets
 import string
-import random
-import asyncio
+import sys
+import time
+import traceback
+
 # chart
 from datetime import datetime
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import pandas as pd
-from colour import Color
+from typing import List
+
+import aiohttp
 import aiomysql
-from aiomysql.cursors import DictCursor
 import disnake
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+import redis
+import store
+from aiomysql.cursors import DictCursor
+from Bot import RowButtonRowCloseAnyMessage, logchanbot, truncate
+from cachetools import TTLCache
+from colour import Color
 from disnake.ext import commands
 
-import store
-from Bot import RowButtonRowCloseAnyMessage, logchanbot, truncate
-plt.style.use('ggplot')
+plt.style.use("ggplot")
+
 
 def makechart(data, save_path_name: str):
     try:
-        color = 'grey'
+        color = "grey"
         mpl.rcParams["axes.edgecolor"] = color
-        mpl.rcParams["axes.linewidth"]  = 1.25
-        mpl.rcParams['text.color'] = color
-        mpl.rcParams['axes.labelcolor'] = color
-        mpl.rcParams['xtick.color'] = color
-        mpl.rcParams['ytick.color'] = color
+        mpl.rcParams["axes.linewidth"] = 1.25
+        mpl.rcParams["text.color"] = color
+        mpl.rcParams["axes.labelcolor"] = color
+        mpl.rcParams["xtick.color"] = color
+        mpl.rcParams["ytick.color"] = color
 
-        chart_date = [datetime.fromtimestamp(i[0]/1000) for i in data['prices']]
-        price_list = [i[1] for i in data['prices']]
-        volume_list = [i[1] for i in data['total_volumes']]
+        chart_date = [datetime.fromtimestamp(i[0] / 1000) for i in data["prices"]]
+        price_list = [i[1] for i in data["prices"]]
+        volume_list = [i[1] for i in data["total_volumes"]]
 
-        data = pd.DataFrame(data={'price': price_list, 'volume': volume_list}, index=chart_date)
+        data = pd.DataFrame(
+            data={"price": price_list, "volume": volume_list}, index=chart_date
+        )
         data_v = data.groupby(data.index.date).mean()
 
         red = Color("red")
         colors = list(red.range_to(Color("green"), len(data_v.volume)))
         colors = [color.rgb for color in colors]
 
-        fig, ax = plt.subplots(nrows=2, sharex=True, figsize=(15,8))
+        fig, ax = plt.subplots(nrows=2, sharex=True, figsize=(15, 8))
         plt.xticks(rotation=90)
 
-        selected_color = random.choice([color.rgb for color in list(Color("red").range_to(Color("green"), 10))]) # range 10 color
+        selected_color = random.choice(
+            [color.rgb for color in list(Color("red").range_to(Color("green"), 10))]
+        )  # range 10 color
         ax[0].plot(data.index, data.price, color=selected_color)
-        ax[0].fill_between(data.index, data.price, 0, color=selected_color, alpha=.25)
-        ax[1].bar(data_v.index, data_v.volume, width=0.5, color=colors) # 1/len(data.index)
+        ax[0].fill_between(data.index, data.price, 0, color=selected_color, alpha=0.25)
+        ax[1].bar(
+            data_v.index, data_v.volume, width=0.5, color=colors
+        )  # 1/len(data.index)
         # ax[1].plot(data.index, data.volume)
 
-        xfmt = mpl.dates.DateFormatter('%m-%d')
+        xfmt = mpl.dates.DateFormatter("%m-%d")
         ax[1].xaxis.set_major_locator(mpl.dates.HourLocator(interval=24))
         ax[1].xaxis.set_major_formatter(xfmt)
 
         ax[1].xaxis.set_minor_locator(mpl.dates.HourLocator(interval=24))
         ax[1].xaxis.set_minor_formatter(xfmt)
 
-        ax[1].get_xaxis().set_tick_params(which='major', pad=0)
+        ax[1].get_xaxis().set_tick_params(which="major", pad=0)
         # fig.autofmt_xdate()
 
         # set grid
-        ax[0].grid(which='major', linestyle = '--', color='grey')
-        ax[1].grid(which='major', linestyle = '--', color='grey')
+        ax[0].grid(which="major", linestyle="--", color="grey")
+        ax[1].grid(which="major", linestyle="--", color="grey")
 
         # set auto number
         ax[1].get_yaxis().set_major_formatter(
-            mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+            mpl.ticker.FuncFormatter(lambda x, p: format(int(x), ","))
+        )
 
         # Set common labels
-        ax[0].set_xlabel('Price (USD)')
-        ax[1].set_xlabel('Volume (USD)')
+        ax[0].set_xlabel("Price (USD)")
+        ax[1].set_xlabel("Volume (USD)")
 
-        #ax[0].set_title('ax1 title')
-        #ax[1].set_title('ax2 title')
+        # ax[0].set_title('ax1 title')
+        # ax[1].set_title('ax2 title')
 
         plt.savefig(save_path_name, transparent=True)
         return save_path_name
@@ -88,14 +99,16 @@ def makechart(data, save_path_name: str):
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 # https://stackoverflow.com/questions/312443/how-do-i-split-a-list-into-equally-sized-chunks
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
+
 
 # https://geekflare.com/password-generator-python-code/
-def gen_password(pwd_length: int=12):
+def gen_password(pwd_length: int = 12):
     # define the alphabet
     letters = string.ascii_letters
     digits = string.digits
@@ -103,34 +116,37 @@ def gen_password(pwd_length: int=12):
     alphabet = letters + digits + special_chars
 
     # generate a password string
-    pwd = ''
+    pwd = ""
     for i in range(pwd_length):
-        pwd += ''.join(secrets.choice(alphabet))
+        pwd += "".join(secrets.choice(alphabet))
     return pwd
+
 
 def num_format_coin(amount):
     if amount == 0:
         return "0.0"
 
     if amount < 0.00000001:
-        amount_str = '{:,.10f}'.format(truncate(amount, 10))
+        amount_str = "{:,.10f}".format(truncate(amount, 10))
     elif amount < 0.000001:
-        amount_str = '{:,.8f}'.format(truncate(amount, 8))
+        amount_str = "{:,.8f}".format(truncate(amount, 8))
     elif amount < 0.00001:
-        amount_str = '{:,.7f}'.format(truncate(amount, 7))
+        amount_str = "{:,.7f}".format(truncate(amount, 7))
     elif amount < 0.01:
-        amount_str = '{:,.6f}'.format(truncate(amount, 6))
+        amount_str = "{:,.6f}".format(truncate(amount, 6))
     elif amount < 1.0:
-        amount_str = '{:,.5f}'.format(truncate(amount, 5))
+        amount_str = "{:,.5f}".format(truncate(amount, 5))
     elif amount < 10:
-        amount_str = '{:,.4f}'.format(truncate(amount, 4))
+        amount_str = "{:,.4f}".format(truncate(amount, 4))
     elif amount < 1000.00:
-        amount_str = '{:,.3f}'.format(truncate(amount, 3))
+        amount_str = "{:,.3f}".format(truncate(amount, 3))
     else:
-        amount_str = '{:,.2f}'.format(truncate(amount, 2))
-    return amount_str.rstrip('0').rstrip('.') if '.' in amount_str else amount_str
+        amount_str = "{:,.2f}".format(truncate(amount, 2))
+    return amount_str.rstrip("0").rstrip(".") if "." in amount_str else amount_str
+
 
 # https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
+
 
 def print_color(prt, color: str):
     if color == "red":
@@ -152,20 +168,22 @@ def print_color(prt, color: str):
     else:
         print(f"\033[0m{prt}\033[00m")
 
-async def get_all_coin_names(
-    what: str,
-    value: int,
-    limit: int=25
-):
+
+async def get_all_coin_names(what: str, value: int, limit: int = 25):
     try:
         await store.openConnection()
         async with store.pool.acquire() as conn:
             async with conn.cursor() as cur:
-                sql = """
+                sql = (
+                    """
                 SELECT `coin_name` FROM `coin_settings` 
-                WHERE `"""+what+"""`=%s
+                WHERE `"""
+                    + what
+                    + """`=%s
                 LIMIT 
-                """ + str(limit)
+                """
+                    + str(limit)
+                )
                 await cur.execute(sql, value)
                 result = await cur.fetchall()
                 if result:
@@ -175,101 +193,127 @@ async def get_all_coin_names(
         traceback.print_exc(file=sys.stdout)
     return ["N/A"]
 
+
 # stellar utils
-async def stellar_get_tx_info(tx: str, timeout: int=30):
+async def stellar_get_tx_info(tx: str, timeout: int = 30):
     try:
         url = "https://horizon.stellar.org/transactions/" + tx
         async with aiohttp.ClientSession() as cs:
             async with cs.get(url, timeout=timeout) as r:
                 res_data = await r.read()
-                res_data = res_data.decode('utf-8')
+                res_data = res_data.decode("utf-8")
                 result = json.loads(res_data)
                 return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
 
-async def btc_get_tx_info(url: str, tx: str, timeout: int=30):
+
+async def btc_get_tx_info(url: str, tx: str, timeout: int = 30):
     try:
-        data = '{"jsonrpc": "1.0", "id": "curltest", "method": "gettransaction", "params": ["' + tx + '"] }'
+        data = (
+            '{"jsonrpc": "1.0", "id": "curltest", "method": "gettransaction", "params": ["'
+            + tx
+            + '"] }'
+        )
         async with aiohttp.ClientSession() as cs:
             async with cs.post(url, data=data, timeout=timeout) as r:
                 res_data = await r.read()
-                res_data = res_data.decode('utf-8')
+                res_data = res_data.decode("utf-8")
                 result = json.loads(res_data)
                 return result
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 async def erc20_get_tx_info(url: str, tx: str, timeout: int = 64):
-    data = '{"jsonrpc":"2.0", "method": "eth_getTransactionReceipt", "params":["' + tx + '"], "id":1}'
+    data = (
+        '{"jsonrpc":"2.0", "method": "eth_getTransactionReceipt", "params":["'
+        + tx
+        + '"], "id":1}'
+    )
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                url, headers={'Content-Type': 'application/json'},
+                url,
+                headers={"Content-Type": "application/json"},
                 json=json.loads(data),
-                timeout=timeout
+                timeout=timeout,
             ) as response:
                 if response.status == 200:
                     res_data = await response.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     await session.close()
                     decoded_data = json.loads(res_data)
-                    if decoded_data and 'result' in decoded_data:
-                        return decoded_data['result']
+                    if decoded_data and "result" in decoded_data:
+                        return decoded_data["result"]
     except asyncio.TimeoutError:
-        print('TIMEOUT: {} get block number {}s'.format(url, timeout))
-    except Exception as e:
+        print("TIMEOUT: {} get block number {}s".format(url, timeout))
+    except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
+
 
 async def erc20_get_block_number(url: str, timeout: int = 64):
     data = '{"jsonrpc":"2.0", "method":"eth_blockNumber", "params":[], "id":1}'
     try:
-        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=False)
+        ) as session:
             async with session.post(
-                url, headers={'Content-Type': 'application/json'},
+                url,
+                headers={"Content-Type": "application/json"},
                 json=json.loads(data),
-                timeout=timeout
+                timeout=timeout,
             ) as response:
                 if response.status == 200:
                     res_data = await response.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     await session.close()
                     decoded_data = json.loads(res_data)
-                    if decoded_data and 'result' in decoded_data:
-                        return int(decoded_data['result'], 16)
+                    if decoded_data and "result" in decoded_data:
+                        return int(decoded_data["result"], 16)
     except asyncio.TimeoutError:
-        print('TIMEOUT: {} get block number {}s'.format(url, timeout))
-    except Exception as e:
+        print("TIMEOUT: {} get block number {}s".format(url, timeout))
+    except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
 
-async def tezos_get_tx(url: str, tx_hash: str, timeout: int=16):
-    headers = {
-        'Content-Type': 'application/json'
-    }
+
+async def tezos_get_tx(url: str, tx_hash: str, timeout: int = 16):
+    headers = {"Content-Type": "application/json"}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 url + "operations/transactions/" + tx_hash,
                 headers=headers,
-                timeout=timeout
+                timeout=timeout,
             ) as response:
                 json_resp = await response.json()
                 if response.status == 200 or response.status == 201:
-                    if len(json_resp) == 1 and "status" in json_resp[0] and "level" in json_resp[0]:
+                    if (
+                        len(json_resp) == 1
+                        and "status" in json_resp[0]
+                        and "level" in json_resp[0]
+                    ):
                         return json_resp[0]
     except Exception:
         traceback.print_exc(file=sys.stdout)
     return None
 
+
 # Defines a simple paginator of buttons for the embed.
 class MenuPage(disnake.ui.View):
     message: disnake.Message
 
-    def __init__(self, inter, embeds: List[disnake.Embed], timeout: float = 60, disable_remove: bool=False):
+    def __init__(
+        self,
+        inter,
+        embeds: List[disnake.Embed],
+        timeout: float = 60,
+        disable_remove: bool = False,
+    ):
         super().__init__(timeout=timeout)
         self.inter = inter
 
@@ -302,11 +346,13 @@ class MenuPage(disnake.ui.View):
             if self.message:
                 try:
                     await self.message.edit(view=RowButtonRowCloseAnyMessage())
-                except Exception as e:
+                except Exception:
                     pass
 
     @disnake.ui.button(label="⏪", style=disnake.ButtonStyle.red)
-    async def first_page(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+    async def first_page(
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
+    ):
         if interaction.author != self.inter.author:
             return
 
@@ -330,7 +376,9 @@ class MenuPage(disnake.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @disnake.ui.button(label="◀️", style=disnake.ButtonStyle.red)
-    async def prev_page(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+    async def prev_page(
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
+    ):
         if interaction.author != self.inter.author:
             return
 
@@ -356,7 +404,9 @@ class MenuPage(disnake.ui.View):
 
     # @disnake.ui.button(label="⏹️", style=disnake.ButtonStyle.red)
     @disnake.ui.button(label="⏹️", style=disnake.ButtonStyle.red)
-    async def remove(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+    async def remove(
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
+    ):
         if interaction.author != self.inter.author:
             return
         # await interaction.response.edit_message(view=None)
@@ -365,12 +415,14 @@ class MenuPage(disnake.ui.View):
                 await self.inter.delete_original_message()
             else:
                 await interaction.message.delete()
-        except Exception as e:
+        except Exception:
             pass
 
     # @disnake.ui.button(label="", emoji="▶️", style=disnake.ButtonStyle.green)
     @disnake.ui.button(label="▶️", style=disnake.ButtonStyle.green)
-    async def next_page(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+    async def next_page(
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
+    ):
         if interaction.author != self.inter.author:
             return
         # Increments the embed count.
@@ -395,7 +447,9 @@ class MenuPage(disnake.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @disnake.ui.button(label="⏩", style=disnake.ButtonStyle.green)
-    async def last_page(self, button: disnake.ui.Button, interaction: disnake.MessageInteraction):
+    async def last_page(
+        self, button: disnake.ui.Button, interaction: disnake.MessageInteraction
+    ):
         if interaction.author != self.inter.author:
             return
         # Increments the embed count.
@@ -418,8 +472,10 @@ class MenuPage(disnake.ui.View):
 
         await interaction.response.edit_message(embed=embed, view=self)
 
-class DBPlace():
+
+class DBPlace:
     pass
+
 
 class Utils(commands.Cog):
     def __init__(self, bot):
@@ -430,7 +486,7 @@ class Utils(commands.Cog):
         self.cache_db_ttl = TTLCache(maxsize=10000, ttl=60.0)
         self.pool = None
         try:
-            self.redis_pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
+            self.redis_pool = redis.ConnectionPool(host="localhost", port=6379, db=0)
             self.r = redis.Redis(connection_pool=self.redis_pool)
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -439,9 +495,15 @@ class Utils(commands.Cog):
         try:
             if self.pool is None:
                 self.pool = await aiomysql.create_pool(
-                    host=self.bot.config['mysql']['host'], port=3306, minsize=1, maxsize=2,
-                    user=self.bot.config['mysql']['user'], password=self.bot.config['mysql']['password'],
-                    db=self.bot.config['mysql']['db'], cursorclass=DictCursor, autocommit=True
+                    host=self.bot.config["mysql"]["host"],
+                    port=3306,
+                    minsize=1,
+                    maxsize=2,
+                    user=self.bot.config["mysql"]["user"],
+                    password=self.bot.config["mysql"]["password"],
+                    db=self.bot.config["mysql"]["db"],
+                    cursorclass=DictCursor,
+                    autocommit=True,
                 )
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -454,14 +516,16 @@ class Utils(commands.Cog):
                     sql = """
                     SELECT * FROM `ai_tts_models`
                     """
-                    await cur.execute(sql,)
+                    await cur.execute(
+                        sql,
+                    )
                     result_tts_models = await cur.fetchall()
                     if result_tts_models and len(result_tts_models) > 0:
                         tts_models = {}
                         for i in result_tts_models:
-                            if i['enable'] == 1:
-                                tts_models[i['name']] = i['url']
-                        self.bot.other_data['ai_tts_models'] = tts_models.copy()
+                            if i["enable"] == 1:
+                                tts_models[i["name"]] = i["url"]
+                        self.bot.other_data["ai_tts_models"] = tts_models.copy()
                         del tts_models
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -476,41 +540,54 @@ class Utils(commands.Cog):
                     sql = """
                     SELECT * FROM `discord_server`
                     """
-                    await cur.execute(sql,)
+                    await cur.execute(
+                        sql,
+                    )
                     result_guilds = await cur.fetchall()
 
                     sql = """
                     SELECT * FROM `discord_feature_roles`
                     """
-                    await cur.execute(sql,)
+                    await cur.execute(
+                        sql,
+                    )
                     feature_roles = await cur.fetchall()
-                    
+
                     if feature_roles and len(feature_roles) > 0:
                         for each in feature_roles:
-                            if each['guild_id'] not in list_roles_feature:
-                                list_roles_feature[each['guild_id']] = {}
-                            list_roles_feature[each['guild_id']][each['role_id']] = {
-                                'faucet_multipled_by': each['faucet_multipled_by'],
-                                'guild_vote_multiplied_by': each['guild_vote_multiplied_by'],
-                                'faucet_cut_time_percent': each['faucet_cut_time_percent']
+                            if each["guild_id"] not in list_roles_feature:
+                                list_roles_feature[each["guild_id"]] = {}
+                            list_roles_feature[each["guild_id"]][each["role_id"]] = {
+                                "faucet_multipled_by": each["faucet_multipled_by"],
+                                "guild_vote_multiplied_by": each[
+                                    "guild_vote_multiplied_by"
+                                ],
+                                "faucet_cut_time_percent": each[
+                                    "faucet_cut_time_percent"
+                                ],
                             }
         except Exception:
             traceback.print_exc(file=sys.stdout)
-        return {'guilds': result_guilds, 'feature_roles': list_roles_feature}
+        return {"guilds": result_guilds, "feature_roles": list_roles_feature}
 
     async def bot_reload_guilds(self):
         try:
             # re-load guild list
             list_guilds = await self.get_list_guilds()
-            if list_guilds.get('guilds') and len(list_guilds['guilds']) > 0:
+            if list_guilds.get("guilds") and len(list_guilds["guilds"]) > 0:
                 guild_data = {}
-                for i in list_guilds['guilds']:
-                    guild_data[i['serverid']] = i
-                    if i['serverid'] in list_guilds.get('feature_roles') and len(list_guilds['feature_roles'][i['serverid']]) > 0:
-                        guild_data[i['serverid']]['feature_roles'] = list_guilds['feature_roles'][i['serverid']]
+                for i in list_guilds["guilds"]:
+                    guild_data[i["serverid"]] = i
+                    if (
+                        i["serverid"] in list_guilds.get("feature_roles")
+                        and len(list_guilds["feature_roles"][i["serverid"]]) > 0
+                    ):
+                        guild_data[i["serverid"]]["feature_roles"] = list_guilds[
+                            "feature_roles"
+                        ][i["serverid"]]
                     else:
-                        guild_data[i['serverid']]['feature_roles'] = None
-                self.bot.other_data['guild_list'] = guild_data.copy()
+                        guild_data[i["serverid"]]["feature_roles"] = None
+                self.bot.other_data["guild_list"] = guild_data.copy()
                 del guild_data
                 return True
         except Exception:
@@ -523,17 +600,19 @@ class Utils(commands.Cog):
             async with self.pool.acquire() as conn:
                 async with conn.cursor() as cur:
                     sql = """ SELECT * FROM `bot_settings` """
-                    await cur.execute(sql, )
+                    await cur.execute(
+                        sql,
+                    )
                     result = await cur.fetchall()
                     res = {}
                     for each in result:
-                        res[each['name']] = each['value']
+                        res[each["name"]] = each["value"]
                     return res
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def update_user_balance_call(self, user_id: str, type_coin: str=None):
+    async def update_user_balance_call(self, user_id: str, type_coin: str = None):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -547,7 +626,7 @@ class Utils(commands.Cog):
                         sql += """ UPDATE `near_user` SET `called_Update`=%s WHERE `user_id`=%s; """
                         sql += """ UPDATE `zil_user` SET `called_Update`=%s WHERE `user_id`=%s; """
                         sql += """ UPDATE `vet_user` SET `called_Update`=%s WHERE `user_id`=%s; """
-                        data_rows = [int(time.time()), user_id]*8
+                        data_rows = [int(time.time()), user_id] * 8
                     elif type_coin.upper() == "ERC-20":
                         sql = """ UPDATE `erc20_user` SET `called_Update`=%s WHERE `user_id`=%s; """
                         data_rows = [int(time.time()), user_id]
@@ -577,9 +656,9 @@ class Utils(commands.Cog):
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
-            await logchanbot("utils " +str(traceback.format_exc()))
+            await logchanbot("utils " + str(traceback.format_exc()))
         return None
 
     async def bot_task_logs_add(self, task_name: str, run_at: int):
@@ -644,7 +723,7 @@ class Utils(commands.Cog):
             for each in self.bot.commandings:
                 if len(each) != 5:
                     self.bot.commandings.remove(each)
-                    await logchanbot("[bot_commanded] removed: " +str(each))
+                    await logchanbot("[bot_commanded] removed: " + str(each))
         self.adding_commands = False
 
     async def advert_impress(self, ad_id: int, user_id: str, guild_id: str):
@@ -659,7 +738,9 @@ class Utils(commands.Cog):
                     UPDATE `bot_advert_list` SET `numb_impression`=`numb_impression`+1
                     WHERE `id`=%s;
                     """
-                    await cur.execute(sql, (ad_id, int(time.time()), user_id, guild_id, ad_id))
+                    await cur.execute(
+                        sql, (ad_id, int(time.time()), user_id, guild_id, ad_id)
+                    )
                     await conn.commit()
                     return True
         except Exception:
@@ -686,7 +767,13 @@ class Utils(commands.Cog):
 
     # Recent Activity
     async def recent_tips(
-        self, user_id: str, user_server: str, token_name: str, coin_family: str, what: str, limit: int
+        self,
+        user_id: str,
+        user_server: str,
+        token_name: str,
+        coin_family: str,
+        what: str,
+        limit: int,
     ):
         global pool
         coin_name = token_name.upper()
@@ -699,7 +786,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `cn_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -708,7 +797,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `doge_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -717,7 +808,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `neo_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -726,7 +819,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `near_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -735,7 +830,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `nano_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -744,7 +841,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `xch_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -753,7 +852,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `erc20_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -762,7 +863,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `tezos_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -771,7 +874,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `zil_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -780,7 +885,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `vet_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -789,7 +896,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `vite_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -798,7 +907,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `trc20_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -807,7 +918,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `xrp_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -816,7 +929,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `xlm_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -825,7 +940,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `cosmos_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s AND `success`=1
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -834,7 +951,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `xlm_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -843,7 +962,9 @@ class Utils(commands.Cog):
                             sql = """
                             SELECT * FROM `sol_external_tx` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s 
-                            ORDER BY `date` DESC LIMIT """+ str(limit)
+                            ORDER BY `date` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -856,7 +977,9 @@ class Utils(commands.Cog):
                                 INNER JOIN cn_get_transfers b
                                     ON a.paymentid = b.payment_id
                             WHERE a.user_id=%s AND a.user_server=%s and a.coin_name=%s
-                            ORDER BY b.time_insert DESC LIMIT """+ str(limit)
+                            ORDER BY b.time_insert DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -868,7 +991,9 @@ class Utils(commands.Cog):
                                 INNER JOIN doge_get_transfers b
                                     ON a.balance_wallet_address = b.address
                             WHERE a.user_id=%s AND a.user_server=%s and a.coin_name=%s
-                            ORDER BY b.time_insert DESC LIMIT """+ str(limit)
+                            ORDER BY b.time_insert DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -880,7 +1005,9 @@ class Utils(commands.Cog):
                                 INNER JOIN neo_get_transfers b
                                     ON a.balance_wallet_address = b.address
                             WHERE a.user_id=%s AND a.user_server=%s and b.coin_name=%s
-                            ORDER BY b.time_insert DESC LIMIT """+ str(limit)
+                            ORDER BY b.time_insert DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -890,8 +1017,12 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `near_move_deposit`
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s AND `status`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
-                            await cur.execute(sql, (user_id, user_server, coin_name, "CONFIRMED"))
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
+                            await cur.execute(
+                                sql, (user_id, user_server, coin_name, "CONFIRMED")
+                            )
                             result = await cur.fetchall()
                             if result:
                                 return result
@@ -900,7 +1031,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `nano_move_deposit`
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -912,7 +1045,9 @@ class Utils(commands.Cog):
                                 INNER JOIN xch_get_transfers b
                                     ON a.balance_wallet_address = b.address
                             WHERE a.user_id=%s AND a.user_server=%s and b.coin_name=%s
-                            ORDER BY b.time_insert DESC LIMIT """+ str(limit)
+                            ORDER BY b.time_insert DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -922,8 +1057,12 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `erc20_move_deposit` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s AND `status`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
-                            await cur.execute(sql, (user_id, user_server, coin_name, "CONFIRMED"))
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
+                            await cur.execute(
+                                sql, (user_id, user_server, coin_name, "CONFIRMED")
+                            )
                             result = await cur.fetchall()
                             if result:
                                 return result
@@ -932,8 +1071,12 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `tezos_move_deposit`
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s AND `status`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
-                            await cur.execute(sql, (user_id, user_server, coin_name, "CONFIRMED"))
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
+                            await cur.execute(
+                                sql, (user_id, user_server, coin_name, "CONFIRMED")
+                            )
                             result = await cur.fetchall()
                             if result:
                                 return result
@@ -942,7 +1085,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `zil_move_deposit` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -952,7 +1097,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `vet_move_deposit`
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -962,7 +1109,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `vite_get_transfers`
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -972,8 +1121,12 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `trc20_move_deposit`
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s AND `status`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
-                            await cur.execute(sql, (user_id, user_server, coin_name, "CONFIRMED"))
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
+                            await cur.execute(
+                                sql, (user_id, user_server, coin_name, "CONFIRMED")
+                            )
                             result = await cur.fetchall()
                             if result:
                                 return result
@@ -982,7 +1135,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `xrp_get_transfers` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -992,7 +1147,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `xlm_get_transfers` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -1002,7 +1159,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `cosmos_get_transfers` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -1012,7 +1171,9 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `ada_get_transfers`
                             WHERE `user_id`=%s AND `user_server`=%s AND `coin_name`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
                             await cur.execute(sql, (user_id, user_server, coin_name))
                             result = await cur.fetchall()
                             if result:
@@ -1022,15 +1183,21 @@ class Utils(commands.Cog):
                             SELECT * 
                             FROM `sol_move_deposit` 
                             WHERE `user_id`=%s AND `user_server`=%s AND `token_name`=%s AND `status`=%s
-                            ORDER BY `time_insert` DESC LIMIT """+ str(limit)
-                            await cur.execute(sql, (user_id, user_server, coin_name, "CONFIRMED"))
+                            ORDER BY `time_insert` DESC LIMIT """ + str(
+                                limit
+                            )
+                            await cur.execute(
+                                sql, (user_id, user_server, coin_name, "CONFIRMED")
+                            )
                             result = await cur.fetchall()
                             if result:
                                 return result
                     elif what.lower() == "receive":
                         sql = """ SELECT * FROM `user_balance_mv` 
                         WHERE `to_userid`=%s AND `user_server`=%s AND `token_name`=%s 
-                        ORDER BY `date` DESC LIMIT """+ str(limit)
+                        ORDER BY `date` DESC LIMIT """ + str(
+                            limit
+                        )
                         await cur.execute(sql, (user_id, user_server, coin_name))
                         result = await cur.fetchall()
                         if result:
@@ -1038,8 +1205,12 @@ class Utils(commands.Cog):
                     elif what.lower() == "expense":
                         sql = """ SELECT * FROM `user_balance_mv` 
                         WHERE `from_userid`=%s AND `user_server`=%s AND `token_name`=%s AND `to_userid`<>%s
-                        ORDER BY `date` DESC LIMIT """+ str(limit)
-                        await cur.execute(sql, (user_id, user_server, coin_name, "TRADE"))
+                        ORDER BY `date` DESC LIMIT """ + str(
+                            limit
+                        )
+                        await cur.execute(
+                            sql, (user_id, user_server, coin_name, "TRADE")
+                        )
                         result = await cur.fetchall()
                         if result:
                             return result
@@ -1049,18 +1220,21 @@ class Utils(commands.Cog):
                         INNER JOIN `cexswap_pools` ON `cexswap_distributing_fee`.`pool_id`=`cexswap_pools`.`pool_id`
                         WHERE `cexswap_distributing_fee`.`distributed_user_id`=%s AND `cexswap_distributing_fee`.`got_ticker`=%s 
                             AND `cexswap_distributing_fee`.`distributed_user_server`=%s 
-                        ORDER BY `cexswap_distributing_fee`.`date` DESC LIMIT """+ str(limit)
+                        ORDER BY `cexswap_distributing_fee`.`date` DESC LIMIT """ + str(
+                            limit
+                        )
                         await cur.execute(sql, (user_id, coin_name, user_server))
                         result = await cur.fetchall()
                         if result:
                             return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
+
     # End of recent activity
 
     # bidding
-    async def get_all_bids(self, status: str="ONGOING"):
+    async def get_all_bids(self, status: str = "ONGOING"):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1073,7 +1247,7 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
@@ -1090,7 +1264,7 @@ class Utils(commands.Cog):
                     result = await cur.fetchone()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
@@ -1107,7 +1281,7 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
@@ -1120,21 +1294,22 @@ class Utils(commands.Cog):
                     SELECT COUNT(*) AS numb FROM `discord_bidding_list` 
                     WHERE `guild_id`=%s AND `status`=%s
                     """
-                    await cur.execute(sql, (
-                        guild_id, status
-                        )
-                    )
+                    await cur.execute(sql, (guild_id, status))
                     result = await cur.fetchone()
                     if result:
-                        return result['numb']
-        except Exception as e:
+                        return result["numb"]
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return 0
-    
+
     async def discord_bid_cancel(
-        self, message_id: str,
-        user_id: str, guild_id: str, channel_id: str,
-        list_balance_updates, payment_logs
+        self,
+        message_id: str,
+        user_id: str,
+        guild_id: str,
+        channel_id: str,
+        list_balance_updates,
+        payment_logs,
     ):
         try:
             await self.openConnection()
@@ -1153,10 +1328,22 @@ class Utils(commands.Cog):
                     (`type`, `message_id`, `user_id`, `guild_id`, `channel_id`, `time`, `other`)
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
-                    await cur.execute(sql, (
-                        "CANCELLED", message_id, "CANCELLED", message_id,
-                        "CANCELLED", message_id, user_id, guild_id, channel_id, int(time.time()), message_id
-                    ))
+                    await cur.execute(
+                        sql,
+                        (
+                            "CANCELLED",
+                            message_id,
+                            "CANCELLED",
+                            message_id,
+                            "CANCELLED",
+                            message_id,
+                            user_id,
+                            guild_id,
+                            channel_id,
+                            int(time.time()),
+                            message_id,
+                        ),
+                    )
                     await conn.commit()
                     # refund
                     if len(list_balance_updates) > 0:
@@ -1179,16 +1366,31 @@ class Utils(commands.Cog):
                         await cur.executemany(sql, payment_logs)
                         await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
     async def bid_add_new(
-        self, title: str, token_name: str, contract: str, token_decimal: str,
-        user_id: str, username: str, message_id: str, channel_id: str, guild_id: str,
-        guild_name: str, minimum_amount: float, step_amount: float, message_time: int, 
-        bid_open_time: int, status: str, original_name: str, 
-        saved_name: str, file_type: str, sha256: str
+        self,
+        title: str,
+        token_name: str,
+        contract: str,
+        token_decimal: str,
+        user_id: str,
+        username: str,
+        message_id: str,
+        channel_id: str,
+        guild_id: str,
+        guild_name: str,
+        minimum_amount: float,
+        step_amount: float,
+        message_time: int,
+        bid_open_time: int,
+        status: str,
+        original_name: str,
+        saved_name: str,
+        file_type: str,
+        sha256: str,
     ):
         try:
             await self.openConnection()
@@ -1204,11 +1406,25 @@ class Utils(commands.Cog):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                     """
                     data_rows = [
-                        title, token_name, contract, token_decimal,
-                        user_id, username, message_id, channel_id, guild_id,
-                        guild_name, minimum_amount, step_amount, message_time, 
-                        bid_open_time, status, original_name, 
-                        saved_name, file_type, sha256
+                        title,
+                        token_name,
+                        contract,
+                        token_decimal,
+                        user_id,
+                        username,
+                        message_id,
+                        channel_id,
+                        guild_id,
+                        guild_name,
+                        minimum_amount,
+                        step_amount,
+                        message_time,
+                        bid_open_time,
+                        status,
+                        original_name,
+                        saved_name,
+                        file_type,
+                        sha256,
                     ]
                     sql += """
                     INSERT INTO `discord_bidding_logs`
@@ -1216,16 +1432,23 @@ class Utils(commands.Cog):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                     """
                     data_rows += [
-                        "CREATE", user_id, guild_id, channel_id, minimum_amount, token_name, int(time.time()), title
+                        "CREATE",
+                        user_id,
+                        guild_id,
+                        channel_id,
+                        minimum_amount,
+                        token_name,
+                        int(time.time()),
+                        title,
                     ]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
-    async def update_bid_failed(self, message_id: str, turn_off: bool=False):
+    async def update_bid_failed(self, message_id: str, turn_off: bool = False):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1251,7 +1474,7 @@ class Utils(commands.Cog):
                         await cur.execute(sql, ("CANCELLED", message_id))
                         await conn.commit()
                         return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
@@ -1269,13 +1492,17 @@ class Utils(commands.Cog):
                     await cur.execute(sql, ("COMPLETED", message_id))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
     async def update_bid_with_winner(
-        self, message_id: str, winner_user_id: str, winner_amount: float,
-        list_balance_updates, payment_logs
+        self,
+        message_id: str,
+        winner_user_id: str,
+        winner_amount: float,
+        list_balance_updates,
+        payment_logs,
     ):
         try:
             await self.openConnection()
@@ -1288,24 +1515,24 @@ class Utils(commands.Cog):
                     LIMIT 1;
                     """
                     data_rows = [
-                        "COMPLETED", winner_user_id, winner_amount, int(time.time()), message_id
+                        "COMPLETED",
+                        winner_user_id,
+                        winner_amount,
+                        int(time.time()),
+                        message_id,
                     ]
 
                     sql += """
                     UPDATE `discord_bidding_joined`
                     SET `status`=%s WHERE `message_id`=%s AND `user_id`<>%s;
                     """
-                    data_rows += [
-                        "LOSE", message_id, winner_user_id
-                    ]
+                    data_rows += ["LOSE", message_id, winner_user_id]
 
                     sql += """
                     UPDATE `discord_bidding_joined`
                     SET `status`=%s WHERE `message_id`=%s AND `user_id`=%s;
                     """
-                    data_rows += [
-                        "WIN", message_id, winner_user_id
-                    ]
+                    data_rows += ["WIN", message_id, winner_user_id]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     # refund to losers
@@ -1329,14 +1556,18 @@ class Utils(commands.Cog):
                         await cur.executemany(sql, payment_logs)
                         await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
     async def update_bid_winner_instruction(
-        self, message_id: str, instruction: str, method_for: str,
-        list_balance_updates, payment_logs,
-        user_id: str
+        self,
+        message_id: str,
+        instruction: str,
+        method_for: str,
+        list_balance_updates,
+        payment_logs,
+        user_id: str,
     ):
         try:
             await self.openConnection()
@@ -1349,9 +1580,7 @@ class Utils(commands.Cog):
                         WHERE `message_id`=%s 
                         LIMIT 1;
                         """
-                        data_rows = [
-                            instruction, int(time.time()), 0, message_id
-                        ]
+                        data_rows = [instruction, int(time.time()), 0, message_id]
 
                         sql += """
                         INSERT INTO `discord_bidding_logs`
@@ -1359,7 +1588,11 @@ class Utils(commands.Cog):
                         VALUES (%s, %s, %s, %s, %s);
                         """
                         data_rows += [
-                            "UPDATE INPUT", message_id, user_id, int(time.time()), instruction
+                            "UPDATE INPUT",
+                            message_id,
+                            user_id,
+                            int(time.time()),
+                            instruction,
                         ]
                         await cur.execute(sql, tuple(data_rows))
                         await conn.commit()
@@ -1369,16 +1602,18 @@ class Utils(commands.Cog):
                         WHERE `message_id`=%s 
                         LIMIT 1;
                         """
-                        data_rows = [
-                            instruction, int(time.time()), message_id
-                        ]
+                        data_rows = [instruction, int(time.time()), message_id]
                         sql += """
                         INSERT INTO `discord_bidding_logs`
                         (`type`, `message_id`, `user_id`, `time`, `other`)
                         VALUES (%s, %s, %s, %s, %s);
                         """
                         data_rows += [
-                            "UPDATE INPUT", message_id, user_id, int(time.time()), instruction
+                            "UPDATE INPUT",
+                            message_id,
+                            user_id,
+                            int(time.time()),
+                            instruction,
                         ]
                         await cur.execute(sql, tuple(data_rows))
                         await conn.commit()
@@ -1388,20 +1623,25 @@ class Utils(commands.Cog):
                         WHERE `message_id`=%s 
                         LIMIT 1;
                         """
-                        data_rows = [
-                            int(time.time()), message_id
-                        ]
+                        data_rows = [int(time.time()), message_id]
                         sql += """
                         INSERT INTO `discord_bidding_logs`
                         (`type`, `message_id`, `user_id`, `time`, `other`)
                         VALUES (%s, %s, %s, %s, %s);
                         """
                         data_rows += [
-                            "UPDATE INPUT", message_id, user_id, int(time.time()), "COMPLETED"
+                            "UPDATE INPUT",
+                            message_id,
+                            user_id,
+                            int(time.time()),
+                            "COMPLETED",
                         ]
                         await cur.execute(sql, tuple(data_rows))
                         await conn.commit()
-                        if list_balance_updates is not None and len(list_balance_updates) > 0:
+                        if (
+                            list_balance_updates is not None
+                            and len(list_balance_updates) > 0
+                        ):
                             # update balance
                             sql = """
                             INSERT INTO `user_balance_mv_data`
@@ -1425,7 +1665,7 @@ class Utils(commands.Cog):
                     else:
                         return False
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
@@ -1442,15 +1682,23 @@ class Utils(commands.Cog):
                     result = await cur.fetchone()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
     async def bid_new_join(
-        self, message_id: str, user_id: str, username: str,
-        bid_amount: float, bid_coin: str, guild_id: str, channel_id: str,
-        user_server: str, additional_amount: float,
-        is_extending: bool=False, current_closed_time: int=None
+        self,
+        message_id: str,
+        user_id: str,
+        username: str,
+        bid_amount: float,
+        bid_coin: str,
+        guild_id: str,
+        channel_id: str,
+        user_server: str,
+        additional_amount: float,
+        is_extending: bool = False,
+        current_closed_time: int = None,
     ):
         try:
             await self.openConnection()
@@ -1466,7 +1714,14 @@ class Utils(commands.Cog):
                         `bid_time`=VALUES(`bid_time`);
                     """
                     data_rows = [
-                        message_id, user_id, username, bid_amount, bid_coin, int(time.time()), "BID", "REBID"
+                        message_id,
+                        user_id,
+                        username,
+                        bid_amount,
+                        bid_coin,
+                        int(time.time()),
+                        "BID",
+                        "REBID",
                     ]
                     sql += """
                     INSERT INTO `discord_bidding_logs`
@@ -1474,7 +1729,13 @@ class Utils(commands.Cog):
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
                     data_rows += [
-                        "BID", message_id, user_id, guild_id, channel_id, int(time.time()), num_format_coin(bid_amount)
+                        "BID",
+                        message_id,
+                        user_id,
+                        guild_id,
+                        channel_id,
+                        int(time.time()),
+                        num_format_coin(bid_amount),
                     ]
 
                     if additional_amount > 0:
@@ -1487,7 +1748,11 @@ class Utils(commands.Cog):
                             `update_date`=VALUES(`update_date`);
                         """
                         data_rows += [
-                            user_id , bid_coin, user_server, -additional_amount, int(time.time())
+                            user_id,
+                            bid_coin,
+                            user_server,
+                            -additional_amount,
+                            int(time.time()),
                         ]
                     if is_extending is True and current_closed_time is not None:
                         sql += """
@@ -1495,19 +1760,21 @@ class Utils(commands.Cog):
                         SET `bid_extended_time`=%s, `number_extension`=`number_extension`+1
                         WHERE `message_id`=%s LIMIT 1;
                         """
-                        data_rows += [
-                            current_closed_time, message_id
-                        ]
+                        data_rows += [current_closed_time, message_id]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
     async def bid_update_desc(
-        self, message_id: str, user_id: str,
-        description: str, guild_id: str, channel_id: str
+        self,
+        message_id: str,
+        user_id: str,
+        description: str,
+        guild_id: str,
+        channel_id: str,
     ):
         try:
             await self.openConnection()
@@ -1526,16 +1793,22 @@ class Utils(commands.Cog):
                     VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
                     data_rows += [
-                        "UPDATE DESC", message_id, user_id, guild_id, channel_id, int(time.time()), description
+                        "UPDATE DESC",
+                        message_id,
+                        user_id,
+                        guild_id,
+                        channel_id,
+                        int(time.time()),
+                        description,
                     ]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
-    async def bidding_joined_by_userid(self, user_id: str, limit: int=25):
+    async def bidding_joined_by_userid(self, user_id: str, limit: int = 25):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1548,11 +1821,11 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
-    async def bidding_logs_by_userid(self, user_id: str, limit: int=50):
+    async def bidding_logs_by_userid(self, user_id: str, limit: int = 50):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1565,11 +1838,11 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
-    async def bidding_list_by_guildid(self, guild_id: str, limit: int=25):
+    async def bidding_list_by_guildid(self, guild_id: str, limit: int = 25):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1582,14 +1855,21 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
     async def bid_add_report(
-        self, user_id: str, username: str, list_message_id: str,
-        owner_id: str, channel_id: str, guild_id: str, guild_name: str,
-        reported_content: str, how_to_contact: str
+        self,
+        user_id: str,
+        username: str,
+        list_message_id: str,
+        owner_id: str,
+        channel_id: str,
+        guild_id: str,
+        guild_name: str,
+        reported_content: str,
+        how_to_contact: str,
     ):
         try:
             await self.openConnection()
@@ -1602,18 +1882,25 @@ class Utils(commands.Cog):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                     """
                     data_rows = [
-                        user_id, username, list_message_id, owner_id, channel_id, 
-                        guild_id, guild_name, reported_content, how_to_contact,
-                        int(time.time())
+                        user_id,
+                        username,
+                        list_message_id,
+                        owner_id,
+                        channel_id,
+                        guild_id,
+                        guild_name,
+                        reported_content,
+                        how_to_contact,
+                        int(time.time()),
                     ]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
-    async def bid_get_report(self, report_id: int=None):
+    async def bid_get_report(self, report_id: int = None):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1635,13 +1922,12 @@ class Utils(commands.Cog):
                     result = await cur.fetchall()
                     if result:
                         return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
     async def bid_req_winner_update(
-        self, message_id: str, user_id: str,
-        channel_id: str, guild_id: str
+        self, message_id: str, user_id: str, channel_id: str, guild_id: str
     ):
         try:
             await self.openConnection()
@@ -1652,23 +1938,27 @@ class Utils(commands.Cog):
                     SET `owner_request_to_update`=%s, `request_to_date`=%s
                     WHERE `message_id`=%s LIMIT 1;
                     """
-                    data_rows = [
-                        1, int(time.time()), message_id
-                    ]
+                    data_rows = [1, int(time.time()), message_id]
                     sql += """
                     INSERT INTO `discord_bidding_logs`
                     (`type`, `message_id`, `user_id`, `guild_id`, `channel_id`, `time`)
                     VALUES (%s, %s, %s, %s, %s, %s);
                     """
                     data_rows += [
-                        "OWNER REQUESTS UPDATE", message_id, user_id, guild_id, channel_id, int(time.time())
+                        "OWNER REQUESTS UPDATE",
+                        message_id,
+                        user_id,
+                        guild_id,
+                        channel_id,
+                        int(time.time()),
                     ]
                     await cur.execute(sql, tuple(data_rows))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
+
     # end of bidding
 
     # favorite coins
@@ -1685,7 +1975,7 @@ class Utils(commands.Cog):
                     await cur.execute(sql, (user_id, user_server, coin_name))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
@@ -1702,11 +1992,13 @@ class Utils(commands.Cog):
                     await cur.execute(sql, (user_id, user_server, coin_name))
                     await conn.commit()
                     return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
-    async def check_if_fav_coin(self, user_id: str, user_server: str, coin_name: str=None):
+    async def check_if_fav_coin(
+        self, user_id: str, user_server: str, coin_name: str = None
+    ):
         try:
             await self.openConnection()
             async with self.pool.acquire() as conn:
@@ -1732,9 +2024,10 @@ class Utils(commands.Cog):
                         result = await cur.fetchone()
                         if result:
                             return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
+
     # end of favorite coins
 
     # price, gecko, etc
@@ -1768,72 +2061,100 @@ class Utils(commands.Cog):
                             result = await cur.fetchall()
                             if result:
                                 return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
     async def gecko_fetch_marketchart_coin(self, coin_name: str):
         try:
-            key = 'marketchart_'+coin_name.lower()
-            if key in self.bot.other_data and \
-                int(time.time()) - self.bot.other_data[key]['fetched_time'] < 5*60:
-                return self.bot.other_data[key]['data']
-            url = "https://api.coingecko.com/api/v3/coins/" + coin_name + "/market_chart?vs_currency=usd&days=30"
+            key = "marketchart_" + coin_name.lower()
+            if (
+                key in self.bot.other_data
+                and int(time.time()) - self.bot.other_data[key]["fetched_time"] < 5 * 60
+            ):
+                return self.bot.other_data[key]["data"]
+            url = (
+                "https://api.coingecko.com/api/v3/coins/"
+                + coin_name
+                + "/market_chart?vs_currency=usd&days=30"
+            )
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(url, timeout=30) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     # store cache
-                    self.bot.other_data[key] = {"fetched_time": int(time.time()), "data": result} 
+                    self.bot.other_data[key] = {
+                        "fetched_time": int(time.time()),
+                        "data": result,
+                    }
                     return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
-    
+
     async def gecko_fetch_marketdata_coin(self, coin_name: str):
         try:
-            key = 'marketdata_'+coin_name.lower()
-            if key in self.bot.other_data and \
-                int(time.time()) - self.bot.other_data[key]['fetched_time'] < 5*60:
-                return self.bot.other_data[key]['data']
+            key = "marketdata_" + coin_name.lower()
+            if (
+                key in self.bot.other_data
+                and int(time.time()) - self.bot.other_data[key]["fetched_time"] < 5 * 60
+            ):
+                return self.bot.other_data[key]["data"]
 
-            url = "https://api.coingecko.com/api/v3/coins/" + coin_name + "?tickers=false&market_data=true&community_data=false"
+            url = (
+                "https://api.coingecko.com/api/v3/coins/"
+                + coin_name
+                + "?tickers=false&market_data=true&community_data=false"
+            )
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(url, timeout=30) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     # store cache
-                    self.bot.other_data['marketdata_'+coin_name.lower()] = {"fetched_time": int(time.time()), "data": result}  
+                    self.bot.other_data["marketdata_" + coin_name.lower()] = {
+                        "fetched_time": int(time.time()),
+                        "data": result,
+                    }
                     return result
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
+
     # end of price, gecko, etc
 
     # Check if a user lock
-    def is_locked_user(self, user_id: str, user_server: str="DISCORD"):
+    def is_locked_user(self, user_id: str, user_server: str = "DISCORD"):
         # Check in table
         try:
-            if self.bot.other_data.get('ban_list') and len(self.bot.other_data.get('ban_list')) > 0 and \
-                str(user_id) in self.bot.other_data.get('ban_list'):
+            if (
+                self.bot.other_data.get("ban_list")
+                and len(self.bot.other_data.get("ban_list")) > 0
+                and str(user_id) in self.bot.other_data.get("ban_list")
+            ):
                 return True
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
 
     # get coin emoji
-    def get_coin_emoji(self, coin_name: str, get_link: bool=False):
+    def get_coin_emoji(self, coin_name: str, get_link: bool = False):
         coin_emoji = ""
         try:
-            coin_emoji = getattr(getattr(self.bot.coin_list, coin_name), "coin_emoji_discord")
+            coin_emoji = getattr(
+                getattr(self.bot.coin_list, coin_name), "coin_emoji_discord"
+            )
             if coin_emoji is None:
                 coin_emoji = ""
             else:
                 if get_link is True:
                     split_id = coin_emoji.split(":")[2]
-                    link = 'https://cdn.discordapp.com/emojis/' + str(split_id.replace(">", "")) + '.gif'
+                    link = (
+                        "https://cdn.discordapp.com/emojis/"
+                        + str(split_id.replace(">", ""))
+                        + ".gif"
+                    )
                     return link
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -1842,57 +2163,61 @@ class Utils(commands.Cog):
     def get_explorer_link(self, coin_name: str, tx: str):
         explorer_link = ""
         try:
-            explorer_link = getattr(getattr(self.bot.coin_list, coin_name), "explorer_tx_prefix")
+            explorer_link = getattr(
+                getattr(self.bot.coin_list, coin_name), "explorer_tx_prefix"
+            )
             if explorer_link is None:
                 explorer_link = ""
             else:
-                explorer_link = "\nLink: <" + explorer_link.replace("{tx_hash_here}", tx) + ">"
+                explorer_link = (
+                    "\nLink: <" + explorer_link.replace("{tx_hash_here}", tx) + ">"
+                )
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return explorer_link
 
     async def get_coin_price(self, coin_name: str, source: str):
         try:
-            id_gecko = getattr(
-                getattr(self.bot.coin_list, coin_name),
-                "id_gecko"
-            )
-            id_paprika = getattr(
-                getattr(self.bot.coin_list, coin_name),
-                "id_paprika"
-            )
-            id_cmc = getattr(
-                getattr(self.bot.coin_list, coin_name),
-                "id_cmc"
-            )
+            id_gecko = getattr(getattr(self.bot.coin_list, coin_name), "id_gecko")
+            id_paprika = getattr(getattr(self.bot.coin_list, coin_name), "id_paprika")
+            id_cmc = getattr(getattr(self.bot.coin_list, coin_name), "id_cmc")
             if source == "PAPRIKA":
                 coin_name = id_paprika
                 try:
-                    if coin_name in self.bot.other_data['price_paprika'] and \
-                        int(time.time()) - self.bot.other_data['price_paprika'][coin_name]['fetched_time'] < 10*60:
-                        return self.bot.other_data['price_paprika'][coin_name]
+                    if (
+                        coin_name in self.bot.other_data["price_paprika"]
+                        and int(time.time())
+                        - self.bot.other_data["price_paprika"][coin_name][
+                            "fetched_time"
+                        ]
+                        < 10 * 60
+                    ):
+                        return self.bot.other_data["price_paprika"][coin_name]
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                table = self.bot.config['kv_db']['prefix_paprika']
-                
+                table = self.bot.config["kv_db"]["prefix_paprika"]
+
             elif source == "GECKO":
                 coin_name = id_gecko
                 try:
-                    if coin_name in self.bot.other_data['price_gecko'] and \
-                        int(time.time()) - self.bot.other_data['price_gecko'][coin_name]['fetched_time'] < 10*60:
-                        return self.bot.other_data['price_gecko'][coin_name]
+                    if (
+                        coin_name in self.bot.other_data["price_gecko"]
+                        and int(time.time())
+                        - self.bot.other_data["price_gecko"][coin_name]["fetched_time"]
+                        < 10 * 60
+                    ):
+                        return self.bot.other_data["price_gecko"][coin_name]
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
-                table = self.bot.config['kv_db']['prefix_gecko']
+                table = self.bot.config["kv_db"]["prefix_gecko"]
 
             price_dict = await self.async_get_cache_kv(
-                table,
-                "PRICE:" + coin_name.upper()
+                table, "PRICE:" + coin_name.upper()
             )
             if price_dict and type(price_dict) == dict:
-                if 'price_'+source.lower() not in self.bot.other_data:
-                    self.bot.other_data['price_'+source.lower()] = {}    
-                self.bot.other_data['price_'+source.lower()][coin_name] = price_dict
+                if "price_" + source.lower() not in self.bot.other_data:
+                    self.bot.other_data["price_" + source.lower()] = {}
+                self.bot.other_data["price_" + source.lower()][coin_name] = price_dict
                 return price_dict
         except Exception:
             traceback.print_exc(file=sys.stdout)
@@ -1900,20 +2225,23 @@ class Utils(commands.Cog):
 
     def get_usd_paprika(self, coin_name: str):
         usd_equivalent_enable = getattr(
-            getattr(self.bot.coin_list, coin_name),
-            "usd_equivalent_enable"
+            getattr(self.bot.coin_list, coin_name), "usd_equivalent_enable"
         )
         if usd_equivalent_enable == 1:
-            native_token_name = getattr(getattr(self.bot.coin_list, coin_name), "native_token_name")
+            native_token_name = getattr(
+                getattr(self.bot.coin_list, coin_name), "native_token_name"
+            )
             coin_name_for_price = coin_name
             if native_token_name:
                 coin_name_for_price = native_token_name
             per_unit = None
             if coin_name_for_price in self.bot.token_hints:
-                id = self.bot.token_hints[coin_name_for_price]['ticker_name']
-                per_unit = self.bot.coin_paprika_id_list[id]['price_usd']
+                id = self.bot.token_hints[coin_name_for_price]["ticker_name"]
+                per_unit = self.bot.coin_paprika_id_list[id]["price_usd"]
             else:
-                per_unit = self.bot.coin_paprika_symbol_list[coin_name_for_price]['price_usd']
+                per_unit = self.bot.coin_paprika_symbol_list[coin_name_for_price][
+                    "price_usd"
+                ]
             if per_unit and per_unit > 0:
                 return per_unit
         else:
@@ -1970,19 +2298,13 @@ class Utils(commands.Cog):
         return False
 
     # Tezos
-    async def tezos_validate_address(
-        self,
-        proxy: str,
-        address: str
-    ):
+    async def tezos_validate_address(self, proxy: str, address: str):
         try:
-            data = {
-                "addr": address
-            }
+            data = {"addr": address}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/validate_address", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -1999,7 +2321,7 @@ class Utils(commands.Cog):
         atomic_amount: int,
         token_id: int,
         token_type: str,
-        timeout: int=32
+        timeout: int = 32,
     ):
         data = {
             "endpoint": url,
@@ -2007,14 +2329,18 @@ class Utils(commands.Cog):
             "to_address": to_address,
             "atomic_amount": atomic_amount,
             "contract": contract,
-            "token_id": token_id
+            "token_id": token_id,
         }
         try:
-            uri = "/send_tezos_token_fa2" if token_type == "FA2" else "/send_tezos_token_fa12"
+            uri = (
+                "/send_tezos_token_fa2"
+                if token_type == "FA2"
+                else "/send_tezos_token_fa12"
+            )
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + uri, json=data, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2028,64 +2354,55 @@ class Utils(commands.Cog):
         key: str,
         to_address,
         atomic_amount: int,
-        timeout: int=32  
+        timeout: int = 32,
     ):
         data = {
             "endpoint": url,
             "key": key,
             "to_address": to_address,
-            "atomic_amount": atomic_amount
+            "atomic_amount": atomic_amount,
         }
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/send_tezos", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/send_tezos", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def tezos_get_head(
-        self,
-        proxy: str,
-        url: str,
-        timeout: int=60  
-    ):
-        data = {
-            "endpoint": url,
-            "address": timeout
-        }
+    async def tezos_get_head(self, proxy: str, url: str, timeout: int = 60):
+        data = {"endpoint": url, "address": timeout}
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/get_head", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/get_head", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    if result.get('error'):
+                    if result.get("error"):
                         return None
-                    return result['result']
+                    return result["result"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
     async def tezos_reveal_address(
-        self,
-        proxy: str,
-        url: str,
-        key: str,
-        timeout: int=30      
+        self, proxy: str, url: str, key: str, timeout: int = 30
     ):
-        data = {
-            "endpoint": url,
-            "key": key
-        }
+        data = {"endpoint": url, "key": key}
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/reveal_address", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/reveal_address", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2093,23 +2410,18 @@ class Utils(commands.Cog):
         return None
 
     async def tezos_check_reveal(
-        self,
-        proxy: str,
-        url: str,
-        address: str,
-        timeout: int=30      
+        self, proxy: str, url: str, address: str, timeout: int = 30
     ):
-        data = {
-            "endpoint": url,
-            "address": address
-        }
+        data = {"endpoint": url, "address": address}
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/check_reveal_address", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/check_reveal_address", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['result']
+                    return result["result"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
@@ -2121,44 +2433,44 @@ class Utils(commands.Cog):
         token_contract: str,
         address: List,
         token_id: int,
-        timeout: int=30      
+        timeout: int = 30,
     ):
         data = {
             "endpoint": url,
             "token_contract": token_contract,
             "address": address,
             "token_id": token_id,
-            "timeout": timeout
+            "timeout": timeout,
         }
         try:
-            print("XTZ called get_address_token_balances for {} addresses.".format(len(address)))
+            print(
+                "XTZ called get_address_token_balances for {} addresses.".format(
+                    len(address)
+                )
+            )
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/get_address_token_balances", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/get_address_token_balances", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['result']
+                    return result["result"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
     async def tezos_check_balances_token(
-        self,
-        proxy: str,
-        url: str,
-        address: str,
-        timeout: int=30      
+        self, proxy: str, url: str, address: str, timeout: int = 30
     ):
-        data = {
-            "endpoint": url,
-            "address": address,
-            "timeout": timeout
-        }
+        data = {"endpoint": url, "address": address, "timeout": timeout}
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/get_balances_token_tezos", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/get_balances_token_tezos", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2166,37 +2478,28 @@ class Utils(commands.Cog):
         return None
 
     async def tezos_check_balance(
-        self,
-        proxy: str,
-        url: str,
-        key: str,
-        timeout: int=30      
+        self, proxy: str, url: str, key: str, timeout: int = 30
     ):
-        data = {
-            "endpoint": url,
-            "key": key
-        }
+        data = {"endpoint": url, "key": key}
         try:
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/get_balance_tezos", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/get_balance_tezos", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def tezos_create_address(
-        self,
-        proxy: str,
-        timeout: int=60
-    ):
+    async def tezos_create_address(self, proxy: str, timeout: int = 60):
         try:
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(proxy + "/create_address", timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2204,46 +2507,35 @@ class Utils(commands.Cog):
         return None
 
     # Stellar
-    async def stellar_validate_address(
-        self,
-        proxy: str,
-        address: str
-    ):
+    async def stellar_validate_address(self, proxy: str, address: str):
         try:
-            data = {
-                "addr": address
-            }
+            data = {"addr": address}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/validate_address", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['valid']
+                    return result["valid"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
-    
+
     async def stellar_verify_asset(
-        self,
-        proxy: str,
-        url: str,
-        asset_name: str,
-        issuer: str,
-        address: str
+        self, proxy: str, url: str, asset_name: str, issuer: str, address: str
     ):
         try:
             data = {
                 "endpoint": url,
                 "asset_name": asset_name,
                 "issuer": issuer,
-                "address": address
+                "address": address,
             }
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/verify_asset", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['result']
+                    return result["result"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return False
@@ -2256,10 +2548,10 @@ class Utils(commands.Cog):
         amount: float,
         to_address: str,
         coin_name: str,
-        asset_ticker: str=None,
-        asset_issuer: str=None,
-        memo: str=None,
-        base_fee: int=50000
+        asset_ticker: str = None,
+        asset_issuer: str = None,
+        memo: str = None,
+        base_fee: int = 50000,
     ):
         try:
             data = {
@@ -2271,88 +2563,68 @@ class Utils(commands.Cog):
                 "asset_ticker": asset_ticker,
                 "asset_issuer": asset_issuer,
                 "memo": memo,
-                "base_fee": base_fee
+                "base_fee": base_fee,
             }
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/send_transaction", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    if result.get('result'):
+                    if result.get("result"):
                         return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def stellar_get_transactions(
-        self,
-        proxy: str,
-        url: str,
-        address: str
-    ):
+    async def stellar_get_transactions(self, proxy: str, url: str, address: str):
         try:
-            data = {
-                "endpoint": url,
-                "address": address
-            }
+            data = {"endpoint": url, "address": address}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/get_transactions", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['result']
+                    return result["result"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return []
 
     async def stellar_get_balance(
-        self,
-        proxy: str,
-        url: str,
-        address: str,
-        coin_name: str
+        self, proxy: str, url: str, address: str, coin_name: str
     ):
         try:
-            data = {
-                "endpoint": url,
-                "address": address,
-                "coin_name": coin_name.upper()
-            }
+            data = {"endpoint": url, "address": address, "coin_name": coin_name.upper()}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/get_balance_xlm", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
-                    return result['balance']
+                    return result["balance"]
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return 0.0
 
-    async def stellar_parse_transaction(
-        self,
-        proxy: str,
-        envelope_xdr
-    ):
+    async def stellar_parse_transaction(self, proxy: str, envelope_xdr):
         try:
             main_address = getattr(getattr(self.bot.coin_list, "XLM"), "MainAddress")
             list_shorts = {}
-            for k, v in self.bot.other_data['coin_list'].items():
+            for k, v in self.bot.other_data["coin_list"].items():
                 list_shorts[k] = {
-                    "header": v['header'],
-                    "contract": v['contract'],
-                    "enable": v['enable'],
-                    "coin_name": k
+                    "header": v["header"],
+                    "contract": v["contract"],
+                    "enable": v["enable"],
+                    "coin_name": k,
                 }
             data = {
                 "envelope_xdr": envelope_xdr,
                 "coin_name_list": self.bot.coin_name_list,
                 "coin_list": list_shorts,
-                "main_address": main_address
+                "main_address": main_address,
             }
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy + "/parse_transaction", json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2367,70 +2639,58 @@ class Utils(commands.Cog):
         token_address: str,
         program_id: str,
         address: str,
-        timeout: int=60
+        timeout: int = 60,
     ):
         try:
             data = {
                 "endpoint": url,
                 "token_address": token_address,
                 "address": address,
-                "program_id": program_id
+                "program_id": program_id,
             }
             async with aiohttp.ClientSession() as cs:
-                async with cs.post(proxy + "/token_account_info", json=data, timeout=timeout) as r:
+                async with cs.post(
+                    proxy + "/token_account_info", json=data, timeout=timeout
+                ) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def solana_reset_balance_cache(
-        self,
-        proxy: str,
-        timeout: int=60
-    ):
+    async def solana_reset_balance_cache(self, proxy: str, timeout: int = 60):
         try:
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(proxy, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def solana_create_address(
-        self,
-        proxy: str,
-        timeout: int=60
-    ):
+    async def solana_create_address(self, proxy: str, timeout: int = 60):
         try:
             async with aiohttp.ClientSession() as cs:
                 async with cs.get(proxy, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def solana_validate_address(
-        self,
-        proxy: str,
-        address: str
-    ):
+    async def solana_validate_address(self, proxy: str, address: str):
         try:
-            data = {
-                "addr": address
-            }
+            data = {"addr": address}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy, json=data) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2438,21 +2698,14 @@ class Utils(commands.Cog):
         return None
 
     async def solana_get_balance(
-        self,
-        proxy: str,
-        url: str,
-        address: str,
-        timeout:int = 60
+        self, proxy: str, url: str, address: str, timeout: int = 60
     ):
         try:
-            data = {
-                "endpoint": url,
-                "address": address
-            }
+            data = {"endpoint": url, "address": address}
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy, json=data, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2469,7 +2722,7 @@ class Utils(commands.Cog):
         dest: str,
         atomic_amount: int,
         fee_payer_key: str,
-        timeout:int = 60
+        timeout: int = 60,
     ):
         try:
             data = {
@@ -2479,12 +2732,12 @@ class Utils(commands.Cog):
                 "program_id": program_id,
                 "dest": dest,
                 "atomic_amount": atomic_amount,
-                "fee_payer_key": fee_payer_key
+                "fee_payer_key": fee_payer_key,
             }
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy, json=data, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
@@ -2498,79 +2751,72 @@ class Utils(commands.Cog):
         from_key: str,
         to_addr: str,
         atomic_amount: int,
-        timeout:int = 60
+        timeout: int = 60,
     ):
         try:
             data = {
                 "endpoint": url,
                 "from_key": from_key,
                 "to_addr": to_addr,
-                "atomic_amount": atomic_amount
+                "atomic_amount": atomic_amount,
             }
             async with aiohttp.ClientSession() as cs:
                 async with cs.post(proxy, json=data, timeout=timeout) as r:
                     res_data = await r.read()
-                    res_data = res_data.decode('utf-8')
+                    res_data = res_data.decode("utf-8")
                     result = json.loads(res_data)
                     return result
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def solana_get_confirmed_tx(self, url: str, txn: str, timeout: int=32):
+    async def solana_get_confirmed_tx(self, url: str, txn: str, timeout: int = 32):
         json_data = {
             "jsonrpc": "2.0",
             "id": 1,
             "method": "getConfirmedTransaction",
-            "params": [
-                txn,
-                "json"
-            ]
+            "params": [txn, "json"],
         }
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     url,
-                    headers={'Content-Type': 'application/json'},
+                    headers={"Content-Type": "application/json"},
                     json=json_data,
-                    timeout=timeout
+                    timeout=timeout,
                 ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         await session.close()
                         decoded_data = json.loads(res_data)
-                        if decoded_data and 'result' in decoded_data:
-                            return decoded_data['result']
+                        if decoded_data and "result" in decoded_data:
+                            return decoded_data["result"]
         except asyncio.TimeoutError:
-            print('TIMEOUT: getConfirmedTransaction {} for {}s'.format(url, timeout))
+            print("TIMEOUT: getConfirmedTransaction {} for {}s".format(url, timeout))
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
 
-    async def solana_get_epoch_info(self, url: str, timeout: int=60):
-        data = {
-            "jsonrpc": "2.0",
-            "method": "getEpochInfo",
-            "id": 1
-        }
+    async def solana_get_epoch_info(self, url: str, timeout: int = 60):
+        data = {"jsonrpc": "2.0", "method": "getEpochInfo", "id": 1}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     url,
-                    headers={'Content-Type': 'application/json'},
+                    headers={"Content-Type": "application/json"},
                     json=data,
-                    timeout=timeout
+                    timeout=timeout,
                 ) as response:
                     if response.status == 200:
                         res_data = await response.read()
-                        res_data = res_data.decode('utf-8')
+                        res_data = res_data.decode("utf-8")
                         await session.close()
                         decoded_data = json.loads(res_data)
-                        if decoded_data and 'result' in decoded_data:
-                            return decoded_data['result']
+                        if decoded_data and "result" in decoded_data:
+                            return decoded_data["result"]
         except asyncio.TimeoutError:
-            print('TIMEOUT: getEpochInfo {} for {}s'.format(url, timeout))
+            print("TIMEOUT: getEpochInfo {} for {}s".format(url, timeout))
         except Exception:
             traceback.print_exc(file=sys.stdout)
         return None
@@ -2580,6 +2826,7 @@ class Utils(commands.Cog):
 
     def cog_unload(self):
         pass
+
 
 def setup(bot):
     bot.add_cog(Utils(bot))

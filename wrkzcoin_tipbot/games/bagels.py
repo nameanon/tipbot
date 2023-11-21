@@ -7,13 +7,14 @@ Tags: short, game, puzzle"""
 
 import random
 
-def getSecretNum(numb: int=3):
+
+def getSecretNum(numb: int = 3):
     """Returns a string made up of numb unique random digits."""
-    numbers = list('0123456789')  # Create a list of digits 0 to 9.
+    numbers = list("0123456789")  # Create a list of digits 0 to 9.
     random.shuffle(numbers)  # Shuffle them into random order.
 
     # Get the first numb digits in the list for the secret number:
-    secretNum = ''
+    secretNum = ""
     for i in range(numb):
         secretNum += str(numbers[i])
     return secretNum
@@ -23,23 +24,22 @@ def getClues(guess, secretNum):
     """Returns a string with the pico, fermi, bagels clues for a guess
     and secret number pair."""
     if guess == secretNum:
-        return 'You got it!'
+        return "You got it!"
 
     clues = []
 
     for i in range(len(guess)):
         if guess[i] == secretNum[i]:
             # A correct digit is in the correct place.
-            clues.append('Fermi')
+            clues.append("Fermi")
         elif guess[i] in secretNum:
             # A correct digit is in the incorrect place.
-            clues.append('Pico')
+            clues.append("Pico")
     if len(clues) == 0:
-        return 'Bagels'  # There are no correct digits at all.
+        return "Bagels"  # There are no correct digits at all.
     else:
         # Sort the clues into alphabetical order so their original order
         # doesn't give information away.
         clues.sort()
         # Make a single string from the list of string clues.
-        return ' '.join(clues)
-
+        return " ".join(clues)
