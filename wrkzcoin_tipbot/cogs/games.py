@@ -529,7 +529,7 @@ class BlackJackButtons(disnake.ui.View):
         elif blackjack_getCardValue(self.dealerHand) >= 17:
             self.game_over = True
         elif blackjack_getCardValue(self.dealerHand) < 17:
-                    # The dealer hits:
+            # The dealer hits:
             try:
                 dealer_msg = await interaction.channel.send(
                     f"{interaction.author.mention} **BLACKJACK**\n```Dealer hits...```"
@@ -565,7 +565,7 @@ class BlackJackButtons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = 'You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max).'
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             dealer_get_display = blackjack_displayHands(
                 self.playerHand, self.dealerHand, True
