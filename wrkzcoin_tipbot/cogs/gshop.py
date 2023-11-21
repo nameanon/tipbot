@@ -898,7 +898,6 @@ class GShop(commands.Cog):
         token: str,
         duration: str,
     ):
-        coin_name = token.upper()
         msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, /gshop loading..."
         await ctx.response.send_message(msg)
 
@@ -918,6 +917,7 @@ class GShop(commands.Cog):
         except Exception:
             traceback.print_exc(file=sys.stdout)
 
+        coin_name = token.upper()
         # Token name check
         if (
             len(self.bot.coin_alias_names) > 0
@@ -993,7 +993,7 @@ class GShop(commands.Cog):
             await ctx.edit_original_message(content=msg)
             return
 
-        stocks = int(stocks)
+        stocks = stocks
         if stocks < self.max_ordered_min or stocks > self.max_ordered_max:
             msg = (
                 f"{EMOJI_RED_NO} {ctx.author.mention}, `stocks` must be between "
@@ -1061,17 +1061,7 @@ class GShop(commands.Cog):
                 return
         except Exception:
             traceback.print_exc(file=sys.stdout)
-        item_id = (
-            role_name.name
-            + "/"
-            + token
-            + "/"
-            + duration
-            + "/"
-            + str(amount)
-            + "-"
-            + coin_name
-        )
+        item_id = f"{role_name.name}/{token}/{duration}/{str(amount)}-{coin_name}"
         item_id = item_id.lower()
         check_exist = await self.check_exist_role_item_id(item_id, str(ctx.guild.id))
         if check_exist is True:
@@ -1119,7 +1109,7 @@ class GShop(commands.Cog):
             0,
             int(time.time()),
             str(ctx.author.id),
-            "{}#{}".format(ctx.author.name, ctx.author.discriminator),
+            f"{ctx.author.name}#{ctx.author.discriminator}",
         )
         if add_listing is True:
             msg = f"{EMOJI_INFORMATION} {ctx.author.mention}, new item listed item_id: `{item_id}`."
