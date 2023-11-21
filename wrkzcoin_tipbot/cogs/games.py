@@ -755,10 +755,7 @@ class Maze_Buttons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = (
-                    f"You do not get any reward because it is a free game! "
-                    "Waiting to refresh your paid plays (24h max)."
-                )
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             for child in self.children:
                 if isinstance(child, disnake.ui.Button):
@@ -832,7 +829,7 @@ class Maze_Buttons(disnake.ui.View):
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                     await logchanbot(traceback.format_exc())
-            # End reward
+                # End reward
 
         await interaction.response.defer()
 
@@ -888,10 +885,7 @@ class Maze_Buttons(disnake.ui.View):
                 f"{coin_name} to tip balance!"
             )
             if self.free_game is True:
-                result = (
-                    f"You do not get any reward because it is a free game! "
-                    "Waiting to refresh your paid plays (24h max)."
-                )
+                result = "You do not get any reward because it is a free game! Waiting to refresh your paid plays (24h max)."
 
             for child in self.children:
                 if isinstance(child, disnake.ui.Button):
@@ -965,7 +959,7 @@ class Maze_Buttons(disnake.ui.View):
                 except Exception:
                     traceback.print_exc(file=sys.stdout)
                     await logchanbot(traceback.format_exc())
-            # End reward
+                # End reward
 
         await interaction.response.defer()
 

@@ -2284,8 +2284,8 @@ class ViewSummary(disnake.ui.View):
         else:
             self.embed.clear_fields()
             self.embed.add_field(
-                name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
-                value="{}".format(", ".join(self.bot.cexswap_coins)),
+                name=f"Coins with CEXSwap: {len(self.bot.cexswap_coins)}",
+                value=f'{", ".join(self.bot.cexswap_coins)}',
                 inline=False,
             )
             list_lp = []
@@ -2294,7 +2294,7 @@ class ViewSummary(disnake.ui.View):
                     getattr(self.bot.coin_list, k), "coin_emoji_discord"
                 )
                 amount_str = num_format_coin(v)
-                list_lp.append("{} {} {}".format(coin_emoji, amount_str, k))
+                list_lp.append(f"{coin_emoji} {amount_str} {k}")
             list_lp_chunks = list(chunks(list_lp, 15))
             for i in list_lp_chunks:
                 self.embed.add_field(
@@ -2333,8 +2333,8 @@ class ViewSummary(disnake.ui.View):
         else:
             self.embed.clear_fields()
             self.embed.add_field(
-                name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
-                value="{}".format(", ".join(self.bot.cexswap_coins)),
+                name=f"Coins with CEXSwap: {len(self.bot.cexswap_coins)}",
+                value=f'{", ".join(self.bot.cexswap_coins)}',
                 inline=False,
             )
             self.embed.add_field(
@@ -2373,8 +2373,8 @@ class ViewSummary(disnake.ui.View):
         else:
             self.embed.clear_fields()
             self.embed.add_field(
-                name="Coins with CEXSwap: {}".format(len(self.bot.cexswap_coins)),
-                value="{}".format(", ".join(self.bot.cexswap_coins)),
+                name=f"Coins with CEXSwap: {len(self.bot.cexswap_coins)}",
+                value=f'{", ".join(self.bot.cexswap_coins)}',
                 inline=False,
             )
             self.embed.add_field(
@@ -2412,7 +2412,7 @@ class DropdownLP(disnake.ui.StringSelect):
         options = [
             disnake.SelectOption(
                 label=each,
-                description="Select {}".format(each),
+                description=f"Select {each}",
                 emoji=getattr(getattr(self.bot.coin_list, each), "coin_emoji_discord"),
             )
             for each in self.list_chunks
@@ -2421,7 +2421,7 @@ class DropdownLP(disnake.ui.StringSelect):
         super().__init__(
             placeholder="Choose coin/token..."
             if self.active_coin is None or self.active_coin not in self.list_chunks
-            else "You selected {}".format(self.active_coin),
+            else f"You selected {self.active_coin}",
             min_values=1,
             max_values=1,
             options=options,
@@ -2439,58 +2439,35 @@ class DropdownLP(disnake.ui.StringSelect):
                 timestamp=datetime.now(),
             )
             embed.set_footer(
-                text="Requested by: {}#{}".format(
-                    self.ctx.author.name, self.ctx.author.discriminator
-                )
+                text=f"Requested by: {self.ctx.author.name}#{self.ctx.author.discriminator}"
             )
             embed.set_thumbnail(url=self.bot.user.display_avatar)
             # get LP by coin
             get_pools = await cexswap_get_pools(self.values[0])
-            showing_num = 8
             if len(get_pools) > 0:
                 embed.add_field(
-                    name="Selected Coin {}".format(self.values[0]),
+                    name=f"Selected Coin {self.values[0]}",
                     value="There {} LP with {}".format(
-                        "is {}".format(len(get_pools))
+                        f"is {len(get_pools)}"
                         if len(get_pools) == 1
-                        else "are {}".format(len(get_pools)),
+                        else f"are {len(get_pools)}",
                         self.values[0],
                     ),
                     inline=False,
                 )
-                for each_p in get_pools[0:showing_num]:
+                showing_num = 8
+                for each_p in get_pools[:showing_num]:
                     rate_1 = num_format_coin(
                         each_p["amount_ticker_2"] / each_p["amount_ticker_1"]
                     )
                     rate_2 = num_format_coin(
                         each_p["amount_ticker_1"] / each_p["amount_ticker_2"]
                     )
-                    rate_coin_12 = "{} {} = {} {}\n{} {} = {} {}".format(
-                        1,
-                        each_p["ticker_1_name"],
-                        rate_1,
-                        each_p["ticker_2_name"],
-                        1,
-                        each_p["ticker_2_name"],
-                        rate_2,
-                        each_p["ticker_1_name"],
-                    )
+                    rate_coin_12 = f'1 {each_p["ticker_1_name"]} = {rate_1} {each_p["ticker_2_name"]}\n1 {each_p["ticker_2_name"]} = {rate_2} {each_p["ticker_1_name"]}'
 
                     embed.add_field(
-                        name="Active LP {}{}".format(
-                            each_p["pairs"],
-                            " {} / {}".format(
-                                self.utils.get_coin_emoji(each_p["ticker_1_name"]),
-                                self.utils.get_coin_emoji(each_p["ticker_2_name"]),
-                            ),
-                        ),
-                        value="{} {}\n{} {}\n{}".format(
-                            num_format_coin(each_p["amount_ticker_1"]),
-                            each_p["ticker_1_name"],
-                            num_format_coin(each_p["amount_ticker_2"]),
-                            each_p["ticker_2_name"],
-                            rate_coin_12,
-                        ),
+                        name=f'Active LP {each_p["pairs"]} {self.utils.get_coin_emoji(each_p["ticker_1_name"])} / {self.utils.get_coin_emoji(each_p["ticker_2_name"])}',
+                        value=f'{num_format_coin(each_p["amount_ticker_1"])} {each_p["ticker_1_name"]}\n{num_format_coin(each_p["amount_ticker_2"])} {each_p["ticker_2_name"]}\n{rate_coin_12}',
                         inline=False,
                     )
                 if len(get_pools) > showing_num:
@@ -2500,12 +2477,10 @@ class DropdownLP(disnake.ui.StringSelect):
                     list_remaining = list(set(list_remaining))
                     if self.values[0] in list_remaining:
                         list_remaining.remove(self.values[0])
-                    if len(list_remaining) > 0:
+                    if list_remaining:
                         embed.add_field(
-                            name="More with {} coin/token(s)".format(
-                                len(list_remaining)
-                            ),
-                            value="{}".format(", ".join(list_remaining)),
+                            name=f"More with {len(list_remaining)} coin/token(s)",
+                            value=f'{", ".join(list_remaining)}',
                             inline=False,
                         )
             # Create the view containing our dropdown
